@@ -177,6 +177,20 @@ window.EventPass = window.EventPass || {};
       if (DOM.btnCloseSettings) {
         DOM.btnCloseSettings.addEventListener("click", () => ns.UI.closeSettingsModal());
       }
+      if (DOM.settingsModal) {
+        DOM.settingsModal.addEventListener("click", (e) => {
+          if (e.target === DOM.settingsModal) {
+            ns.UI.closeSettingsModal();
+          }
+        });
+      }
+      if (DOM.cancelModal) {
+        DOM.cancelModal.addEventListener("click", (e) => {
+          if (e.target === DOM.cancelModal) {
+            ns.UI.closeCancelModal();
+          }
+        });
+      }
       if (DOM.btnTestConnection) {
         DOM.btnTestConnection.addEventListener("click", () => this.handleTestConnection());
       }

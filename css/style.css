@@ -65,6 +65,7 @@ body {
   background-color: var(--bg-body);
   color: var(--text-main);
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   overflow-x: hidden;
@@ -1037,10 +1038,10 @@ body {
    ============================================================================== */
 .modal-backdrop {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
   background: rgba(15, 23, 42, 0.6);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
@@ -1049,6 +1050,7 @@ body {
   align-items: center;
   justify-content: center;
   padding: 16px;
+  box-sizing: border-box;
   animation: fadeIn 0.15s ease-out;
 }
 
@@ -1059,13 +1061,18 @@ body {
 .result-card {
   width: 100%;
   max-width: 440px;
+  max-height: calc(100dvh - 32px);
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   background: #ffffff;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
-  overflow: hidden;
+  overflow-x: hidden;
   box-shadow: var(--shadow-lg);
   transform: scale(0.97);
   transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
 }
 
 .modal-backdrop.show .result-card {
@@ -1192,11 +1199,16 @@ body {
 .settings-modal-card {
   width: 100%;
   max-width: 460px;
+  max-height: calc(100dvh - 32px);
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   background: #ffffff;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   padding: 22px;
   box-shadow: var(--shadow-lg);
+  box-sizing: border-box;
 }
 
 .modal-header {
@@ -1316,6 +1328,10 @@ body {
 .location-modal-card {
   width: 100%;
   max-width: 440px;
+  max-height: calc(100dvh - 32px);
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   background: #ffffff;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
@@ -1325,6 +1341,7 @@ body {
   transform: scale(0.96);
   transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
+  box-sizing: border-box;
 }
 
 .location-backdrop.show .location-modal-card {
@@ -1427,7 +1444,7 @@ body {
    ============================================================================== */
 @media (max-width: 640px) {
   body {
-    padding-bottom: max(16px, env(safe-area-inset-bottom));
+    padding-bottom: max(28px, calc(env(safe-area-inset-bottom) + 16px));
   }
 
   .app-header {
@@ -1474,27 +1491,81 @@ body {
   /* Bottom sheet behavior for normal modals on mobile */
   .modal-backdrop:not(.location-backdrop) {
     align-items: flex-end;
+    justify-content: center;
     padding: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
 
   .result-card,
   .settings-modal-card {
     max-width: 100%;
-    border-radius: 20px 20px 0 0;
+    width: 100%;
+    border-radius: 22px 22px 0 0;
     margin: 0;
-    padding-bottom: max(18px, env(safe-area-inset-bottom));
+    max-height: calc(100dvh - 20px);
+    max-height: calc(100vh - 20px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    box-shadow: 0 -10px 35px rgba(0, 0, 0, 0.25);
+    box-sizing: border-box;
+  }
+
+  .settings-modal-card {
+    padding: 16px 18px max(34px, calc(env(safe-area-inset-bottom) + 26px));
+  }
+
+  .result-body {
+    padding: 16px 18px max(34px, calc(env(safe-area-inset-bottom) + 26px));
+  }
+
+  /* Elegant grab handle pill for bottom sheet */
+  .settings-modal-card::before {
+    content: '';
+    display: block;
+    width: 38px;
+    height: 4px;
+    border-radius: 999px;
+    background: #cbd5e1;
+    margin: -4px auto 14px auto;
+  }
+
+  .modal-header {
+    margin-bottom: 14px;
+  }
+
+  .form-group {
+    margin-bottom: 12px;
+  }
+
+  .modal-btn-row {
+    margin-top: 18px;
+    gap: 10px;
+  }
+
+  .modal-btn-row .btn-primary,
+  .modal-btn-row .ctrl-btn-outline,
+  .modal-btn-row .btn-secondary-danger {
+    min-height: 44px;
+    font-size: 13.5px;
+    padding: 10px 14px;
   }
 
   /* Location modal on mobile stays centered with touch padding */
   .location-backdrop {
     align-items: center;
     padding: 16px;
+    overflow-y: auto;
   }
 
   .location-modal-card {
     max-width: 100%;
+    max-height: calc(100dvh - 24px);
+    max-height: calc(100vh - 24px);
+    overflow-y: auto;
     border-radius: var(--radius-lg);
-    padding: 24px 18px 20px;
+    padding: 24px 18px max(24px, calc(env(safe-area-inset-bottom) + 16px));
   }
 
   .input-action-row {
@@ -1537,5 +1608,13 @@ body {
   .tab-btn svg {
     width: 14px;
     height: 14px;
+  }
+
+  .modal-btn-row {
+    flex-direction: column-reverse;
+  }
+
+  .modal-btn-row button {
+    width: 100%;
   }
 }
