@@ -14,6 +14,10 @@ window.EventPass = window.EventPass || {};
     ? new BarcodeDetector({ formats: ['qr_code'] }) 
     : null;
 
+  // Potato-Phone Performance Throttle (~15 decodes/sec max to save 75% CPU while AR stays 60fps)
+  let lastDecodeTime = 0;
+  const DECODE_INTERVAL_MS = 65;
+
   // AR Tracker State
   const qrTracker = {
     currentCorners: null,
@@ -226,14 +230,18 @@ window.EventPass = window.EventPass || {};
       }
 
       const canvas = ns.DOM.scanCanvas;
-      if (canvas) {
+      const now = Date.now();
+      const shouldDecode = (now - lastDecodeTime) >= DECODE_INTERVAL_MS;
+
+      if (canvas && shouldDecode && !ns.state.isProcessing) {
+        lastDecodeTime = now;
         const ctx = canvas.getContext("2d", { willReadFrequently: true });
 
         let rawText = null;
         let rawCorners = null;
 
-        // Fast path: Native BarcodeDetector (C++ hardware accelerated)
-        if (nativeBarcodeDetector && !ns.state.isProcessing) {
+        // 1. Fast path: Native BarcodeDetector (C++ hardware accelerated on Chromium/Android)
+        if (nativeBarcodeDetector) {
           try {
             const barcodes = await nativeBarcodeDetector.detect(ns.DOM.scanVideo);
             if (barcodes.length > 0 && barcodes[0].rawValue) {
@@ -247,22 +255,31 @@ window.EventPass = window.EventPass || {};
           }
         }
 
-        // Standard fallback: jsQR (Apache 2.0 pure JS)
-        if (!rawText && typeof jsQR !== "undefined" && !ns.state.isProcessing) {
-          canvas.width = vW;
-          canvas.height = vH;
-          ctx.drawImage(ns.DOM.scanVideo, 0, 0, vW, vH);
-          const imageData = ctx.getImageData(0, 0, vW, vH);
-          const code = jsQR(imageData.data, vW, vH, { inversionAttempts: "dontInvert" });
+        // 2. Standard fallback: jsQR with downscaled canvas for potato phone efficiency
+        if (!rawText && typeof jsQR !== "undefined") {
+          // Downscale to max 640px width to reduce pixel processing by 75% on budget CPUs
+          const scale = Math.min(1, 640 / vW);
+          const scanW = Math.round(vW * scale);
+          const scanH = Math.round(vH * scale);
+
+          if (canvas.width !== scanW || canvas.height !== scanH) {
+            canvas.width = scanW;
+            canvas.height = scanH;
+          }
+
+          ctx.drawImage(ns.DOM.scanVideo, 0, 0, scanW, scanH);
+          const imageData = ctx.getImageData(0, 0, scanW, scanH);
+          const code = jsQR(imageData.data, scanW, scanH, { inversionAttempts: "dontInvert" });
 
           if (code && code.data) {
             rawText = code.data;
             if (code.location) {
+              const invScale = 1 / scale;
               rawCorners = [
-                code.location.topLeftCorner,
-                code.location.topRightCorner,
-                code.location.bottomRightCorner,
-                code.location.bottomLeftCorner
+                { x: code.location.topLeftCorner.x * invScale, y: code.location.topLeftCorner.y * invScale },
+                { x: code.location.topRightCorner.x * invScale, y: code.location.topRightCorner.y * invScale },
+                { x: code.location.bottomRightCorner.x * invScale, y: code.location.bottomRightCorner.y * invScale },
+                { x: code.location.bottomLeftCorner.x * invScale, y: code.location.bottomLeftCorner.y * invScale }
               ];
             }
           }
