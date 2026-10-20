@@ -112,6 +112,13 @@ window.EventPass = window.EventPass || {};
     // Last Scanned Item (for direct cancellation from modal)
     lastScanned: null,
 
+    // Instant Offline-Ready Scan & Background Batch Sync
+    instantMode: localStorage.getItem("absen_instant_mode") !== "false", // Default: true (ON)
+    cachedAttendees: JSON.parse(localStorage.getItem("absen_cached_attendees") || "{}"),
+    syncQueue: JSON.parse(localStorage.getItem("absen_sync_queue") || "[]"),
+    isSyncingQueue: false,
+    lastSyncTime: localStorage.getItem("absen_last_sync_time") || null,
+
     // Session Stats
     stats: {
       total: 0,
@@ -180,6 +187,11 @@ window.EventPass = window.EventPass || {};
     btnOpenSettings: document.getElementById("btn-open-settings"),
     settingsModal: document.getElementById("settings-modal"),
     btnCloseSettings: document.getElementById("btn-close-settings"),
+    cfgInstantMode: document.getElementById("cfg-instant-mode"),
+    btnSyncAttendees: document.getElementById("btn-sync-attendees"),
+    cacheStatusText: document.getElementById("cache-status-text"),
+    cloudSyncDot: document.getElementById("cloud-sync-dot"),
+    syncQueueBadge: document.getElementById("sync-queue-badge"),
     inputPanitiaName: document.getElementById("cfg-panitia-name"),
     inputGateName: document.getElementById("cfg-gate-name"),
     inputApiUrl: document.getElementById("cfg-api-url"),

@@ -423,6 +423,28 @@
         });
       }
 
+      if (action === "getAttendees") {
+        const sheetPeserta = getOrCreateSheet(CONFIG.SHEETS.DATA_PESERTA);
+        const pesertaData = sheetPeserta.getDataRange().getValues();
+        const { ticketCol, nameCol, emailCol } = getPesertaFieldIndices(sheetPeserta);
+        const attendees = [];
+        for (let r = 1; r < pesertaData.length; r++) {
+          const tId = String(pesertaData[r][ticketCol] || "").trim();
+          if (!tId) continue;
+          attendees.push({
+            ticketId: tId,
+            name: String(pesertaData[r][nameCol] || "Peserta").trim(),
+            email: String(pesertaData[r][emailCol] || "-").trim()
+          });
+        }
+        return createJsonResponse({
+          success: true,
+          attendees: attendees,
+          count: attendees.length,
+          timestamp: new Date().toISOString()
+        });
+      }
+
       return createJsonResponse({
         success: true,
         status: "ONLINE",
@@ -471,6 +493,28 @@
         return createJsonResponse({
           success: true,
           sessions: getActiveSessions()
+        });
+      }
+
+      // ACTION A2: GET ALL ATTENDEES (For Offline Local Pre-Caching & Instant Mode)
+      if (action === "getAttendees") {
+        const pesertaData = sheetPeserta.getDataRange().getValues();
+        const { ticketCol, nameCol, emailCol } = getPesertaFieldIndices(sheetPeserta);
+        const attendees = [];
+        for (let r = 1; r < pesertaData.length; r++) {
+          const tId = String(pesertaData[r][ticketCol] || "").trim();
+          if (!tId) continue;
+          attendees.push({
+            ticketId: tId,
+            name: String(pesertaData[r][nameCol] || "Peserta").trim(),
+            email: String(pesertaData[r][emailCol] || "-").trim()
+          });
+        }
+        return createJsonResponse({
+          success: true,
+          attendees: attendees,
+          count: attendees.length,
+          timestamp: new Date().toISOString()
         });
       }
 
@@ -612,6 +656,121 @@
               scannedBy: scannedBy,
               gate: gate
             }
+          });
+        }
+
+        // -------------------------------------------------------------
+        // ACTION C2: BATCH CHECK-IN (OFFLINE BACKGROUND SYNC)
+        // Memproses banyak antrean presensi sekaligus dalam 1 kali lock & batch write
+        // -------------------------------------------------------------
+        if (action === "batchCheckIn") {
+          const scans = Array.isArray(payload.scans) ? payload.scans : [];
+          if (scans.length === 0) {
+            return createJsonResponse({ success: true, processedCount: 0, results: [] });
+          }
+
+          const { ticketCol, nameCol, emailCol } = getPesertaFieldIndices(sheetPeserta);
+          const results = [];
+          const logRowsToAppend = [];
+          const nowStr = formatFullDateTime(new Date());
+
+          // Build in-memory index map for O(1) lightning lookup
+          const ticketMap = new Map();
+          for (let r = 1; r < pesertaData.length; r++) {
+            const tId = String(pesertaData[r][ticketCol] || "").toUpperCase().trim();
+            if (tId) {
+              ticketMap.set(tId, {
+                row: r + 1,
+                name: pesertaData[r][nameCol] || "Peserta",
+                email: pesertaData[r][emailCol] || "-"
+              });
+            }
+          }
+
+          // Cache session columns
+          const sessionColMap = new Map();
+
+          for (let i = 0; i < scans.length; i++) {
+            const scan = scans[i];
+            const ticketId = String(scan.ticketId || "").trim();
+            const upperTicketId = ticketId.toUpperCase();
+            const sessionId = (scan.sessionId || "SESI-01").trim();
+            const sessionName = (scan.sessionName || sessionId).trim();
+            const scannedBy = (scan.scannedBy || "Panitia").trim();
+            const gate = (scan.gate || "Pintu Masuk").trim();
+            const mapsUrl = (scan.mapsUrl || "-").trim();
+            const deviceInfo = (scan.deviceInfo || "-").trim();
+            const scanTime = scan.clientTime || nowStr;
+
+            if (!sessionColMap.has(sessionId)) {
+              sessionColMap.set(sessionId, getOrCreateSessionColumn(sheetPeserta, sessionId, sessionName));
+            }
+            const sessionColIdx = sessionColMap.get(sessionId);
+
+            if (!ticketMap.has(upperTicketId)) {
+              // Tiket Tidak Ditemukan / Sudah Dihapus Admin di Sheets!
+              logRowsToAppend.push([scanTime, sessionId, sessionName, ticketId, "-", "TIDAK_VALID", scannedBy, gate, mapsUrl, deviceInfo, "ID tidak terdaftar / dihapus"]);
+              results.push({
+                ticketId: ticketId,
+                status: "NOT_FOUND",
+                message: `Tiket "${ticketId}" tidak terdaftar di spreadsheet!`
+              });
+              continue;
+            }
+
+            const attendeeInfo = ticketMap.get(upperTicketId);
+            const foundRow = attendeeInfo.row;
+            const attendeeName = attendeeInfo.name;
+            const attendeeEmail = attendeeInfo.email;
+
+            const existingStatus = String(sheetPeserta.getRange(foundRow, sessionColIdx).getValue() || "").trim();
+
+            if (existingStatus.startsWith("HADIR")) {
+              logRowsToAppend.push([scanTime, sessionId, sessionName, ticketId, attendeeName, "DUPLIKAT", scannedBy, gate, mapsUrl, deviceInfo, `Sudah absen sebelumnya: ${existingStatus}`]);
+              results.push({
+                ticketId: ticketId,
+                status: "ALREADY_CHECKED_IN",
+                message: `Tiket sudah terdata hadir di sesi ${sessionName}`,
+                attendee: {
+                  ticketId: ticketId,
+                  name: attendeeName,
+                  email: attendeeEmail,
+                  sessionName: sessionName,
+                  firstCheckInTime: existingStatus.replace("HADIR - ", "").trim() || "Sebelumnya",
+                  scannedBy: scannedBy
+                }
+              });
+            } else {
+              const statusValue = `HADIR - ${scanTime}`;
+              sheetPeserta.getRange(foundRow, sessionColIdx).setValue(statusValue);
+              logRowsToAppend.push([scanTime, sessionId, sessionName, ticketId, attendeeName, "BERHASIL", scannedBy, gate, mapsUrl, deviceInfo, "Presensi tercatat"]);
+              results.push({
+                ticketId: ticketId,
+                status: "CHECKED_IN",
+                message: `Presensi berhasil dicatat untuk ${sessionName}!`,
+                attendee: {
+                  ticketId: ticketId,
+                  name: attendeeName,
+                  email: attendeeEmail,
+                  sessionName: sessionName,
+                  checkInTime: scanTime,
+                  scannedBy: scannedBy,
+                  gate: gate
+                }
+              });
+            }
+          }
+
+          // Append all log rows in a single batch
+          if (logRowsToAppend.length > 0) {
+            const startRow = sheetLog.getLastRow() + 1;
+            sheetLog.getRange(startRow, 1, logRowsToAppend.length, logRowsToAppend[0].length).setValues(logRowsToAppend);
+          }
+
+          return createJsonResponse({
+            success: true,
+            processedCount: scans.length,
+            results: results
           });
         }
 

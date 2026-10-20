@@ -30,6 +30,11 @@ window.EventPass = window.EventPass || {};
       this.bindEventListeners();
       ns.Scanner.startScanning();
 
+      // Inisialisasi Offline Queue & Background Sync
+      if (ns.Sync) {
+        ns.Sync.init();
+      }
+
       // Check if location is allowed, otherwise display full-screen blocking overlay
       this.checkLocationState();
 
@@ -215,6 +220,18 @@ window.EventPass = window.EventPass || {};
       }
       if (DOM.btnCopyShareLink) {
         DOM.btnCopyShareLink.addEventListener("click", () => this.handleCopyShareLink());
+      }
+      if (DOM.cfgInstantMode) {
+        DOM.cfgInstantMode.addEventListener("change", () => {
+          ns.state.instantMode = DOM.cfgInstantMode.checked;
+          localStorage.setItem("absen_instant_mode", ns.state.instantMode);
+          ns.UI.showToast(ns.state.instantMode ? "⚡ Mode Scan Instan (Sat-Set 0.05s) AKTIF." : "🌐 Mode Direct Server AKTIF (Setiap scan nunggu server).");
+        });
+      }
+      if (DOM.btnSyncAttendees) {
+        DOM.btnSyncAttendees.addEventListener("click", () => {
+          if (ns.Sync) ns.Sync.syncAttendees(true);
+        });
       }
 
       // 9. History Clear
@@ -486,19 +503,161 @@ window.EventPass = window.EventPass || {};
     },
 
     /**
-     * Process Check-in via API with resilient UI states
+     * Process Check-in via API with resilient UI states & Instant Scan Mode
      */
     async processCheckIn(ticketId, sourceButton = null) {
       if (ns.state.isProcessing) return;
-      ns.state.isProcessing = true;
 
+      const rawTicketId = String(ticketId || "").trim();
+      if (!rawTicketId) return;
+
+      const upperTicketId = rawTicketId.toUpperCase();
+      const currentSessionId = ns.state.currentSessionId || "SESI-01";
+      const currentSessionName = ns.state.currentSessionName || "Sesi Utama";
+      const currentOperator = [ns.state.panitiaName, ns.state.gateName].filter(Boolean).join(" • ") || "-";
+
+      // =========================================================================
+      // ⚡ INSTANT SCAN MODE (SAT-SET 0.05s / OFFLINE-READY LOCAL LOOKUP)
+      // =========================================================================
+      if (ns.state.instantMode && ns.Sync) {
+        ns.sounds.init();
+
+        // 1. Cek duplikasi di sesi ini (baik di cache sesi, antrean pending, maupun riwayat sesi ini)
+        const cachedAttendee = ns.state.cachedAttendees ? ns.state.cachedAttendees[upperTicketId] : null;
+        const alreadyInCacheSession = cachedAttendee && cachedAttendee.checkedInSessions && cachedAttendee.checkedInSessions[currentSessionId];
+        const alreadyInQueue = ns.state.syncQueue && ns.state.syncQueue.some(
+          item => String(item.ticketId || "").toUpperCase() === upperTicketId && item.sessionId === currentSessionId
+        );
+        const alreadyInHistory = ns.state.history && ns.state.history.some(
+          h => String(h.ticketId || "").toUpperCase() === upperTicketId && h.sessionId === currentSessionId && (h.status === "SUCCESS" || h.status === "CHECKED_IN")
+        );
+
+        if (alreadyInCacheSession || alreadyInQueue || alreadyInHistory) {
+          ns.state.isProcessing = true;
+          ns.sounds.playWarning();
+          if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+
+          ns.state.stats.total++;
+          ns.state.stats.duplicate++;
+          if (ns.DOM.statTotal) ns.DOM.statTotal.textContent = ns.state.stats.total;
+
+          const cached = cachedAttendee || {};
+          const attendeeName = cached.name || "Peserta";
+          const checkTime = (alreadyInCacheSession && typeof alreadyInCacheSession === "string") ? alreadyInCacheSession : new Date().toLocaleTimeString();
+
+          ns.state.lastScanned = {
+            ticketId: rawTicketId,
+            sessionId: currentSessionId,
+            sessionName: currentSessionName,
+            attendeeName: attendeeName
+          };
+
+          ns.UI.showResultModal({
+            type: "warning",
+            title: "SUDAH ABSEN DI SESI INI",
+            subtitle: `Sesi: ${currentSessionName} (Pemeriksaan Instan)`,
+            name: attendeeName,
+            ticketId: rawTicketId,
+            email: cached.email || "-",
+            time: checkTime,
+            officer: currentOperator,
+            allowCancel: true
+          });
+
+          ns.UI.recordHistory({
+            ticketId: rawTicketId,
+            sessionId: currentSessionId,
+            sessionName: currentSessionName,
+            name: attendeeName,
+            status: "DUPLICATE",
+            time: checkTime
+          });
+
+          return;
+        }
+
+        // 2. Cek apakah tiket terdaftar di cache lokal
+        if (cachedAttendee) {
+          // 🎉 TIKET DITEMUKAN DI CACHE: Langsung Lolos (0.05 Detik!)
+          ns.state.isProcessing = true;
+          ns.sounds.playSuccess();
+          if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+
+          ns.state.stats.total++;
+          ns.state.stats.success++;
+          if (ns.DOM.statTotal) ns.DOM.statTotal.textContent = ns.state.stats.total;
+
+          const checkTime = new Date().toLocaleTimeString();
+          const attendeeName = cachedAttendee.name || "Peserta";
+
+          // Simpan status hadir sesi ini di memori agar anti double-scan selamanya
+          if (!cachedAttendee.checkedInSessions) cachedAttendee.checkedInSessions = {};
+          cachedAttendee.checkedInSessions[currentSessionId] = checkTime;
+          try {
+            localStorage.setItem("absen_cached_attendees", JSON.stringify(ns.state.cachedAttendees));
+          } catch (e) {}
+
+          ns.state.lastScanned = {
+            ticketId: rawTicketId,
+            sessionId: currentSessionId,
+            sessionName: currentSessionName,
+            attendeeName: attendeeName
+          };
+
+          // Tampilkan modal hasil seketika tanpa nunggu server
+          ns.UI.showResultModal({
+            type: "success",
+            title: "CHECK-IN BERHASIL ⚡",
+            subtitle: `${currentSessionName} • Hadir (Mode Instan)`,
+            name: attendeeName,
+            ticketId: rawTicketId,
+            email: cachedAttendee.email || "-",
+            time: checkTime,
+            officer: currentOperator,
+            allowCancel: true
+          });
+
+          // Catat ke riwayat lokal
+          ns.UI.recordHistory({
+            ticketId: rawTicketId,
+            sessionId: currentSessionId,
+            sessionName: currentSessionName,
+            name: attendeeName,
+            status: "SUCCESS",
+            time: checkTime
+          });
+
+          // Masukkan ke background sync queue untuk di-batch ke Google Apps Script
+          ns.Sync.enqueue({
+            ticketId: rawTicketId,
+            sessionId: currentSessionId,
+            sessionName: currentSessionName,
+            scannedBy: ns.state.panitiaName || "Panitia",
+            gate: ns.state.gateName || "Pintu Masuk",
+            mapsUrl: ns.state.location ? ns.state.location.mapsUrl : "-",
+            deviceInfo: [navigator.platform, navigator.userAgent ? navigator.userAgent.substring(0, 50) : ""].filter(Boolean).join(" - "),
+            clientTime: checkTime
+          });
+
+          return;
+        }
+
+        // 3. JIKA TIKET BELUM ADA DI CACHE LOKAL:
+        // Peserta mungkin baru daftar OTS / Google Form. Lakukan Smart Fallback Live Check ke server.
+        console.log(`[Smart Fallback] Tiket ${rawTicketId} belum ada di cache lokal, cek langsung ke server...`);
+      }
+
+      // =========================================================================
+      // STANDARD / FALLBACK SERVER CHECK
+      // =========================================================================
+      ns.state.isProcessing = true;
       ns.sounds.init();
 
       // UI Loading Feedback
       if (ns.DOM.globalLoadingBar) ns.DOM.globalLoadingBar.classList.add("active");
       if (ns.DOM.scannerLoadingHud) {
         ns.DOM.scannerLoadingHud.classList.add("show");
-        if (ns.DOM.hudTicketId) ns.DOM.hudTicketId.textContent = `${ticketId} • ${ns.state.currentSessionName}`;
+        if (ns.DOM.hudTicketId) ns.DOM.hudTicketId.textContent = `${rawTicketId} • ${currentSessionName}`;
       }
       if (ns.DOM.btnManualCheckin) {
         ns.DOM.btnManualCheckin.disabled = true;
@@ -514,14 +673,14 @@ window.EventPass = window.EventPass || {};
       }
 
       if (ns.DOM.verifyingBox) ns.DOM.verifyingBox.style.display = "inline-flex";
-      if (ns.DOM.verifyingText) ns.DOM.verifyingText.textContent = `Memverifikasi ${ticketId}...`;
-      ns.UI.updateScannerStatus("Memproses...", `Mengecek sesi: ${ns.state.currentSessionName}`);
+      if (ns.DOM.verifyingText) ns.DOM.verifyingText.textContent = `Memverifikasi ${rawTicketId}...`;
+      ns.UI.updateScannerStatus("Memproses...", `Mengecek sesi: ${currentSessionName}`);
 
       if (navigator.vibrate) navigator.vibrate(60);
 
       try {
-        const result = await ns.API.checkIn(ticketId);
-        this.handleCheckInResponse(ticketId, result);
+        const result = await ns.API.checkIn(rawTicketId);
+        this.handleCheckInResponse(rawTicketId, result);
       } catch (err) {
         console.error("Check-in error:", err);
         ns.sounds.playError();
@@ -543,17 +702,17 @@ window.EventPass = window.EventPass || {};
             ? "URL Web App mungkin salah, kadaluarsa (404), atau belum diatur ke 'Anyone'."
             : (err.message || "Gagal terhubung ke Google Apps Script."),
           name: "-",
-          ticketId: ticketId,
+          ticketId: rawTicketId,
           email: "-",
           time: new Date().toLocaleTimeString(),
-          officer: [ns.state.panitiaName, ns.state.gateName].filter(Boolean).join(" • ") || "-",
+          officer: currentOperator,
           allowCancel: false,
           isConfigError: isConnErr
         });
         ns.UI.recordHistory({
-          ticketId: ticketId,
-          sessionId: ns.state.currentSessionId,
-          sessionName: ns.state.currentSessionName,
+          ticketId: rawTicketId,
+          sessionId: currentSessionId,
+          sessionName: currentSessionName,
           name: isConnErr ? "Koneksi Gagal (Cek URL API)" : "Koneksi Gagal",
           status: "ERROR",
           time: new Date().toLocaleTimeString()
@@ -628,6 +787,18 @@ window.EventPass = window.EventPass || {};
           time: checkTime
         });
 
+        // Update cache lokal agar scan selanjutnya langsung instant 0.05s
+        if (!ns.state.cachedAttendees) ns.state.cachedAttendees = {};
+        ns.state.cachedAttendees[String(attendee.ticketId || scannedTicketId).toUpperCase().trim()] = {
+          ticketId: attendee.ticketId || scannedTicketId,
+          name: attendeeName,
+          email: attendeeEmail
+        };
+        try {
+          localStorage.setItem("absen_cached_attendees", JSON.stringify(ns.state.cachedAttendees));
+        } catch (e) {}
+        if (ns.Sync) ns.Sync.updateCacheCountUI();
+
       } else if (res.status === "ALREADY_CHECKED_IN") {
         ns.sounds.playWarning();
         if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
@@ -656,6 +827,18 @@ window.EventPass = window.EventPass || {};
           status: "DUPLICATE",
           time: checkTime
         });
+
+        // Simpan info peserta ke cache lokal
+        if (!ns.state.cachedAttendees) ns.state.cachedAttendees = {};
+        ns.state.cachedAttendees[String(attendee.ticketId || scannedTicketId).toUpperCase().trim()] = {
+          ticketId: attendee.ticketId || scannedTicketId,
+          name: attendeeName,
+          email: attendeeEmail
+        };
+        try {
+          localStorage.setItem("absen_cached_attendees", JSON.stringify(ns.state.cachedAttendees));
+        } catch (e) {}
+        if (ns.Sync) ns.Sync.updateCacheCountUI();
 
       } else {
         ns.sounds.playError();
@@ -873,6 +1056,18 @@ window.EventPass = window.EventPass || {};
             status: "SUCCESS",
             time: attendee.checkInTime || new Date().toLocaleTimeString()
           });
+
+          // Update cache lokal dengan tiket OTS baru
+          if (!ns.state.cachedAttendees) ns.state.cachedAttendees = {};
+          ns.state.cachedAttendees[String(attendee.ticketId).toUpperCase().trim()] = {
+            ticketId: attendee.ticketId,
+            name: name,
+            email: attendee.email || "OTS"
+          };
+          try {
+            localStorage.setItem("absen_cached_attendees", JSON.stringify(ns.state.cachedAttendees));
+          } catch (e) {}
+          if (ns.Sync) ns.Sync.updateCacheCountUI();
 
         } else {
           ns.sounds.playError();

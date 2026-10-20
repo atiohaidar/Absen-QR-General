@@ -163,6 +163,13 @@ window.EventPass = window.EventPass || {};
       ns.DOM.inputGateName.value = ns.state.gateName || "";
       ns.DOM.inputApiUrl.value = ns.state.apiUrl || "";
 
+      if (ns.DOM.cfgInstantMode) {
+        ns.DOM.cfgInstantMode.checked = ns.state.instantMode;
+      }
+      if (ns.Sync) {
+        ns.Sync.updateCacheCountUI();
+      }
+
       if (ns.DOM.previewDevice) {
         ns.DOM.previewDevice.textContent = ns.state.deviceInfo || "Browser";
       }

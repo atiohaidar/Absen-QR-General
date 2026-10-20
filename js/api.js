@@ -124,6 +124,34 @@ window.EventPass = window.EventPass || {};
     },
 
     /**
+     * Fetch all registered attendees for instant offline caching
+     */
+    async fetchAttendees() {
+      const apiUrl = ns.state.apiUrl;
+      if (!apiUrl) return null;
+
+      try {
+        const response = await fetchWithTimeout(`${apiUrl}?action=getAttendees`, {}, 9000);
+        return await parseResponseJson(response);
+      } catch (getErr) {
+        return await postJsonWithRetry({ action: 'getAttendees' }, 0);
+      }
+    },
+
+    /**
+     * Send batch of queued check-in scans to Google Apps Script in background
+     */
+    async batchCheckIn(scans) {
+      if (!Array.isArray(scans) || scans.length === 0) {
+        return { success: true, processedCount: 0, results: [] };
+      }
+      return await postJsonWithRetry({
+        action: 'batchCheckIn',
+        scans: scans
+      }, 1);
+    },
+
+    /**
      * Verify ticket check-in for active session
      */
     async checkIn(ticketId) {
