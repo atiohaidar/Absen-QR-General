@@ -96,8 +96,8 @@ window.EventPass = window.EventPass || {};
     isTorchOn: false,
     
     // Settings (Persisted in localStorage with optional default fallback)
-    panitiaName: localStorage.getItem("absen_panitia_name") || "Panitia Gate 1",
-    gateName: localStorage.getItem("absen_gate_name") || "Pintu Masuk Utama",
+    panitiaName: localStorage.getItem("absen_panitia_name") || "",
+    gateName: localStorage.getItem("absen_gate_name") || "",
     apiUrl: localStorage.getItem("absen_api_url") || DEFAULT_APP_SCRIPT_URL || "",
 
     // Sessions Management

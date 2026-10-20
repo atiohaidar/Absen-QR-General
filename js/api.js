@@ -135,8 +135,8 @@ window.EventPass = window.EventPass || {};
         ticketId: ticketId.trim(),
         sessionId: ns.state.currentSessionId,
         sessionName: ns.state.currentSessionName,
-        scannedBy: ns.state.panitiaName,
-        gate: ns.state.gateName,
+        scannedBy: ns.state.panitiaName || "Petugas",
+        gate: ns.state.gateName || "Pintu Masuk",
         mapsUrl: mapsUrl,
         deviceInfo: deviceInfo
       };
@@ -194,8 +194,8 @@ window.EventPass = window.EventPass || {};
         notes: notes.trim(),
         sessionId: ns.state.currentSessionId,
         sessionName: ns.state.currentSessionName,
-        scannedBy: ns.state.panitiaName,
-        gate: ns.state.gateName,
+        scannedBy: ns.state.panitiaName || "Petugas",
+        gate: ns.state.gateName || "Pintu Masuk",
         mapsUrl: mapsUrl,
         deviceInfo: deviceInfo
       };

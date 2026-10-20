@@ -546,7 +546,7 @@ window.EventPass = window.EventPass || {};
           ticketId: ticketId,
           email: "-",
           time: new Date().toLocaleTimeString(),
-          officer: ns.state.panitiaName,
+          officer: [ns.state.panitiaName, ns.state.gateName].filter(Boolean).join(" • ") || "-",
           allowCancel: false,
           isConfigError: isConnErr
         });
@@ -589,7 +589,8 @@ window.EventPass = window.EventPass || {};
       const attendeeName = attendee.name || "Peserta";
       const attendeeEmail = attendee.email || "-";
       const checkTime = attendee.checkInTime || attendee.firstCheckInTime || new Date().toLocaleTimeString();
-      const officer = attendee.scannedBy || ns.state.panitiaName;
+      const currentOperator = [ns.state.panitiaName, ns.state.gateName].filter(Boolean).join(" • ") || "-";
+      const officer = attendee.scannedBy || currentOperator;
 
       ns.state.lastScanned = {
         ticketId: scannedTicketId,
@@ -672,7 +673,7 @@ window.EventPass = window.EventPass || {};
           ticketId: scannedTicketId,
           email: "-",
           time: new Date().toLocaleTimeString(),
-          officer: ns.state.panitiaName,
+          officer: currentOperator,
           allowCancel: false
         });
 
@@ -860,7 +861,7 @@ window.EventPass = window.EventPass || {};
             ticketId: attendee.ticketId,
             email: attendee.email || "OTS (Walk-in)",
             time: attendee.checkInTime || new Date().toLocaleTimeString(),
-            officer: ns.state.panitiaName,
+            officer: [ns.state.panitiaName, ns.state.gateName].filter(Boolean).join(" • ") || "-",
             allowCancel: true
           });
 
@@ -971,8 +972,8 @@ window.EventPass = window.EventPass || {};
      * Save settings to localStorage
      */
     handleSaveSettings() {
-      const pName = ns.DOM.inputPanitiaName.value.trim() || "Panitia";
-      const gName = ns.DOM.inputGateName.value.trim() || "Pintu Masuk";
+      const pName = ns.DOM.inputPanitiaName.value.trim();
+      const gName = ns.DOM.inputGateName.value.trim();
       const aUrl = ns.DOM.inputApiUrl.value.trim();
 
       ns.state.panitiaName = pName;

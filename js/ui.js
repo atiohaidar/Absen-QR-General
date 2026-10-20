@@ -26,7 +26,13 @@ window.EventPass = window.EventPass || {};
 
     renderOperatorHeader() {
       if (ns.DOM.operatorBadge) {
-        ns.DOM.operatorBadge.textContent = `${ns.state.panitiaName} • ${ns.state.gateName}`;
+        if (!ns.state.panitiaName && !ns.state.gateName) {
+          ns.DOM.operatorBadge.textContent = "Atur Petugas & Gate";
+        } else if (ns.state.panitiaName && ns.state.gateName) {
+          ns.DOM.operatorBadge.textContent = `${ns.state.panitiaName} • ${ns.state.gateName}`;
+        } else {
+          ns.DOM.operatorBadge.textContent = ns.state.panitiaName || ns.state.gateName;
+        }
       }
       if (ns.DOM.statTotal) {
         ns.DOM.statTotal.textContent = ns.state.stats.total;
@@ -153,9 +159,9 @@ window.EventPass = window.EventPass || {};
     },
 
     openSettingsModal() {
-      ns.DOM.inputPanitiaName.value = ns.state.panitiaName;
-      ns.DOM.inputGateName.value = ns.state.gateName;
-      ns.DOM.inputApiUrl.value = ns.state.apiUrl;
+      ns.DOM.inputPanitiaName.value = ns.state.panitiaName || "";
+      ns.DOM.inputGateName.value = ns.state.gateName || "";
+      ns.DOM.inputApiUrl.value = ns.state.apiUrl || "";
 
       if (ns.DOM.previewDevice) {
         ns.DOM.previewDevice.textContent = ns.state.deviceInfo || "Browser";
