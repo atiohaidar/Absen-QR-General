@@ -120,9 +120,21 @@ window.EventPass = window.EventPass || {};
         });
       }
 
-      // 4. Modal Buttons (Next Scan, Cancel Attendance)
+      // 4. Modal Buttons (Next Scan, Fix URL, Cancel Attendance)
       if (DOM.btnNextScan) {
         DOM.btnNextScan.addEventListener("click", () => ns.UI.closeResultModal());
+      }
+      if (DOM.btnFixConfigUrl) {
+        DOM.btnFixConfigUrl.addEventListener("click", () => {
+          ns.UI.closeResultModal();
+          ns.UI.openSettingsModal();
+          setTimeout(() => {
+            if (DOM.inputApiUrl) {
+              DOM.inputApiUrl.focus();
+              DOM.inputApiUrl.select();
+            }
+          }, 250);
+        });
       }
       if (DOM.btnCancelCheckin) {
         DOM.btnCancelCheckin.addEventListener("click", () => {
@@ -514,22 +526,36 @@ window.EventPass = window.EventPass || {};
       } catch (err) {
         console.error("Check-in error:", err);
         ns.sounds.playError();
+
+        const isConnErr = err.isConnectionError || 
+                          err.isFetchError || 
+                          err.isConfigError ||
+                          (err.message && (
+                            err.message.toLowerCase().includes("failed to fetch") || 
+                            err.message.includes("CORS") || 
+                            err.message.includes("HTML") || 
+                            err.message.includes("404")
+                          ));
+
         ns.UI.showResultModal({
           type: "error",
-          title: "Koneksi Gagal",
-          subtitle: err.message || "Gagal terhubung ke Google Apps Script.",
+          title: isConnErr ? "Koneksi Apps Script Gagal" : "Koneksi Gagal",
+          subtitle: isConnErr 
+            ? "URL Web App mungkin salah, kadaluarsa (404), atau belum diatur ke 'Anyone'."
+            : (err.message || "Gagal terhubung ke Google Apps Script."),
           name: "-",
           ticketId: ticketId,
           email: "-",
           time: new Date().toLocaleTimeString(),
           officer: ns.state.panitiaName,
-          allowCancel: false
+          allowCancel: false,
+          isConfigError: isConnErr
         });
         ns.UI.recordHistory({
           ticketId: ticketId,
           sessionId: ns.state.currentSessionId,
           sessionName: ns.state.currentSessionName,
-          name: "Koneksi Gagal",
+          name: isConnErr ? "Koneksi Gagal (Cek URL API)" : "Koneksi Gagal",
           status: "ERROR",
           time: new Date().toLocaleTimeString()
         });
@@ -699,7 +725,14 @@ window.EventPass = window.EventPass || {};
         }
       } catch (err) {
         console.error("Cancel check-in error:", err);
-        ns.UI.showToast(`Gagal membatalkan: ${err.message}`);
+        const isConnErr = err.isConnectionError || 
+                          err.isFetchError || 
+                          (err.message && (err.message.toLowerCase().includes("failed to fetch") || err.message.includes("CORS")));
+        if (isConnErr) {
+          ns.UI.showToast("Gagal membatalkan (404/CORS). Periksa URL Apps Script di Pengaturan.");
+        } else {
+          ns.UI.showToast(`Gagal membatalkan: ${err.message}`);
+        }
       } finally {
         if (ns.DOM.globalLoadingBar) ns.DOM.globalLoadingBar.classList.remove("active");
         if (ns.DOM.btnCancelCheckin) {
@@ -738,7 +771,31 @@ window.EventPass = window.EventPass || {};
         const data = await ns.API.searchAttendees(query);
         ns.UI.renderSearchResults(data.results, query);
       } catch (err) {
-        ns.DOM.searchResultsList.innerHTML = `<div style="text-align: center; color: var(--status-error); padding: 20px;">Gagal mengambil data pencarian: ${err.message}</div>`;
+        console.error("Search error:", err);
+        const isConnErr = err.isConnectionError || 
+                          err.isFetchError || 
+                          err.isConfigError ||
+                          (err.message && (
+                            err.message.toLowerCase().includes("failed to fetch") || 
+                            err.message.includes("CORS") || 
+                            err.message.includes("404")
+                          ));
+
+        if (isConnErr) {
+          ns.DOM.searchResultsList.innerHTML = `
+            <div style="text-align: center; color: var(--status-error); padding: 22px 16px; background: rgba(220, 38, 38, 0.04); border-radius: var(--radius-md); border: 1px dashed rgba(220, 38, 38, 0.25); margin-top: 10px;">
+              <p style="font-weight: 700; font-size: 14px; margin-bottom: 6px;">Koneksi Google Apps Script Gagal (404/CORS)</p>
+              <p style="font-size: 12px; color: var(--text-muted); line-height: 1.45; margin-bottom: 14px;">
+                URL Web App mungkin salah, kadaluarsa, atau opsi akses belum disetel ke <strong>Anyone</strong>.
+              </p>
+              <button type="button" class="btn-primary" onclick="EventPass.UI.openSettingsModal()" style="margin: 0 auto; width: auto; padding: 8px 18px; font-size: 12px; border-radius: var(--radius-md); display: inline-flex; align-items: center; gap: 6px;">
+                ⚙️ Buka Pengaturan URL
+              </button>
+            </div>
+          `;
+        } else {
+          ns.DOM.searchResultsList.innerHTML = `<div style="text-align: center; color: var(--status-error); padding: 20px;">Gagal mengambil data pencarian: ${err.message}</div>`;
+        }
       } finally {
         if (ns.DOM.globalLoadingBar) ns.DOM.globalLoadingBar.classList.remove("active");
         if (ns.DOM.btnSearchQuery) {
@@ -824,7 +881,14 @@ window.EventPass = window.EventPass || {};
       } catch (err) {
         console.error("OTS error:", err);
         ns.sounds.playError();
-        ns.UI.showToast(`Gagal mendaftarkan: ${err.message}`);
+        const isConnErr = err.isConnectionError || 
+                          err.isFetchError || 
+                          (err.message && (err.message.toLowerCase().includes("failed to fetch") || err.message.includes("CORS")));
+        if (isConnErr) {
+          ns.UI.showToast("Gagal mendaftar (404/CORS). URL Apps Script mungkin salah atau belum Anyone.");
+        } else {
+          ns.UI.showToast(`Gagal mendaftarkan: ${err.message}`);
+        }
       } finally {
         if (ns.DOM.globalLoadingBar) ns.DOM.globalLoadingBar.classList.remove("active");
         if (ns.DOM.btnSubmitOts) {
@@ -863,7 +927,16 @@ window.EventPass = window.EventPass || {};
         }
       } catch (err) {
         console.warn("Gagal mengambil sesi:", err);
-        if (isManual) ns.UI.showToast(`Gagal terhubung: ${err.message}`);
+        const isConnErr = err.isConnectionError || 
+                          err.isFetchError || 
+                          (err.message && (err.message.toLowerCase().includes("failed to fetch") || err.message.includes("CORS")));
+        if (isManual) {
+          if (isConnErr) {
+            ns.UI.showToast("Gagal terhubung (404/CORS). Periksa URL Apps Script di Pengaturan.");
+          } else {
+            ns.UI.showToast(`Gagal terhubung: ${err.message}`);
+          }
+        }
       } finally {
         if (ns.DOM.btnRefreshSessions) ns.DOM.btnRefreshSessions.classList.remove("spinning");
         if (ns.DOM.globalLoadingBar) ns.DOM.globalLoadingBar.classList.remove("active");

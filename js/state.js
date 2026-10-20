@@ -164,6 +164,9 @@ window.EventPass = window.EventPass || {};
     detailTime: document.getElementById("detail-time"),
     detailOfficer: document.getElementById("detail-officer"),
     countdownBar: document.getElementById("countdown-bar"),
+    countdownBarContainer: document.getElementById("countdown-bar-container"),
+    resultConfigGuide: document.getElementById("result-config-guide"),
+    btnFixConfigUrl: document.getElementById("btn-fix-config-url"),
     btnNextScan: document.getElementById("btn-next-scan"),
     btnCancelCheckin: document.getElementById("btn-cancel-checkin"),
 

@@ -135,27 +135,39 @@ window.EventPass = window.EventPass || {};
         ns.DOM.btnCancelCheckin.style.display = data.allowCancel ? "flex" : "none";
       }
 
-      // Reset countdown progress bar
-      if (ns.DOM.countdownBar) {
-        ns.DOM.countdownBar.style.transition = "none";
-        ns.DOM.countdownBar.style.transform = "scaleX(1)";
-        setTimeout(() => {
-          ns.DOM.countdownBar.style.transition = "transform 4s linear";
-          ns.DOM.countdownBar.style.transform = "scaleX(0)";
-        }, 50);
+      // Handle Apps Script / Connection Error UI
+      if (data.isConfigError) {
+        if (ns.DOM.resultConfigGuide) ns.DOM.resultConfigGuide.style.display = "block";
+        if (ns.DOM.countdownBarContainer) ns.DOM.countdownBarContainer.style.display = "none";
+        clearTimeout(ns.state.autoResumeTimer); // JANGAN auto-dismiss agar panitia bisa baca & klik perbaiki
+      } else {
+        if (ns.DOM.resultConfigGuide) ns.DOM.resultConfigGuide.style.display = "none";
+        if (ns.DOM.countdownBarContainer) ns.DOM.countdownBarContainer.style.display = "block";
+
+        // Reset countdown progress bar
+        if (ns.DOM.countdownBar) {
+          ns.DOM.countdownBar.style.transition = "none";
+          ns.DOM.countdownBar.style.transform = "scaleX(1)";
+          setTimeout(() => {
+            ns.DOM.countdownBar.style.transition = "transform 4s linear";
+            ns.DOM.countdownBar.style.transform = "scaleX(0)";
+          }, 50);
+        }
+
+        // Auto-resume after 4.2 seconds
+        clearTimeout(ns.state.autoResumeTimer);
+        ns.state.autoResumeTimer = setTimeout(() => {
+          ns.UI.closeResultModal();
+        }, 4200);
       }
 
       ns.DOM.resultModal.classList.add("show");
-
-      // Auto-resume after 4.2 seconds
-      clearTimeout(ns.state.autoResumeTimer);
-      ns.state.autoResumeTimer = setTimeout(() => {
-        ns.UI.closeResultModal();
-      }, 4200);
     },
 
     closeResultModal() {
       clearTimeout(ns.state.autoResumeTimer);
+      if (ns.DOM.resultConfigGuide) ns.DOM.resultConfigGuide.style.display = "none";
+      if (ns.DOM.countdownBarContainer) ns.DOM.countdownBarContainer.style.display = "block";
       ns.DOM.resultModal.classList.remove("show");
       ns.state.isProcessing = false;
       ns.Scanner.resetReticle();

@@ -26,7 +26,15 @@ window.EventPass = window.EventPass || {};
       return response;
     } catch (err) {
       if (err.name === 'AbortError') {
-        throw new Error('Koneksi timeout (jaringan lambat atau sinyal lemah).');
+        const timeoutErr = new Error('Koneksi timeout (jaringan lambat atau sinyal lemah).');
+        timeoutErr.isConnectionError = true;
+        throw timeoutErr;
+      }
+      if (err instanceof TypeError || (err.message && err.message.toLowerCase().includes('failed to fetch'))) {
+        const fetchErr = new Error('Gagal terhubung ke Google Apps Script (Failed to fetch / 404 / CORS). URL mungkin salah atau deployment belum diatur ke Anyone.');
+        fetchErr.isConnectionError = true;
+        fetchErr.isFetchError = true;
+        throw fetchErr;
       }
       throw err;
     } finally {
@@ -43,7 +51,10 @@ window.EventPass = window.EventPass || {};
 
     // Deteksi jika Google me-redirect ke halaman HTML Login
     if (trimmed.startsWith('<') || trimmed.toLowerCase().includes('<!doctype html>')) {
-      throw new Error('URL Apps Script mengembalikan halaman HTML. Pastikan opsi Deploy: "Who has access" diatur ke "Anyone", bukan "Only myself".');
+      const htmlErr = new Error('URL Apps Script mengembalikan halaman HTML. Pastikan opsi Deploy: "Who has access" diatur ke "Anyone", bukan "Only myself".');
+      htmlErr.isConnectionError = true;
+      htmlErr.isConfigError = true;
+      throw htmlErr;
     }
 
     try {
@@ -59,7 +70,10 @@ window.EventPass = window.EventPass || {};
   async function postJsonWithRetry(payload, retries = 1) {
     const apiUrl = ns.state.apiUrl;
     if (!apiUrl) {
-      throw new Error('URL API Google Apps Script belum disetting.');
+      const noUrlErr = new Error('URL API Google Apps Script belum disetting.');
+      noUrlErr.isConnectionError = true;
+      noUrlErr.isConfigError = true;
+      throw noUrlErr;
     }
 
     const options = {
@@ -194,8 +208,20 @@ window.EventPass = window.EventPass || {};
      */
     async testConnection(url) {
       if (!url) throw new Error('URL tidak boleh kosong.');
-      const response = await fetchWithTimeout(url, {}, 8000);
-      return await parseResponseJson(response);
+      if (!url.includes('/exec')) {
+        const invalidUrlErr = new Error('URL Web App harus berakhiran "/exec", bukan "/edit" atau link spreadsheet.');
+        invalidUrlErr.isConfigError = true;
+        throw invalidUrlErr;
+      }
+      try {
+        const response = await fetchWithTimeout(url, {}, 8000);
+        return await parseResponseJson(response);
+      } catch (err) {
+        if (err.isFetchError || (err.message && err.message.toLowerCase().includes('failed to fetch'))) {
+          throw new Error('Gagal terhubung (404 / CORS). Pastikan URL Web App benar dan opsi "Who has access" diatur ke "Anyone".');
+        }
+        throw err;
+      }
     }
   };
 
