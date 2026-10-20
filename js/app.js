@@ -22,6 +22,11 @@ window.EventPass = window.EventPass || {};
       this.bindEventListeners();
       ns.Scanner.startScanning();
 
+      // Start zero-lag background geolocation lock
+      if (typeof ns.initBackgroundGeolocation === "function") {
+        ns.initBackgroundGeolocation();
+      }
+
       // Sync active sessions from Google Sheets
       if (ns.state.apiUrl) {
         this.syncSessions(false);

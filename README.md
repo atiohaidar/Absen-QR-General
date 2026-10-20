@@ -46,8 +46,9 @@ Peserta cukup **mendaftar 1 kali** dan mendapatkan **1 QR Code tetap** yang berl
 ┌────────────────────────────────────────────────────────┐
 │ 5. SHEET: "Log Kehadiran" (AUDIT TRAIL TIMELINE)       │
 │    • Catatan setiap aksi scan maupun PEMBATALAN:       │
-│      [Timestamp | Sesi | Ticket ID | Status: BERHASIL/ │
-│       DUPLIKAT/DIBATALKAN | Panitia | Gate | Alasan]   │
+│      [Timestamp | ID Sesi | Nama Sesi | Ticket ID |    │
+│       Nama | Status Scan | Petugas | Gate |            │
+│       Link Lokasi (Maps) | Perangkat | Keterangan]     │
 └────────────────────────────────────────────────────────┘
 ```
 
@@ -145,6 +146,10 @@ absen qr/
    * Di pertemuan berikutnya, jika orang tersebut datang lagi, panitia cukup mencari namanya di tab **Cari Manual** tanpa perlu daftar ulang.
 5. **Cari Manual:**
    Gunakan tab **Cari Manual** untuk mencari nama peserta online maupun peserta OTS, lalu klik Check In.
+6. **Audit Keamanan & Lokasi Presensi (Zero-Lag GPS & Device Log):**
+   * Setiap kali panitia melakukan scan, pembatalan, atau pendaftaran OTS, sistem secara otomatis mencatat **Link Google Maps** koordinat GPS panitia dan **Tipe Perangkat/Browser** (misal: `Android • Chrome (Mobile)`) ke sheet `Log Kehadiran`.
+   * Berjalan 100% di latar belakang (*asynchronous*), tanpa jeda/loading sama sekali saat proses scanning berlangsung (0ms latency).
+   * Panitia dapat memeriksa status GPS dan deteksi perangkat melalui panel **Pengaturan ⚙️**.
 
 ---
 

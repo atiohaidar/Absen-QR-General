@@ -113,13 +113,18 @@ window.EventPass = window.EventPass || {};
      * Verify ticket check-in for active session
      */
     async checkIn(ticketId) {
+      const mapsUrl = (ns.state.location && ns.state.location.mapsUrl) ? ns.state.location.mapsUrl : "-";
+      const deviceInfo = ns.state.deviceInfo || "-";
+
       const payload = {
         action: 'checkIn',
         ticketId: ticketId.trim(),
         sessionId: ns.state.currentSessionId,
         sessionName: ns.state.currentSessionName,
         scannedBy: ns.state.panitiaName,
-        gate: ns.state.gateName
+        gate: ns.state.gateName,
+        mapsUrl: mapsUrl,
+        deviceInfo: deviceInfo
       };
 
       return await postJsonWithRetry(payload, 1);
@@ -129,13 +134,19 @@ window.EventPass = window.EventPass || {};
      * Cancel / Undo check-in
      */
     async cancelCheckIn(ticketId, sessionId, sessionName, reason) {
+      const mapsUrl = (ns.state.location && ns.state.location.mapsUrl) ? ns.state.location.mapsUrl : "-";
+      const deviceInfo = ns.state.deviceInfo || "-";
+
       const payload = {
         action: 'cancelCheckIn',
         ticketId: ticketId.trim(),
         sessionId: sessionId,
         sessionName: sessionName,
         cancelledBy: ns.state.panitiaName,
-        reason: reason || 'Dibatalkan oleh panitia'
+        gate: ns.state.gateName,
+        reason: reason || 'Dibatalkan oleh panitia',
+        mapsUrl: mapsUrl,
+        deviceInfo: deviceInfo
       };
 
       return await postJsonWithRetry(payload, 1);
@@ -159,6 +170,9 @@ window.EventPass = window.EventPass || {};
      * Register walk-in attendee on the spot
      */
     async registerOts(name, contact, notes) {
+      const mapsUrl = (ns.state.location && ns.state.location.mapsUrl) ? ns.state.location.mapsUrl : "-";
+      const deviceInfo = ns.state.deviceInfo || "-";
+
       const payload = {
         action: 'registerOts',
         name: name.trim(),
@@ -167,7 +181,9 @@ window.EventPass = window.EventPass || {};
         sessionId: ns.state.currentSessionId,
         sessionName: ns.state.currentSessionName,
         scannedBy: ns.state.panitiaName,
-        gate: ns.state.gateName
+        gate: ns.state.gateName,
+        mapsUrl: mapsUrl,
+        deviceInfo: deviceInfo
       };
 
       return await postJsonWithRetry(payload, 1);

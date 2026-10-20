@@ -9,6 +9,38 @@ window.EventPass = window.EventPass || {};
 (function(ns) {
   'use strict';
 
+  /**
+   * Extract clean, readable device & browser string from user agent
+   */
+  function detectCleanDeviceInfo() {
+    try {
+      const ua = navigator.userAgent || "";
+      let os = "Unknown OS";
+      if (/android/i.test(ua)) os = "Android";
+      else if (/iphone|ipad|ipod/i.test(ua)) os = "iOS (Apple)";
+      else if (/windows phone/i.test(ua)) os = "Windows Phone";
+      else if (/win/i.test(ua)) os = "Windows PC";
+      else if (/macintosh|mac os x/i.test(ua)) os = "macOS";
+      else if (/linux/i.test(ua)) os = "Linux";
+      else if (/cros/i.test(ua)) os = "ChromeOS";
+
+      let browser = "Browser";
+      if (/edg\//i.test(ua)) browser = "Edge";
+      else if (/opr\/|opera/i.test(ua)) browser = "Opera";
+      else if (/chrome|crios/i.test(ua)) browser = "Chrome";
+      else if (/firefox|fxios/i.test(ua)) browser = "Firefox";
+      else if (/safari/i.test(ua)) browser = "Safari";
+      else if (/trident|msie/i.test(ua)) browser = "IE";
+
+      const isMobile = /mobi|android|touch/i.test(ua);
+      const category = isMobile ? "Mobile" : "Desktop";
+
+      return `${os} • ${browser} (${category})`;
+    } catch (e) {
+      return "Web Browser";
+    }
+  }
+
   // Application State
   ns.state = {
     mediaStream: null,
@@ -28,6 +60,10 @@ window.EventPass = window.EventPass || {};
     sessions: JSON.parse(localStorage.getItem("absen_cached_sessions") || "[]"),
     currentSessionId: localStorage.getItem("absen_current_session_id") || "SESI-01",
     currentSessionName: localStorage.getItem("absen_current_session_name") || "Pertemuan 1",
+
+    // Device & Location Audit
+    deviceInfo: detectCleanDeviceInfo(),
+    location: null, // { lat, lng, mapsUrl, accuracy, timestamp }
 
     // Last Scanned Item (for direct cancellation from modal)
     lastScanned: null,
@@ -104,6 +140,8 @@ window.EventPass = window.EventPass || {};
     inputApiUrl: document.getElementById("cfg-api-url"),
     btnTestConnection: document.getElementById("btn-test-connection"),
     btnSaveSettings: document.getElementById("btn-save-settings"),
+    previewDevice: document.getElementById("cfg-device-info-preview"),
+    previewLocation: document.getElementById("cfg-location-info-preview"),
 
     // Manual Tab
     inputManualId: document.getElementById("manual-ticket-id"),
@@ -137,6 +175,55 @@ window.EventPass = window.EventPass || {};
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#039;");
+  };
+
+  /**
+   * Zero-Lag Background Geolocation Lock
+   * Requests coordinates once asynchronously in the background.
+   * If permitted/cached, saves Google Maps URL to state; never stalls QR scanning.
+   */
+  ns.initBackgroundGeolocation = function() {
+    if (!("geolocation" in navigator)) {
+      if (ns.DOM.previewLocation) {
+        ns.DOM.previewLocation.textContent = "Tidak Didukung";
+        ns.DOM.previewLocation.style.color = "var(--text-muted)";
+      }
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude.toFixed(6);
+        const lng = position.coords.longitude.toFixed(6);
+        const accuracy = Math.round(position.coords.accuracy || 0);
+        const mapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
+
+        ns.state.location = {
+          lat: lat,
+          lng: lng,
+          accuracy: accuracy,
+          mapsUrl: mapsUrl,
+          timestamp: Date.now()
+        };
+
+        if (ns.DOM.previewLocation) {
+          ns.DOM.previewLocation.textContent = `Aktif (±${accuracy}m)`;
+          ns.DOM.previewLocation.style.color = "var(--status-success)";
+        }
+      },
+      (err) => {
+        console.warn("📍 Geolocation note:", err.message);
+        if (ns.DOM.previewLocation) {
+          ns.DOM.previewLocation.textContent = "Non-GPS / Belum Diizinkan";
+          ns.DOM.previewLocation.style.color = "var(--text-muted)";
+        }
+      },
+      {
+        enableHighAccuracy: false, // battery & quick lock friendly
+        timeout: 10000,            // 10s max wait before giving up silently
+        maximumAge: 300000         // accept 5 minutes cached position
+      }
+    );
   };
 
 })(window.EventPass);

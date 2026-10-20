@@ -165,6 +165,20 @@ window.EventPass = window.EventPass || {};
       ns.DOM.inputPanitiaName.value = ns.state.panitiaName;
       ns.DOM.inputGateName.value = ns.state.gateName;
       ns.DOM.inputApiUrl.value = ns.state.apiUrl;
+
+      if (ns.DOM.previewDevice) {
+        ns.DOM.previewDevice.textContent = ns.state.deviceInfo || "Browser";
+      }
+      if (ns.DOM.previewLocation) {
+        if (ns.state.location && ns.state.location.mapsUrl) {
+          ns.DOM.previewLocation.textContent = `Aktif (±${ns.state.location.accuracy || 0}m)`;
+          ns.DOM.previewLocation.style.color = "var(--status-success)";
+        } else {
+          ns.DOM.previewLocation.textContent = "Non-GPS / Belum Diizinkan";
+          ns.DOM.previewLocation.style.color = "var(--text-muted)";
+        }
+      }
+
       ns.DOM.settingsModal.classList.add("show");
     },
 

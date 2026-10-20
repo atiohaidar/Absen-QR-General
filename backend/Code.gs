@@ -76,10 +76,18 @@ function ensureAllSheetsSetup() {
 
   // 3. Sheet Log Kehadiran
   const sheetLog = getOrCreateSheet(CONFIG.SHEETS.LOG_KEHADIRAN);
+  const logHeaders = ["Timestamp Log", "ID Sesi", "Nama Sesi", "Ticket ID", "Nama Peserta", "Status Scan", "Petugas / Panitia", "Gate", "Link Lokasi (Maps)", "Perangkat", "Keterangan"];
   if (sheetLog.getLastRow() === 0) {
-    const logHeaders = ["Timestamp Log", "ID Sesi", "Nama Sesi", "Ticket ID", "Nama Peserta", "Status Scan", "Petugas / Panitia", "Gate", "Keterangan"];
     sheetLog.appendRow(logHeaders);
     sheetLog.getRange(1, 1, 1, logHeaders.length).setFontWeight("bold").setBackground("#e2e8f0");
+  } else {
+    const lastCol = sheetLog.getLastColumn();
+    if (lastCol > 0) {
+      const currentHeaders = sheetLog.getRange(1, 1, 1, lastCol).getValues()[0];
+      if (!currentHeaders.includes("Link Lokasi (Maps)")) {
+        sheetLog.getRange(1, 1, 1, logHeaders.length).setValues([logHeaders]).setFontWeight("bold").setBackground("#e2e8f0");
+      }
+    }
   }
 }
 
@@ -421,6 +429,8 @@ function doPost(e) {
 
     try {
       const pesertaData = sheetPeserta.getDataRange().getValues();
+      const mapsUrl = (payload.mapsUrl || "-").trim();
+      const deviceInfo = (payload.deviceInfo || "-").trim();
 
       // -------------------------------------------------------------
       // ACTION C: CHECK-IN SESI TERTENTU
@@ -453,7 +463,7 @@ function doPost(e) {
 
         // Skenario 1: Tiket Tidak Ditemukan
         if (foundRow === -1) {
-          sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, "-", "TIDAK_VALID", scannedBy, gate, "ID tidak terdaftar di sistem"]);
+          sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, "-", "TIDAK_VALID", scannedBy, gate, mapsUrl, deviceInfo, "ID tidak terdaftar di sistem"]);
           return createJsonResponse({
             success: false,
             status: "NOT_FOUND",
@@ -467,7 +477,7 @@ function doPost(e) {
 
         // Skenario 2: Tiket Sudah Pernah Di-scan di Sesi Ini (Double Scan)
         if (existingStatus.startsWith("HADIR")) {
-          sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, attendeeName, "DUPLIKAT", scannedBy, gate, `Sudah absen sebelumnya: ${existingStatus}`]);
+          sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, attendeeName, "DUPLIKAT", scannedBy, gate, mapsUrl, deviceInfo, `Sudah absen sebelumnya: ${existingStatus}`]);
           return createJsonResponse({
             success: false,
             status: "ALREADY_CHECKED_IN",
@@ -487,8 +497,8 @@ function doPost(e) {
         const statusValue = `HADIR - ${nowStr}`;
         sheetPeserta.getRange(foundRow, sessionColIdx).setValue(statusValue);
         
-        // Catat di sheet Log Kehadiran
-        sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, attendeeName, "BERHASIL", scannedBy, gate, "Presensi tercatat"]);
+        // Catat di sheet Log Kehadiran dengan Link Google Maps & Device Info
+        sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, attendeeName, "BERHASIL", scannedBy, gate, mapsUrl, deviceInfo, "Presensi tercatat"]);
 
         return createJsonResponse({
           success: true,
@@ -514,7 +524,7 @@ function doPost(e) {
         const sessionId = (payload.sessionId || "").trim();
         const sessionName = (payload.sessionName || sessionId).trim();
         const cancelledBy = (payload.cancelledBy || payload.scannedBy || "Panitia").trim();
-        const reason = (payload.reason || "Dibatalkan oleh panitia (nama/identitas tidak cocok)").trim();
+        const reason = (payload.reason || "Dibatalkan oleh panitia").trim();
         const nowStr = formatFullDateTime(new Date());
 
         if (!ticketId || !sessionId) {
@@ -543,8 +553,8 @@ function doPost(e) {
         // Kosongkan status di sheet Data Peserta (Revert kembali)
         sheetPeserta.getRange(foundRow, sessionColIdx).setValue("");
 
-        // Catat event pembatalan di sheet Log Kehadiran
-        sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, attendeeName, "DIBATALKAN", cancelledBy, payload.gate || "-", reason]);
+        // Catat event pembatalan di sheet Log Kehadiran dengan Link Google Maps & Device Info
+        sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, attendeeName, "DIBATALKAN", cancelledBy, payload.gate || "-", mapsUrl, deviceInfo, reason]);
 
         return createJsonResponse({
           success: true,
@@ -632,8 +642,8 @@ function doPost(e) {
         const statusValue = `HADIR - ${nowStr}`;
         sheetPeserta.getRange(newRowIdx, sessionColIdx).setValue(statusValue);
 
-        // 4. Catat di Log Kehadiran
-        sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, name, "BERHASIL (OTS)", scannedBy, gate, notes]);
+        // 4. Catat di Log Kehadiran dengan Link Google Maps & Device Info
+        sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, name, "BERHASIL (OTS)", scannedBy, gate, mapsUrl, deviceInfo, notes]);
 
         return createJsonResponse({
           success: true,
