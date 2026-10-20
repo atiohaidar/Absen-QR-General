@@ -59,11 +59,16 @@ Peserta cukup **mendaftar 1 kali** dan mendapatkan **1 QR Code tetap** yang berl
 absen qr/
 ├── index.html              # Frontend UI Scanner (GitHub Pages Ready)
 ├── css/
-│   └── style.css           # Modern Dark-mode Glassmorphism Styling
+│   └── style.css           # Modern Clean UI (WCAG AA Contrast & Touch-Friendly)
 ├── js/
-│   └── app.js              # Camera Scanner, Multi-Session Caching, Web Audio, Cancel Check-in
+│   ├── state.js            # App State, DOM Element Cache, LocalStorage Helpers
+│   ├── audio.js            # Web Audio API Synthesizer (Procedural Chime, Alert, Buzzer)
+│   ├── api.js              # Network Client (12s Timeout AbortController, Auto-Retry, Error Handler)
+│   ├── scanner.js          # Telegram-Style Dynamic AR Reticle Engine (BarcodeDetector + jsQR)
+│   ├── ui.js               # Presentation Layer (Modals, Countdown Bar, Toast, History, Search)
+│   └── app.js              # Main Coordinator & Bootstrap Entry Point
 ├── backend/
-│   ├── Code.gs             # Google Apps Script (onFormSubmit + Multi-Session API + Revert)
+│   ├── Code.gs             # Google Apps Script (onFormSubmit + Multi-Session API + Revert + doGet)
 │   └── appsscript.json     # Manifest Apps Script (Timezone Asia/Jakarta & Minimal Scopes)
 ├── constrain.md            # Constraint catatan teknis
 └── README.md               # Dokumentasi lengkap setup

@@ -130,9 +130,6 @@ function formatFullDateTime(d) {
  * ==============================================================================
  */
 function onFormSubmit(e) {
-  const lock = LockService.getScriptLock();
-  lock.tryLock(30000);
-
   try {
     ensureAllSheetsSetup();
     const ss = getSpreadsheet();
@@ -183,44 +180,66 @@ function onFormSubmit(e) {
       }
     }
 
-    // 3. Generate Ticket ID & QR Code Image
+    // 3. Generate Ticket ID & QR Code Image (DILAKUKAN TANPA MENAHAN SCRIPT LOCK AGAR SCANNER TIDAK TERGANGGU)
     const ticketId = generateTicketId();
-    const qrUrl = "https://quickchart.io/qr?text=" + encodeURIComponent(ticketId) + "&size=450&margin=2";
-    const qrResponse = UrlFetchApp.fetch(qrUrl);
-    const sanitizedName = name.replace(/[^a-zA-Z0-9_-]/g, "_");
-    const qrBlob = qrResponse.getBlob().setName("QR_" + sanitizedName + "_" + ticketId + ".png");
+    let fileId = "-";
+    let fileUrl = "-";
 
-    // 4. Simpan ke Google Drive folder
-    const targetFolder = getOrCreateQrFolder();
-    const driveFile = targetFolder.createFile(qrBlob);
-    const fileId = driveFile.getId();
-    const fileUrl = driveFile.getUrl();
-
-    // 5. SESUAI CONSTRAINT: Share akses file ke peserta tanpa kuota email!
     try {
-      DriveApp.getFileById(fileId).addViewer(email);
-      Logger.log("✅ Drive file viewer granted to: " + email);
-    } catch (shareErr) {
-      Logger.log("⚠️ Drive viewer error: " + shareErr.message);
+      const qrUrl = "https://quickchart.io/qr?text=" + encodeURIComponent(ticketId) + "&size=450&margin=2";
+      const qrResponse = UrlFetchApp.fetch(qrUrl, { muteHttpExceptions: true });
+      if (qrResponse.getResponseCode() === 200) {
+        const sanitizedName = name.replace(/[^a-zA-Z0-9_-]/g, "_");
+        const qrBlob = qrResponse.getBlob().setName("QR_" + sanitizedName + "_" + ticketId + ".png");
+
+        // 4. Simpan ke Google Drive folder
+        const targetFolder = getOrCreateQrFolder();
+        const driveFile = targetFolder.createFile(qrBlob);
+        fileId = driveFile.getId();
+        fileUrl = driveFile.getUrl();
+
+        // 5. SESUAI CONSTRAINT: Share akses file ke peserta tanpa kuota email!
+        try {
+          DriveApp.getFileById(fileId).addViewer(email);
+          Logger.log("✅ Drive file viewer granted to: " + email);
+        } catch (shareErr) {
+          Logger.log("⚠️ Drive viewer error: " + shareErr.message);
+        }
+      }
+    } catch (qrErr) {
+      Logger.log("QR generation warning: " + qrErr.message);
     }
 
-    // 6. Masukkan data ke sheet "Data Peserta" (Form Responses 1 tetap bersih!)
-    sheetPeserta.appendRow([
-      ticketId,
-      name,
-      email,
-      fileId,
-      fileUrl,
-      regTimestamp
-    ]);
-
-    SpreadsheetApp.flush();
-    Logger.log("✅ Sukses menambahkan peserta baru: " + name + " (" + ticketId + ")");
+    // 6. Masukkan data ke sheet "Data Peserta" dengan lock singkat (hanya untuk penulisan baris)
+    const lock = LockService.getScriptLock();
+    if (lock.tryLock(8000)) {
+      try {
+        sheetPeserta.appendRow([
+          ticketId,
+          name,
+          email,
+          fileId,
+          fileUrl,
+          regTimestamp
+        ]);
+        Logger.log("✅ Sukses menambahkan peserta baru: " + name + " (" + ticketId + ")");
+      } finally {
+        lock.releaseLock();
+      }
+    } else {
+      Logger.log("⚠️ Lock timeout saat append row peserta baru, mengabaikan lock.");
+      sheetPeserta.appendRow([
+        ticketId,
+        name,
+        email,
+        fileId,
+        fileUrl,
+        regTimestamp
+      ]);
+    }
 
   } catch (err) {
     Logger.log("Error onFormSubmit: " + err.message);
-  } finally {
-    lock.releaseLock();
   }
 }
 
@@ -306,36 +325,67 @@ function getActiveSessions() {
 
 /**
  * ==============================================================================
- * WEB API: doPost (Check-In, Cancel/Undo Check-In, Search, & Fetch Sessions)
+ * WEB API: doGet (DIAGNOSTIK, HEALTH CHECK & SINKRONISASI SESI)
+ * ==============================================================================
+ */
+function doGet(e) {
+  try {
+    ensureAllSheetsSetup();
+    const action = (e && e.parameter && e.parameter.action) || "status";
+
+    if (action === "getSessions") {
+      return createJsonResponse({
+        success: true,
+        status: "OK",
+        sessions: getActiveSessions(),
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    return createJsonResponse({
+      success: true,
+      status: "ONLINE",
+      app: "EventPass Google Apps Script API",
+      timeZone: Session.getScriptTimeZone(),
+      activeSessions: getActiveSessions(),
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    return createJsonResponse({
+      success: false,
+      status: "ERROR",
+      message: "Health check error: " + err.message
+    });
+  }
+}
+
+/**
+ * ==============================================================================
+ * WEB API: doPost (Check-In, Cancel/Undo Check-In, Search, & Register OTS)
  * ==============================================================================
  */
 function doPost(e) {
-  const lock = LockService.getScriptLock();
-  if (!lock.tryLock(15000)) {
-    return createJsonResponse({
-      success: false,
-      status: "SERVER_BUSY",
-      message: "Server sibuk, silakan ulangi dalam 1 detik."
-    });
-  }
-
   try {
     ensureAllSheetsSetup();
-    let payload;
-    try {
-      payload = JSON.parse(e.postData.contents);
-    } catch (err) {
-      return createJsonResponse({ success: false, message: "Invalid JSON payload" });
+
+    let payload = {};
+    if (e && e.postData && e.postData.contents) {
+      try {
+        payload = JSON.parse(e.postData.contents);
+      } catch (jsonErr) {
+        return createJsonResponse({ success: false, message: "Invalid JSON payload" });
+      }
     }
 
     const action = payload.action || "checkIn";
     const sheetPeserta = getOrCreateSheet(CONFIG.SHEETS.DATA_PESERTA);
     const sheetLog = getOrCreateSheet(CONFIG.SHEETS.LOG_KEHADIRAN);
-    const pesertaData = sheetPeserta.getDataRange().getValues();
 
-    // -------------------------------------------------------------
-    // ACTION 1: GET SESSIONS (Ambil list sesi via POST)
-    // -------------------------------------------------------------
+    // ============================================================================
+    // 1. READ-ONLY ACTIONS (PARALEL, ZERO LOCK — TIDAK MENGUNCI & TIDAK DIKUNCI)
+    // ============================================================================
+
+    // ACTION A: GET ACTIVE SESSIONS
     if (action === "getSessions") {
       return createJsonResponse({
         success: true,
@@ -343,155 +393,17 @@ function doPost(e) {
       });
     }
 
-    // -------------------------------------------------------------
-    // ACTION 2: CHECK-IN SESI TERTENTU
-    // -------------------------------------------------------------
-    if (action === "checkIn" || action === "scan") {
-      const ticketId = (payload.ticketId || "").trim();
-      const sessionId = (payload.sessionId || "SESI-01").trim();
-      const sessionName = (payload.sessionName || sessionId).trim();
-      const scannedBy = (payload.scannedBy || "Panitia").trim();
-      const gate = (payload.gate || "Pintu Masuk").trim();
-      const nowStr = formatFullDateTime(new Date());
-
-      if (!ticketId) {
-        return createJsonResponse({ success: false, message: "ID Tiket tidak boleh kosong." });
-      }
-
-      // Cari baris peserta di Data Peserta
-      let foundRow = -1;
-      let attendeeName = "";
-      let attendeeEmail = "";
-
-      for (let r = 1; r < pesertaData.length; r++) {
-        if (String(pesertaData[r][0]).toUpperCase() === ticketId.toUpperCase()) {
-          foundRow = r + 1; // 1-based row index
-          attendeeName = pesertaData[r][1] || "Peserta";
-          attendeeEmail = pesertaData[r][2] || "-";
-          break;
-        }
-      }
-
-      // Skenario A: Tiket Tidak Ditemukan
-      if (foundRow === -1) {
-        sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, "-", "TIDAK_VALID", scannedBy, gate, "ID tidak terdaftar di sistem"]);
-        SpreadsheetApp.flush();
-        return createJsonResponse({
-          success: false,
-          status: "NOT_FOUND",
-          message: `Tiket "${ticketId}" TIDAK TERDAFTAR dalam sistem!`
-        });
-      }
-
-      // Ambil kolom sesi untuk sesi ini
-      const sessionColIdx = getOrCreateSessionColumn(sheetPeserta, sessionId, sessionName);
-      const existingStatus = String(sheetPeserta.getRange(foundRow, sessionColIdx).getValue() || "").trim();
-
-      // Skenario B: Tiket Sudah Pernah Di-scan di Sesi Ini (Double Scan)
-      if (existingStatus.startsWith("HADIR")) {
-        sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, attendeeName, "DUPLIKAT", scannedBy, gate, `Sudah absen sebelumnya: ${existingStatus}`]);
-        SpreadsheetApp.flush();
-        return createJsonResponse({
-          success: false,
-          status: "ALREADY_CHECKED_IN",
-          message: `TIKET SUDAH DIGUNAKAN untuk sesi "${sessionName}"!`,
-          attendee: {
-            ticketId: ticketId,
-            name: attendeeName,
-            email: attendeeEmail,
-            sessionName: sessionName,
-            firstCheckInTime: existingStatus.replace("HADIR - ", "").trim() || "Sebelumnya",
-            scannedBy: scannedBy
-          }
-        });
-      }
-
-      // Skenario C: Check-In Berhasil!
-      const statusValue = `HADIR - ${nowStr}`;
-      sheetPeserta.getRange(foundRow, sessionColIdx).setValue(statusValue);
-      
-      // Catat di sheet Log Kehadiran
-      sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, attendeeName, "BERHASIL", scannedBy, gate, "Presensi tercatat"]);
-      SpreadsheetApp.flush();
-
-      return createJsonResponse({
-        success: true,
-        status: "CHECKED_IN",
-        message: `Presensi berhasil dicatat untuk ${sessionName}!`,
-        attendee: {
-          ticketId: ticketId,
-          name: attendeeName,
-          email: attendeeEmail,
-          sessionName: sessionName,
-          checkInTime: nowStr,
-          scannedBy: scannedBy,
-          gate: gate
-        }
-      });
-    }
-
-    // -------------------------------------------------------------
-    // ACTION 3: BATALKAN KEHADIRAN (CANCEL / UNDO CHECK-IN)
-    // -------------------------------------------------------------
-    if (action === "cancelCheckIn" || action === "undo") {
-      const ticketId = (payload.ticketId || "").trim();
-      const sessionId = (payload.sessionId || "").trim();
-      const sessionName = (payload.sessionName || sessionId).trim();
-      const cancelledBy = (payload.cancelledBy || payload.scannedBy || "Panitia").trim();
-      const reason = (payload.reason || "Dibatalkan oleh panitia (nama/tiket tidak cocok)").trim();
-      const nowStr = formatFullDateTime(new Date());
-
-      if (!ticketId || !sessionId) {
-        return createJsonResponse({ success: false, message: "Ticket ID dan Session ID wajib diisi untuk pembatalan." });
-      }
-
-      // Cari baris peserta
-      let foundRow = -1;
-      let attendeeName = "";
-
-      for (let r = 1; r < pesertaData.length; r++) {
-        if (String(pesertaData[r][0]).toUpperCase() === ticketId.toUpperCase()) {
-          foundRow = r + 1;
-          attendeeName = pesertaData[r][1] || "Peserta";
-          break;
-        }
-      }
-
-      if (foundRow === -1) {
-        return createJsonResponse({ success: false, message: "Peserta tidak ditemukan." });
-      }
-
-      // Ambil kolom sesi
-      const sessionColIdx = getOrCreateSessionColumn(sheetPeserta, sessionId, sessionName);
-      
-      // Kosongkan status di sheet Data Peserta (Revert kembali)
-      sheetPeserta.getRange(foundRow, sessionColIdx).setValue("");
-
-      // Catat event pembatalan di sheet Log Kehadiran
-      sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, attendeeName, "DIBATALKAN", cancelledBy, payload.gate || "-", reason]);
-      SpreadsheetApp.flush();
-
-      return createJsonResponse({
-        success: true,
-        status: "CANCELLED",
-        message: `Kehadiran ${attendeeName} pada ${sessionName} berhasil dibatalkan.`,
-        attendee: {
-          ticketId: ticketId,
-          name: attendeeName
-        }
-      });
-    }
-
-    // -------------------------------------------------------------
-    // ACTION 4: SEARCH PESERTA (Manual Search by Name/Email/Ticket)
-    // -------------------------------------------------------------
+    // ACTION B: SEARCH PESERTA (Manual Search by Name/Email/Ticket)
     if (action === "search") {
       const query = (payload.query || "").toLowerCase().trim();
       const sessionId = (payload.sessionId || "SESI-01").trim();
       const sessionName = (payload.sessionName || sessionId).trim();
 
-      if (!query) return createJsonResponse({ success: true, results: [] });
+      if (!query) {
+        return createJsonResponse({ success: true, results: [] });
+      }
 
+      const pesertaData = sheetPeserta.getDataRange().getValues();
       const sessionColIdx = getOrCreateSessionColumn(sheetPeserta, sessionId, sessionName);
       const results = [];
 
@@ -514,112 +426,265 @@ function doPost(e) {
             sessionName: sessionName
           });
         }
-        if (results.length >= 15) break;
+        if (results.length >= 20) break; // Limit 20 hasil teratas
       }
 
       return createJsonResponse({ success: true, results: results });
     }
 
-    // -------------------------------------------------------------
-    // ACTION 5: REGISTRASI CEPAT ON-THE-SPOT (OTS / WALK-IN)
-    // -------------------------------------------------------------
-    if (action === "registerOts" || action === "ots") {
-      const name = (payload.name || "").trim();
-      const contact = (payload.contact || "").trim();
-      const notes = (payload.notes || "Walk-In OTS").trim();
-      const sessionId = (payload.sessionId || "SESI-01").trim();
-      const sessionName = (payload.sessionName || sessionId).trim();
-      const scannedBy = (payload.scannedBy || "Panitia").trim();
-      const gate = (payload.gate || "Pintu Masuk").trim();
-      const nowStr = formatFullDateTime(new Date());
-
-      if (!name) {
-        return createJsonResponse({ success: false, message: "Nama lengkap peserta wajib diisi." });
-      }
-
-      // 1. Generate Unique Ticket ID dengan prefix OTS
-      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-      let randomPart = "";
-      for (let i = 0; i < 4; i++) {
-        randomPart += chars.charAt(Math.floor(Math.random() * chars.length));
-      }
-      const ticketId = "TIC-OTS-" + randomPart;
-
-      // 2. Generate QR Code Image & simpan di Drive
-      let fileId = "-";
-      let fileUrl = "-";
-      try {
-        const qrUrl = "https://quickchart.io/qr?text=" + encodeURIComponent(ticketId) + "&size=450&margin=2";
-        const qrResponse = UrlFetchApp.fetch(qrUrl);
-        const sanitizedName = name.replace(/[^a-zA-Z0-9_-]/g, "_");
-        const qrBlob = qrResponse.getBlob().setName("QR_OTS_" + sanitizedName + "_" + ticketId + ".png");
-
-        const targetFolder = getOrCreateQrFolder();
-        const driveFile = targetFolder.createFile(qrBlob);
-        fileId = driveFile.getId();
-        fileUrl = driveFile.getUrl();
-
-        // Jika kontak merupakan email, berikan viewer access
-        if (contact && contact.includes("@")) {
-          try {
-            DriveApp.getFileById(fileId).addViewer(contact);
-          } catch (e) {
-            Logger.log("Viewer share error: " + e.message);
-          }
-        }
-      } catch (err) {
-        Logger.log("QR Drive save error: " + err.message);
-      }
-
-      // 3. Masukkan ke sheet Data Peserta
-      const effectiveContact = contact || "OTS (Tanpa HP)";
-      const newRow = [
-        ticketId,
-        name,
-        effectiveContact,
-        fileId,
-        fileUrl,
-        nowStr
-      ];
-
-      // Ambil kolom sesi untuk sesi aktif
-      const sessionColIdx = getOrCreateSessionColumn(sheetPeserta, sessionId, sessionName);
-      
-      // Buat baris baru di Data Peserta
-      sheetPeserta.appendRow(newRow);
-      const newRowIdx = sheetPeserta.getLastRow();
-
-      // Langsung tandai HADIR di sesi aktif!
-      const statusValue = `HADIR - ${nowStr}`;
-      sheetPeserta.getRange(newRowIdx, sessionColIdx).setValue(statusValue);
-
-      // 4. Catat di Log Kehadiran
-      sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, name, "BERHASIL (OTS)", scannedBy, gate, notes]);
-      SpreadsheetApp.flush();
-
+    // ============================================================================
+    // 2. MUTATION ACTIONS (CHECK-IN, CANCEL, OTS) -> MEMERLUKAN EXCLUSIVE LOCK
+    // ============================================================================
+    const lock = LockService.getScriptLock();
+    if (!lock.tryLock(15000)) {
       return createJsonResponse({
-        success: true,
-        status: "CHECKED_IN",
-        message: `Registrasi OTS berhasil! ${name} langsung tercatat hadir pada ${sessionName}.`,
-        attendee: {
-          ticketId: ticketId,
-          name: name,
-          email: effectiveContact,
-          sessionName: sessionName,
-          checkInTime: nowStr,
-          scannedBy: scannedBy,
-          gate: gate,
-          isOts: true
-        }
+        success: false,
+        status: "SERVER_BUSY",
+        message: "Server sibuk memproses antrean presensi, silakan ulangi sesaat lagi."
       });
     }
 
-    return createJsonResponse({ success: false, message: "Action tidak dikenali." });
+    try {
+      const pesertaData = sheetPeserta.getDataRange().getValues();
+
+      // -------------------------------------------------------------
+      // ACTION C: CHECK-IN SESI TERTENTU
+      // -------------------------------------------------------------
+      if (action === "checkIn" || action === "scan") {
+        const ticketId = (payload.ticketId || "").trim();
+        const sessionId = (payload.sessionId || "SESI-01").trim();
+        const sessionName = (payload.sessionName || sessionId).trim();
+        const scannedBy = (payload.scannedBy || "Panitia").trim();
+        const gate = (payload.gate || "Pintu Masuk").trim();
+        const nowStr = formatFullDateTime(new Date());
+
+        if (!ticketId) {
+          return createJsonResponse({ success: false, message: "ID Tiket tidak boleh kosong." });
+        }
+
+        // Cari baris peserta di Data Peserta
+        let foundRow = -1;
+        let attendeeName = "";
+        let attendeeEmail = "";
+
+        for (let r = 1; r < pesertaData.length; r++) {
+          if (String(pesertaData[r][0]).toUpperCase() === ticketId.toUpperCase()) {
+            foundRow = r + 1; // 1-based row index
+            attendeeName = pesertaData[r][1] || "Peserta";
+            attendeeEmail = pesertaData[r][2] || "-";
+            break;
+          }
+        }
+
+        // Skenario 1: Tiket Tidak Ditemukan
+        if (foundRow === -1) {
+          sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, "-", "TIDAK_VALID", scannedBy, gate, "ID tidak terdaftar di sistem"]);
+          return createJsonResponse({
+            success: false,
+            status: "NOT_FOUND",
+            message: `Tiket "${ticketId}" TIDAK TERDAFTAR dalam sistem!`
+          });
+        }
+
+        // Ambil kolom sesi untuk sesi ini
+        const sessionColIdx = getOrCreateSessionColumn(sheetPeserta, sessionId, sessionName);
+        const existingStatus = String(sheetPeserta.getRange(foundRow, sessionColIdx).getValue() || "").trim();
+
+        // Skenario 2: Tiket Sudah Pernah Di-scan di Sesi Ini (Double Scan)
+        if (existingStatus.startsWith("HADIR")) {
+          sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, attendeeName, "DUPLIKAT", scannedBy, gate, `Sudah absen sebelumnya: ${existingStatus}`]);
+          return createJsonResponse({
+            success: false,
+            status: "ALREADY_CHECKED_IN",
+            message: `TIKET SUDAH DIGUNAKAN untuk sesi "${sessionName}"!`,
+            attendee: {
+              ticketId: ticketId,
+              name: attendeeName,
+              email: attendeeEmail,
+              sessionName: sessionName,
+              firstCheckInTime: existingStatus.replace("HADIR - ", "").trim() || "Sebelumnya",
+              scannedBy: scannedBy
+            }
+          });
+        }
+
+        // Skenario 3: Check-In Berhasil!
+        const statusValue = `HADIR - ${nowStr}`;
+        sheetPeserta.getRange(foundRow, sessionColIdx).setValue(statusValue);
+        
+        // Catat di sheet Log Kehadiran
+        sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, attendeeName, "BERHASIL", scannedBy, gate, "Presensi tercatat"]);
+
+        return createJsonResponse({
+          success: true,
+          status: "CHECKED_IN",
+          message: `Presensi berhasil dicatat untuk ${sessionName}!`,
+          attendee: {
+            ticketId: ticketId,
+            name: attendeeName,
+            email: attendeeEmail,
+            sessionName: sessionName,
+            checkInTime: nowStr,
+            scannedBy: scannedBy,
+            gate: gate
+          }
+        });
+      }
+
+      // -------------------------------------------------------------
+      // ACTION D: BATALKAN KEHADIRAN (CANCEL / UNDO CHECK-IN)
+      // -------------------------------------------------------------
+      if (action === "cancelCheckIn" || action === "undo") {
+        const ticketId = (payload.ticketId || "").trim();
+        const sessionId = (payload.sessionId || "").trim();
+        const sessionName = (payload.sessionName || sessionId).trim();
+        const cancelledBy = (payload.cancelledBy || payload.scannedBy || "Panitia").trim();
+        const reason = (payload.reason || "Dibatalkan oleh panitia (nama/identitas tidak cocok)").trim();
+        const nowStr = formatFullDateTime(new Date());
+
+        if (!ticketId || !sessionId) {
+          return createJsonResponse({ success: false, message: "Ticket ID dan Session ID wajib diisi untuk pembatalan." });
+        }
+
+        // Cari baris peserta
+        let foundRow = -1;
+        let attendeeName = "";
+
+        for (let r = 1; r < pesertaData.length; r++) {
+          if (String(pesertaData[r][0]).toUpperCase() === ticketId.toUpperCase()) {
+            foundRow = r + 1;
+            attendeeName = pesertaData[r][1] || "Peserta";
+            break;
+          }
+        }
+
+        if (foundRow === -1) {
+          return createJsonResponse({ success: false, message: "Peserta tidak ditemukan." });
+        }
+
+        // Ambil kolom sesi
+        const sessionColIdx = getOrCreateSessionColumn(sheetPeserta, sessionId, sessionName);
+        
+        // Kosongkan status di sheet Data Peserta (Revert kembali)
+        sheetPeserta.getRange(foundRow, sessionColIdx).setValue("");
+
+        // Catat event pembatalan di sheet Log Kehadiran
+        sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, attendeeName, "DIBATALKAN", cancelledBy, payload.gate || "-", reason]);
+
+        return createJsonResponse({
+          success: true,
+          status: "CANCELLED",
+          message: `Kehadiran ${attendeeName} pada ${sessionName} berhasil dibatalkan.`,
+          attendee: {
+            ticketId: ticketId,
+            name: attendeeName
+          }
+        });
+      }
+
+      // -------------------------------------------------------------
+      // ACTION E: REGISTRASI CEPAT ON-THE-SPOT (OTS / WALK-IN)
+      // -------------------------------------------------------------
+      if (action === "registerOts" || action === "ots") {
+        const name = (payload.name || "").trim();
+        const contact = (payload.contact || "").trim();
+        const notes = (payload.notes || "Walk-In OTS").trim();
+        const sessionId = (payload.sessionId || "SESI-01").trim();
+        const sessionName = (payload.sessionName || sessionId).trim();
+        const scannedBy = (payload.scannedBy || "Panitia").trim();
+        const gate = (payload.gate || "Pintu Masuk").trim();
+        const nowStr = formatFullDateTime(new Date());
+
+        if (!name) {
+          return createJsonResponse({ success: false, message: "Nama lengkap peserta wajib diisi." });
+        }
+
+        // 1. Generate Unique Ticket ID dengan prefix OTS
+        const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+        let randomPart = "";
+        for (let i = 0; i < 4; i++) {
+          randomPart += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        const ticketId = "TIC-OTS-" + randomPart;
+
+        // 2. Generate QR Code Image & simpan di Drive
+        let fileId = "-";
+        let fileUrl = "-";
+        try {
+          const qrUrl = "https://quickchart.io/qr?text=" + encodeURIComponent(ticketId) + "&size=450&margin=2";
+          const qrResponse = UrlFetchApp.fetch(qrUrl, { muteHttpExceptions: true });
+          if (qrResponse.getResponseCode() === 200) {
+            const sanitizedName = name.replace(/[^a-zA-Z0-9_-]/g, "_");
+            const qrBlob = qrResponse.getBlob().setName("QR_OTS_" + sanitizedName + "_" + ticketId + ".png");
+
+            const targetFolder = getOrCreateQrFolder();
+            const driveFile = targetFolder.createFile(qrBlob);
+            fileId = driveFile.getId();
+            fileUrl = driveFile.getUrl();
+
+            // Jika kontak merupakan email, berikan viewer access
+            if (contact && contact.includes("@")) {
+              try {
+                DriveApp.getFileById(fileId).addViewer(contact);
+              } catch (e) {
+                Logger.log("Viewer share error: " + e.message);
+              }
+            }
+          }
+        } catch (err) {
+          Logger.log("QR Drive save error: " + err.message);
+        }
+
+        // 3. Masukkan ke sheet Data Peserta
+        const effectiveContact = contact || "OTS (Tanpa HP)";
+        const newRow = [
+          ticketId,
+          name,
+          effectiveContact,
+          fileId,
+          fileUrl,
+          nowStr
+        ];
+
+        // Ambil kolom sesi untuk sesi aktif
+        const sessionColIdx = getOrCreateSessionColumn(sheetPeserta, sessionId, sessionName);
+        
+        // Buat baris baru di Data Peserta
+        sheetPeserta.appendRow(newRow);
+        const newRowIdx = sheetPeserta.getLastRow();
+
+        // Langsung tandai HADIR di sesi aktif!
+        const statusValue = `HADIR - ${nowStr}`;
+        sheetPeserta.getRange(newRowIdx, sessionColIdx).setValue(statusValue);
+
+        // 4. Catat di Log Kehadiran
+        sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, name, "BERHASIL (OTS)", scannedBy, gate, notes]);
+
+        return createJsonResponse({
+          success: true,
+          status: "CHECKED_IN",
+          message: `Registrasi OTS berhasil! ${name} langsung tercatat hadir pada ${sessionName}.`,
+          attendee: {
+            ticketId: ticketId,
+            name: name,
+            email: effectiveContact,
+            sessionName: sessionName,
+            checkInTime: nowStr,
+            scannedBy: scannedBy,
+            gate: gate,
+            isOts: true
+          }
+        });
+      }
+
+      return createJsonResponse({ success: false, message: `Action "${action}" tidak dikenali.` });
+
+    } finally {
+      lock.releaseLock();
+    }
 
   } catch (err) {
     return createJsonResponse({ success: false, message: "Server error: " + err.message });
-  } finally {
-    lock.releaseLock();
   }
 }
 

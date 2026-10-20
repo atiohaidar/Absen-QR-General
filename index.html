@@ -2,14 +2,15 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#ffffff">
   <title>EventPass • Sistem Presensi & QR Code Scanner</title>
-  <meta name="description" content="Sistem absensi dan verifikasi tiket QR Code presisi tinggi terintegrasi dengan Google Sheets dan Google Drive.">
+  <meta name="description" content="Sistem absensi dan verifikasi tiket QR Code presisi tinggi terintegrasi dengan Google Sheets.">
   
-  <!-- Google Fonts: Outfit -->
+  <!-- Google Fonts: Outfit & Inter -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   
   <!-- CSS Stylesheet -->
   <link rel="stylesheet" href="css/style.css">
@@ -22,65 +23,51 @@
   <!-- Global Top Progress / Loading Bar -->
   <div id="global-loading-bar" class="top-loading-bar"></div>
 
-  <!-- Background Ambient Glow -->
-  <div class="ambient-bg" aria-hidden="true">
-    <div class="ambient-orb orb-1"></div>
-    <div class="ambient-orb orb-2"></div>
-  </div>
-
-  <!-- App Header -->
+  <!-- Unified Operational App Header -->
   <header class="app-header">
     <div class="header-container">
-      <div class="brand-wrapper">
-        <div class="brand-icon" aria-hidden="true">⚡</div>
-        <div>
-          <h1 class="brand-title">EventPass</h1>
-          <div class="brand-subtitle">
-            <span class="status-dot"></span>
-            <span>Cloud Sync Active</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="header-actions">
-        <button id="btn-open-settings" class="btn-icon" title="Pengaturan Panitia & API" aria-label="Settings">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="3"></circle>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+      <button id="operator-badge-btn" class="nav-operator-btn" title="Klik untuk ubah nama panitia">
+          <span class="status-dot" title="Cloud Sync Aktif"></span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;">
+            <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
           </svg>
-        </button>
-      </div>
-    </div>
-  </header>
-
-  <!-- Operator & Quick Stats Bar -->
-  <section class="operator-bar">
-    <div class="operator-container">
-      <div class="operator-left">
-        <div id="operator-badge-btn" class="operator-pill" title="Klik untuk ubah nama panitia">
-          <span>👤</span>
           <span id="operator-badge-text">Panitia Gate 1</span>
-        </div>
+        </button>
 
-        <!-- Session Selector Dropdown -->
-        <div class="session-picker-wrapper" title="Sesi Acara Aktif">
-          <span style="font-size: 13px;">📍</span>
-          <select id="select-session" class="select-session-box" aria-label="Pilih Sesi Acara">
-            <option value="SESI-01">Sesi 1 (Memuat...)</option>
-          </select>
-          <button id="btn-refresh-sessions" class="btn-refresh-sm" title="Refresh Daftar Sesi dari Sheet">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+        <div class="header-right-tools">
+          <div class="stat-item" title="Jumlah peserta berhasil presensi">
+            <span class="stat-label">Terpindai:</span>
+            <span id="stat-total" class="stat-val">0</span>
+          </div>
+
+          <button id="btn-open-settings" class="btn-icon" title="Pengaturan Panitia & API" aria-label="Settings">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
             </svg>
           </button>
         </div>
       </div>
+  </header>
 
-      <div class="stats-counter">
-        <div class="stat-item">
-          <span>Terpindai:</span>
-          <span id="stat-total" class="stat-val">0</span>
-        </div>
+  <!-- Sesi Acara Aktif Bar (Di atas Main Menu Tabs) -->
+  <section class="session-bar" aria-label="Sesi Acara Aktif">
+    <div class="session-bar-container">
+      <div class="session-picker-wrapper" title="Sesi Acara Aktif">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;">
+          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+          <circle cx="12" cy="10" r="3"></circle>
+        </svg>
+        <span class="session-status-tag">Sesi:</span>
+        <select id="select-session" class="select-session-box" aria-label="Pilih Sesi Acara">
+          <option value="SESI-01">Sesi 1 (Memuat...)</option>
+        </select>
+        <button id="btn-refresh-sessions" class="btn-refresh-sm" title="Refresh Daftar Sesi dari Sheet">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+          </svg>
+        </button>
       </div>
     </div>
   </section>
@@ -89,18 +76,18 @@
   <nav class="nav-tabs" aria-label="Menu Presensi">
     <div class="tab-list">
       <button class="tab-btn active" data-tab="scan" id="tab-btn-scan">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M3 7V5a2 2 0 0 1 2-2h2"></path>
           <path d="M17 3h2a2 2 0 0 1 2 2v2"></path>
           <path d="M21 17v2a2 2 0 0 1-2 2h-2"></path>
           <path d="M7 21H5a2 2 0 0 1-2-2v-2"></path>
           <rect x="7" y="7" width="10" height="10" rx="1"></rect>
         </svg>
-        <span>QR Scanner</span>
+        <span>Scan QR</span>
       </button>
 
       <button class="tab-btn" data-tab="manual" id="tab-btn-manual">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="11" cy="11" r="8"></circle>
           <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
         </svg>
@@ -108,7 +95,7 @@
       </button>
 
       <button class="tab-btn" data-tab="ots" id="tab-btn-ots">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
           <circle cx="8.5" cy="7" r="4"></circle>
           <line x1="20" y1="8" x2="20" y2="14"></line>
@@ -118,7 +105,7 @@
       </button>
 
       <button class="tab-btn" data-tab="history" id="tab-btn-history">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="10"></circle>
           <polyline points="12 6 12 12 16 14"></polyline>
         </svg>
@@ -136,7 +123,7 @@
         <div class="scanner-viewport-wrapper">
           <video id="scan-video" playsinline autoplay muted></video>
           <canvas id="scan-canvas" style="display: none;"></canvas>
-          <!-- Telegram-Style Dynamic AR Tracking Canvas (Mengikuti QR secara real-time) -->
+          <!-- Dynamic AR Tracking Canvas -->
           <canvas id="qr-tracking-canvas"></canvas>
 
           <!-- Scanner Center Loading HUD Overlay -->
@@ -149,13 +136,13 @@
           <!-- Camera Floating Controls -->
           <div class="camera-controls">
             <button id="btn-flip-cam" class="ctrl-btn" title="Ganti Kamera Depan/Belakang">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
               </svg>
               <span>Kamera</span>
             </button>
             <button id="btn-toggle-torch" class="ctrl-btn" title="Nyalakan/Matikan Senter">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
               </svg>
               <span>Senter</span>
@@ -163,7 +150,7 @@
           </div>
         </div>
 
-        <!-- Scanner Status Bar & Anti-Hang Feedback -->
+        <!-- Scanner Status Bar -->
         <div class="scanner-status-box">
           <div class="status-info">
             <div class="pulse-indicator"></div>
@@ -190,20 +177,20 @@
         <!-- Direct ID Input -->
         <div class="form-group">
           <label class="form-label" for="manual-ticket-id">Input ID Tiket Langsung</label>
-          <div style="display: flex; gap: 8px;">
+          <div class="input-action-row">
             <input type="text" id="manual-ticket-id" class="input-box" placeholder="Contoh: TIC-9A82B" autocomplete="off" style="text-transform: uppercase;">
-            <button id="btn-manual-checkin" class="btn-primary" style="width: auto; padding: 0 20px;">Check In</button>
+            <button id="btn-manual-checkin" class="btn-primary" style="width: auto; padding: 0 22px;">Check In</button>
           </div>
         </div>
 
-        <div style="height: 1px; background: rgba(255, 255, 255, 0.08); margin: 24px 0;"></div>
+        <div class="divider"></div>
 
         <!-- Search by Name/Email -->
         <div class="form-group">
           <label class="form-label" for="manual-search-query">Cari Berdasarkan Nama / Email</label>
-          <div style="display: flex; gap: 8px;">
+          <div class="input-action-row">
             <input type="text" id="manual-search-query" class="input-box" placeholder="Ketik nama atau email peserta...">
-            <button id="btn-search-query" class="btn-primary" style="width: auto; padding: 0 20px;">Cari</button>
+            <button id="btn-search-query" class="btn-primary" style="width: auto; padding: 0 22px;">Cari</button>
           </div>
         </div>
 
@@ -220,7 +207,7 @@
             <h2 class="section-title" style="margin-bottom: 2px;">Riwayat Pemindaian</h2>
             <p class="section-desc" style="margin-bottom: 0;">Daftar aktivitas check-in pada perangkat ini.</p>
           </div>
-          <button id="btn-clear-history" class="btn-icon" style="width: auto; padding: 6px 12px; font-size: 12px; gap: 4px;" title="Bersihkan Riwayat">
+          <button id="btn-clear-history" class="btn-icon btn-clear-text" title="Bersihkan Riwayat">
             <span>Bersihkan</span>
           </button>
         </div>
@@ -232,22 +219,27 @@
     <!-- TAB 4: DAFTAR CEPAT ON-THE-SPOT (OTS) -->
     <div id="tab-ots" class="tab-pane">
       <div class="manual-card">
-        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
-          <span style="font-size: 24px;">⚡</span>
+        <div class="ots-header-title">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+            <circle cx="9" cy="7" r="4"></circle>
+            <line x1="19" y1="8" x2="19" y2="14"></line>
+            <line x1="22" y1="11" x2="16" y2="11"></line>
+          </svg>
           <h2 class="section-title" style="margin-bottom: 0;">Registrasi Cepat OTS (Walk-In)</h2>
         </div>
         <p class="section-desc">Khusus peserta yang tidak membawa HP, HP mati, atau tamu walk-in. Langsung terdaftar dan otomatis tercatat hadir di sesi aktif!</p>
 
         <form id="form-ots" onsubmit="return false;">
           <div class="form-group">
-            <label class="form-label" for="ots-name">Nama Lengkap Peserta <span style="color: #ef4444;">*</span></label>
+            <label class="form-label" for="ots-name">Nama Lengkap Peserta <span class="required-star">*</span></label>
             <input type="text" id="ots-name" class="input-box" placeholder="Contoh: Pak Joko Santoso" required autocomplete="off">
           </div>
 
           <div class="form-group">
             <label class="form-label" for="ots-contact">No. WhatsApp / Email (Opsional)</label>
             <input type="text" id="ots-contact" class="input-box" placeholder="Contoh: 08123456789 atau email..." autocomplete="off">
-            <small style="color: var(--text-dim); font-size: 11px; display: block; margin-top: 4px;">
+            <small class="form-help-text">
               Jika tidak punya email/HP, biarkan kosong. Sistem akan membuat ID khusus OTS.
             </small>
           </div>
@@ -258,7 +250,7 @@
           </div>
 
           <div style="margin-top: 24px;">
-            <button type="submit" id="btn-submit-ots" class="btn-primary" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); box-shadow: 0 6px 20px rgba(16, 185, 129, 0.3);">
+            <button type="submit" id="btn-submit-ots" class="btn-primary btn-success">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
                 <circle cx="8.5" cy="7" r="4"></circle>
@@ -278,7 +270,11 @@
     <div class="result-card">
       <div id="result-banner" class="result-banner success">
         <div class="result-icon-circle">
-          <span id="result-icon">✓</span>
+          <div id="result-icon" class="result-icon-svg">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+          </div>
         </div>
         <h3 id="result-title" class="result-title">CHECK-IN BERHASIL</h3>
         <p id="result-subtitle" class="result-subtitle">Akses Terverifikasi</p>
@@ -293,7 +289,7 @@
             </tr>
             <tr>
               <td>ID Tiket</td>
-              <td id="detail-ticket-id" style="font-family: monospace; letter-spacing: 1px;">-</td>
+              <td id="detail-ticket-id" style="font-family: monospace; letter-spacing: 0.5px;">-</td>
             </tr>
             <tr>
               <td>Email</td>
@@ -353,16 +349,16 @@
       <div class="form-group">
         <label class="form-label" for="cfg-api-url">Google Apps Script Web App URL</label>
         <input type="url" id="cfg-api-url" class="input-box" placeholder="https://script.google.com/macros/s/.../exec">
-        <small style="color: var(--text-dim); font-size: 11px; display: block; margin-top: 6px;">
+        <small class="form-help-text">
           Deploy dari Google Sheets: Extensions → Apps Script → Deploy → New Deployment → Web App (Who has access: Anyone).
         </small>
       </div>
 
-      <div style="display: flex; gap: 8px; margin-top: 24px;">
-        <button id="btn-test-connection" class="ctrl-btn" style="flex: 1; padding: 12px; justify-content: center;">
+      <div class="modal-btn-row">
+        <button id="btn-test-connection" class="ctrl-btn-outline">
           Test Koneksi
         </button>
-        <button id="btn-save-settings" class="btn-primary" style="flex: 1.5; padding: 12px;">
+        <button id="btn-save-settings" class="btn-primary" style="flex: 1.5;">
           Simpan Pengaturan
         </button>
       </div>
@@ -374,7 +370,12 @@
     <span id="toast-msg">Pemberitahuan</span>
   </div>
 
-  <!-- Application Logic -->
+  <!-- Application Logic Modules -->
+  <script src="js/state.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/scanner.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
