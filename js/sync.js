@@ -275,6 +275,9 @@ window.EventPass = window.EventPass || {};
       } finally {
         ns.state.isSyncingQueue = false;
         this.updateSyncUI();
+        if (ns.UI && typeof ns.UI.renderHistory === "function") {
+          ns.UI.renderHistory();
+        }
 
         // If more items remain and online, schedule next batch
         if (ns.state.syncQueue.length > 0 && navigator.onLine) {

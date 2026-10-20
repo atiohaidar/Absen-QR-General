@@ -101,7 +101,8 @@ const mockDomIds = [
   "detail-email", "detail-time", "detail-officer", "btn-cancel-checkin",
   "result-config-guide", "history-list", "history-empty", "history-count-badge",
   "cloud-sync-dot", "sync-queue-badge", "cache-status-text", "cfg-instant-mode",
-  "btn-sync-attendees", "input-api-url", "input-gate-name", "input-panitia-name"
+  "btn-sync-attendees", "input-api-url", "input-gate-name", "input-panitia-name",
+  "history-sync-banner", "history-sync-title", "history-sync-desc", "btn-sync-now-history"
 ];
 
 const mockDOM = {};

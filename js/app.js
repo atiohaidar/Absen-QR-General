@@ -104,6 +104,7 @@ window.EventPass = window.EventPass || {};
             if (!ns.state.isScanning) ns.Scanner.startScanning();
           } else {
             if (ns.state.isScanning) ns.Scanner.stopScanning();
+            if (targetTab === "history") ns.UI.renderHistory();
           }
         });
       });
@@ -242,6 +243,11 @@ window.EventPass = window.EventPass || {};
       if (DOM.syncQueueBadge) {
         DOM.syncQueueBadge.style.cursor = "pointer";
         DOM.syncQueueBadge.addEventListener("click", () => {
+          if (ns.Sync) ns.Sync.flushQueue(true);
+        });
+      }
+      if (DOM.btnSyncNowHistory) {
+        DOM.btnSyncNowHistory.addEventListener("click", () => {
           if (ns.Sync) ns.Sync.flushQueue(true);
         });
       }

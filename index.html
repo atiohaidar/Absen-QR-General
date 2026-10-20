@@ -248,6 +248,25 @@
           </button>
         </div>
 
+        <!-- Dynamic Sync Queue Status Banner in Riwayat Tab -->
+        <div id="history-sync-banner" class="history-sync-banner" style="display: none;">
+          <div class="sync-banner-content">
+            <span class="sync-banner-icon">⚡</span>
+            <div class="sync-banner-info">
+              <strong id="history-sync-title">0 Tiket Menunggu Sinkronisasi</strong>
+              <p id="history-sync-desc" style="margin: 0; font-size: 11.5px; color: #92400e;">
+                Tersimpan di HP. Klik "Sync Sekarang" untuk mengirim ke Spreadsheet.
+              </p>
+            </div>
+          </div>
+          <button type="button" id="btn-sync-now-history" class="btn-sync-now">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+            </svg>
+            <span>Sync Sekarang</span>
+          </button>
+        </div>
+
         <div id="history-list" class="history-list"></div>
       </div>
     </div>

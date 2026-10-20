@@ -218,6 +218,10 @@ window.EventPass = window.EventPass || {};
     // History Tab
     historyList: document.getElementById("history-list"),
     btnClearHistory: document.getElementById("btn-clear-history"),
+    historySyncBanner: document.getElementById("history-sync-banner"),
+    historySyncTitle: document.getElementById("history-sync-title"),
+    historySyncDesc: document.getElementById("history-sync-desc"),
+    btnSyncNowHistory: document.getElementById("btn-sync-now-history"),
 
     // Location Modal
     locationModal: document.getElementById("location-prompt-modal"),

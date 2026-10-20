@@ -270,6 +270,22 @@ window.EventPass = window.EventPass || {};
     },
 
     renderHistory() {
+      // 1. Update Top Sync Queue Banner in Riwayat Tab
+      const queueLen = (ns.state.syncQueue && Array.isArray(ns.state.syncQueue)) ? ns.state.syncQueue.length : 0;
+      if (ns.DOM.historySyncBanner) {
+        if (queueLen > 0) {
+          ns.DOM.historySyncBanner.style.display = "flex";
+          if (ns.DOM.historySyncTitle) {
+            ns.DOM.historySyncTitle.textContent = `${queueLen} Tiket Menunggu Sinkronisasi ke Spreadsheet`;
+          }
+          if (ns.DOM.historySyncDesc) {
+            ns.DOM.historySyncDesc.textContent = `Tersimpan aman di HP panitia. Klik "Sync Sekarang" untuk mengirim langsung.`;
+          }
+        } else {
+          ns.DOM.historySyncBanner.style.display = "none";
+        }
+      }
+
       if (!ns.DOM.historyList) return;
       if (ns.state.history.length === 0) {
         ns.DOM.historyList.innerHTML = `<div style="text-align: center; color: var(--text-dim); padding: 24px;">Belum ada riwayat pemindaian pada sesi ini.</div>`;
@@ -281,34 +297,98 @@ window.EventPass = window.EventPass || {};
         const div = document.createElement("div");
         div.className = "history-item";
 
+        // Cek apakah tiket ini masih ada di antrean sync lokal HP
+        const isPendingInQueue = ns.state.syncQueue && ns.state.syncQueue.some(
+          q => String(q.ticketId || "").toUpperCase() === String(item.ticketId || "").toUpperCase() && q.sessionId === item.sessionId
+        );
+
         let badgeClass = "badge-success";
         let badgeLabel = "Hadir";
         let showUndo = false;
+        let syncTagHtml = "";
+        let syncSubtextHtml = "";
 
         if (item.status === "SUCCESS") {
           badgeClass = "badge-success";
-          badgeLabel = "Berhasil";
+          badgeLabel = "Hadir";
           showUndo = true;
+
+          if (isPendingInQueue) {
+            syncTagHtml = `
+              <span class="badge badge-pending-sync" title="Data tersimpan di memori HP, belum terkirim ke Google Sheets">
+                ⏳ Antrean HP
+              </span>
+            `;
+            syncSubtextHtml = `
+              <div style="font-size: 11px; color: #b45309; margin-top: 3px; display: flex; align-items: center; gap: 4px;">
+                <span class="sync-mini-dot"></span>
+                <span><strong>Belum Masuk Sheet</strong> • Menunggu sinkronisasi</span>
+              </div>
+            `;
+          } else {
+            syncTagHtml = `
+              <span class="badge badge-synced" title="Telah tercatat permanen di Google Sheets">
+                ☁️ Tersinkron
+              </span>
+            `;
+            syncSubtextHtml = `
+              <div style="font-size: 11px; color: #059669; margin-top: 3px; display: flex; align-items: center; gap: 4px;">
+                <span>✅ <strong>Masuk Spreadsheet</strong> (Aman)</span>
+              </div>
+            `;
+          }
+        } else if (item.status === "REJECTED_BY_SERVER") {
+          badgeClass = "badge-error";
+          badgeLabel = "Ditolak";
+          syncTagHtml = `
+            <span class="badge badge-rejected" title="Tiket tidak ditemukan / dihapus admin di database">
+              ⚠️ Ditolak Sheet
+            </span>
+          `;
+          syncSubtextHtml = `
+            <div style="font-size: 11px; color: #dc2626; margin-top: 3px;">
+              ⚠️ <strong>Ditolak Database</strong>: Data tiket dihapus admin di spreadsheet
+            </div>
+          `;
         } else if (item.status === "CANCELLED") {
           badgeClass = "badge-error";
           badgeLabel = "Dibatalkan";
+          syncTagHtml = `
+            <span class="badge" style="background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1; font-size: 11px;">
+              ↩️ Dibatalkan
+            </span>
+          `;
         } else if (item.status === "DUPLICATE") {
           badgeClass = "badge-warning";
           badgeLabel = "Duplikat";
+          syncSubtextHtml = `
+            <div style="font-size: 11px; color: #d97706; margin-top: 3px;">
+              ⚠️ Sudah pernah absen di sesi ini
+            </div>
+          `;
         } else {
           badgeClass = "badge-error";
           badgeLabel = "Gagal";
+          syncSubtextHtml = `
+            <div style="font-size: 11px; color: #dc2626; margin-top: 3px;">
+              ❌ Gagal diproses: ${ns.escapeHtml(item.name || "Error")}
+            </div>
+          `;
         }
 
         div.innerHTML = `
           <div style="flex: 1;">
             <div style="font-weight: 600; color: var(--text-main); font-size: 14px;">${ns.escapeHtml(item.name)}</div>
             <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
-              ${ns.escapeHtml(item.ticketId)} • ${ns.escapeHtml(item.sessionName || "Sesi")} • ${ns.escapeHtml(item.time)}
+              <strong style="font-family: monospace; letter-spacing: 0.3px;">${ns.escapeHtml(item.ticketId)}</strong> • ${ns.escapeHtml(item.sessionName || "Sesi")} • ${ns.escapeHtml(item.time)}
             </div>
+            ${syncSubtextHtml}
           </div>
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span class="badge ${badgeClass}">${badgeLabel}</span>
+          <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              ${syncTagHtml}
+              <span class="badge ${badgeClass}">${badgeLabel}</span>
+            </div>
             ${showUndo ? `<button class="btn-undo-sm" data-idx="${idx}" data-id="${ns.escapeHtml(item.ticketId)}" data-session="${ns.escapeHtml(item.sessionId)}" data-name="${ns.escapeHtml(item.name)}">Batalkan</button>` : ""}
           </div>
         `;
