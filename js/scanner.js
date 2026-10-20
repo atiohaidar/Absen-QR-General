@@ -110,6 +110,31 @@ window.EventPass = window.EventPass || {};
     ctx.restore();
   }
 
+  // Screen WakeLock to prevent screen dimming during check-in rush
+  let wakeLockSentinel = null;
+
+  async function requestWakeLock() {
+    if ('wakeLock' in navigator && !wakeLockSentinel) {
+      try {
+        wakeLockSentinel = await navigator.wakeLock.request('screen');
+        wakeLockSentinel.addEventListener('release', () => {
+          wakeLockSentinel = null;
+        });
+      } catch (e) {
+        // Silently fail if restricted by OS/low battery
+      }
+    }
+  }
+
+  function releaseWakeLock() {
+    if (wakeLockSentinel) {
+      try {
+        wakeLockSentinel.release();
+      } catch (e) {}
+      wakeLockSentinel = null;
+    }
+  }
+
   async function startScanning() {
     stopScanning();
     ns.UI.updateScannerStatus("Menghubungkan Kamera...", "Mohon izinkan akses kamera jika diminta...");
@@ -136,6 +161,9 @@ window.EventPass = window.EventPass || {};
       ns.state.isScanning = true;
       ns.UI.updateScannerStatus("Siap Memindai", `Sesi: ${ns.state.currentSessionName}`);
 
+      // Request screen stay awake
+      requestWakeLock();
+
       // Start frame scan loop
       scanFrame();
     } catch (err) {
@@ -152,6 +180,8 @@ window.EventPass = window.EventPass || {};
 
   function stopScanning() {
     ns.state.isScanning = false;
+    releaseWakeLock();
+
     if (ns.state.animationFrameId) {
       cancelAnimationFrame(ns.state.animationFrameId);
       ns.state.animationFrameId = null;
@@ -164,6 +194,18 @@ window.EventPass = window.EventPass || {};
       ns.DOM.scanVideo.srcObject = null;
     }
   }
+
+  // Auto-pause camera when phone is locked or app is minimized to save battery & prevent overheating
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      const activeTab = document.querySelector(".tab-btn.active");
+      if (activeTab && activeTab.getAttribute("data-tab") === "scan") {
+        startScanning();
+      }
+    } else {
+      stopScanning();
+    }
+  });
 
   async function scanFrame() {
     if (!ns.state.isScanning || !ns.DOM.scanVideo) return;

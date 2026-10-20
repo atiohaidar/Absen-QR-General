@@ -270,31 +270,6 @@ function getOrCreateSessionColumn(sheetPeserta, sessionId, sessionName) {
 }
 
 /**
- * ==============================================================================
- * WEB API: doGet (Health check & Ambil Daftar Sesi Aktif)
- * ==============================================================================
- */
-function doGet(e) {
-  const action = (e && e.parameter && e.parameter.action) || "getSessions";
-  
-  if (action === "getSessions") {
-    ensureAllSheetsSetup();
-    const sessions = getActiveSessions();
-    return createJsonResponse({
-      success: true,
-      sessions: sessions,
-      timestamp: new Date().toISOString()
-    });
-  }
-
-  return createJsonResponse({
-    success: true,
-    message: "EventPass Multi-Session Attendance API is Online!",
-    event: CONFIG.EVENT_NAME
-  });
-}
-
-/**
  * Helper: Ambil sesi berstatus AKTIF dari sheet "Master Sesi"
  */
 function getActiveSessions() {
