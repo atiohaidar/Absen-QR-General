@@ -94,7 +94,6 @@ window.EventPass = window.EventPass || {};
     isProcessing: false,
     currentFacingMode: "environment", // "environment" (rear) or "user" (front)
     isTorchOn: false,
-    autoResumeTimer: null,
     
     // Settings (Persisted in localStorage with optional default fallback)
     panitiaName: localStorage.getItem("absen_panitia_name") || "Panitia Gate 1",
@@ -163,8 +162,6 @@ window.EventPass = window.EventPass || {};
     detailEmail: document.getElementById("detail-email"),
     detailTime: document.getElementById("detail-time"),
     detailOfficer: document.getElementById("detail-officer"),
-    countdownBar: document.getElementById("countdown-bar"),
-    countdownBarContainer: document.getElementById("countdown-bar-container"),
     resultConfigGuide: document.getElementById("result-config-guide"),
     btnFixConfigUrl: document.getElementById("btn-fix-config-url"),
     btnNextScan: document.getElementById("btn-next-scan"),

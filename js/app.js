@@ -139,7 +139,6 @@ window.EventPass = window.EventPass || {};
       if (DOM.btnCancelCheckin) {
         DOM.btnCancelCheckin.addEventListener("click", () => {
           if (!ns.state.lastScanned) return;
-          clearTimeout(ns.state.autoResumeTimer);
           ns.UI.openCancelModal(ns.state.lastScanned);
         });
       }

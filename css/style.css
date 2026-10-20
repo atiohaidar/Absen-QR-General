@@ -1177,22 +1177,6 @@ body {
   text-align: right;
 }
 
-.countdown-bar-container {
-  width: 100%;
-  height: 4px;
-  background: var(--bg-subtle);
-  border-radius: var(--radius-full);
-  overflow: hidden;
-  margin-bottom: 14px;
-}
-
-.countdown-bar {
-  height: 100%;
-  width: 100%;
-  background: var(--primary-gradient);
-  transform-origin: left;
-}
-
 /* ==============================================================================
    TROUBLESHOOTING GUIDE (CONFIG / CONNECTION ERRORS)
    ============================================================================== */
