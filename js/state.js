@@ -41,6 +41,9 @@ window.EventPass = window.EventPass || {};
     }
   }
 
+  // Default Fallback Web App URL (Opsional: paste URL Apps Script di sini jika ingin auto-connect tanpa query param ?api=)
+  const DEFAULT_APP_SCRIPT_URL = "";
+
   // Application State
   ns.state = {
     mediaStream: null,
@@ -51,10 +54,10 @@ window.EventPass = window.EventPass || {};
     isTorchOn: false,
     autoResumeTimer: null,
     
-    // Settings (Persisted in localStorage)
+    // Settings (Persisted in localStorage with optional default fallback)
     panitiaName: localStorage.getItem("absen_panitia_name") || "Panitia Gate 1",
     gateName: localStorage.getItem("absen_gate_name") || "Pintu Masuk Utama",
-    apiUrl: localStorage.getItem("absen_api_url") || "",
+    apiUrl: localStorage.getItem("absen_api_url") || DEFAULT_APP_SCRIPT_URL || "",
 
     // Sessions Management
     sessions: JSON.parse(localStorage.getItem("absen_cached_sessions") || "[]"),
@@ -138,6 +141,7 @@ window.EventPass = window.EventPass || {};
     inputPanitiaName: document.getElementById("cfg-panitia-name"),
     inputGateName: document.getElementById("cfg-gate-name"),
     inputApiUrl: document.getElementById("cfg-api-url"),
+    btnCopyShareLink: document.getElementById("btn-copy-share-link"),
     btnTestConnection: document.getElementById("btn-test-connection"),
     btnSaveSettings: document.getElementById("btn-save-settings"),
     previewDevice: document.getElementById("cfg-device-info-preview"),
@@ -160,6 +164,16 @@ window.EventPass = window.EventPass || {};
     // History Tab
     historyList: document.getElementById("history-list"),
     btnClearHistory: document.getElementById("btn-clear-history"),
+
+    // Location Modal
+    locationModal: document.getElementById("location-prompt-modal"),
+    locBadgePill: document.getElementById("loc-badge-pill"),
+    locStatusText: document.getElementById("loc-status-text"),
+    locStatusDot: document.querySelector(".loc-info-dot"),
+    btnAllowLocation: document.getElementById("btn-allow-location"),
+    btnAllowLocationText: document.getElementById("btn-allow-location-text"),
+    btnSkipLocation: document.getElementById("btn-skip-location"),
+    btnRetriggerLoc: document.getElementById("btn-retrigger-loc"),
 
     // Toast
     toast: document.getElementById("toast-notice"),

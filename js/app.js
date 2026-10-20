@@ -15,6 +15,9 @@ window.EventPass = window.EventPass || {};
      * Entry point called when DOM is ready
      */
     init() {
+      // 0. Auto-connect if query parameter is provided (e.g. ?q=https://... or ?api=https://...)
+      this.checkUrlAutoConfig();
+
       ns.UI.renderOperatorHeader();
       ns.UI.renderSessionDropdown();
       ns.UI.renderHistory();
@@ -22,19 +25,19 @@ window.EventPass = window.EventPass || {};
       this.bindEventListeners();
       ns.Scanner.startScanning();
 
-      // Start zero-lag background geolocation lock
-      if (typeof ns.initBackgroundGeolocation === "function") {
-        ns.initBackgroundGeolocation();
-      }
+      // Check if location is allowed, otherwise display full-screen blocking overlay
+      this.checkLocationState();
 
       // Sync active sessions from Google Sheets
       if (ns.state.apiUrl) {
         this.syncSessions(false);
       } else {
         setTimeout(() => {
-          ns.UI.openSettingsModal();
-          ns.UI.showToast("Silakan masukkan Apps Script API URL terlebih dahulu.");
-        }, 600);
+          if (!ns.DOM.locationModal || !ns.DOM.locationModal.classList.contains("show")) {
+            ns.UI.openSettingsModal();
+            ns.UI.showToast("Silakan masukkan Apps Script API URL terlebih dahulu.");
+          }
+        }, 700);
       }
     },
 
@@ -180,6 +183,9 @@ window.EventPass = window.EventPass || {};
       if (DOM.btnSaveSettings) {
         DOM.btnSaveSettings.addEventListener("click", () => this.handleSaveSettings());
       }
+      if (DOM.btnCopyShareLink) {
+        DOM.btnCopyShareLink.addEventListener("click", () => this.handleCopyShareLink());
+      }
 
       // 9. History Clear
       if (DOM.btnClearHistory) {
@@ -189,6 +195,253 @@ window.EventPass = window.EventPass || {};
           ns.UI.renderHistory();
           ns.UI.showToast("Riwayat lokal telah dibersihkan.");
         });
+      }
+
+      // 10. Location Permission Blocking Modal Actions
+      if (DOM.btnAllowLocation) {
+        DOM.btnAllowLocation.addEventListener("click", () => this.handleAllowLocation());
+      }
+      if (DOM.btnSkipLocation) {
+        DOM.btnSkipLocation.addEventListener("click", () => this.handleSkipLocation());
+      }
+      if (DOM.btnRetriggerLoc) {
+        DOM.btnRetriggerLoc.addEventListener("click", () => {
+          ns.UI.closeSettingsModal();
+          ns.UI.openLocationModal("prompt");
+        });
+      }
+    },
+
+    /**
+     * Check if location permission is granted, otherwise shows full-screen blocking notification
+     */
+    async checkLocationState() {
+      // If user already dismissed during this session, do not block screen
+      if (sessionStorage.getItem("absen_loc_dismissed") === "true") {
+        if (typeof ns.initBackgroundGeolocation === "function") {
+          ns.initBackgroundGeolocation();
+        }
+        return;
+      }
+
+      if (!("geolocation" in navigator)) {
+        if (ns.DOM.previewLocation) {
+          ns.DOM.previewLocation.textContent = "Tidak Didukung";
+        }
+        return;
+      }
+
+      // Query permission if browser supports Permissions API
+      if (navigator.permissions && navigator.permissions.query) {
+        try {
+          const permissionStatus = await navigator.permissions.query({ name: 'geolocation' });
+          if (permissionStatus.state === 'granted') {
+            if (typeof ns.initBackgroundGeolocation === "function") {
+              ns.initBackgroundGeolocation();
+            }
+            ns.UI.closeLocationModal();
+          } else if (permissionStatus.state === 'denied') {
+            ns.UI.openLocationModal("denied");
+          } else {
+            // 'prompt' - Not yet allowed! Show full-screen blocking overlay
+            ns.UI.openLocationModal("prompt");
+          }
+
+          permissionStatus.onchange = () => {
+            if (permissionStatus.state === 'granted') {
+              if (typeof ns.initBackgroundGeolocation === "function") {
+                ns.initBackgroundGeolocation();
+              }
+              ns.UI.closeLocationModal();
+              ns.UI.showToast("Akses lokasi berhasil diaktifkan.");
+            }
+          };
+          return;
+        } catch (e) {
+          console.warn("Permissions query error, fallback to prompt:", e);
+        }
+      }
+
+      // Fallback for browsers without permissions.query
+      if (!ns.state.location) {
+        ns.UI.openLocationModal("prompt");
+      }
+    },
+
+    /**
+     * Trigger browser prompt to allow location
+     */
+    handleAllowLocation() {
+      const btn = ns.DOM.btnAllowLocation;
+      const btnText = ns.DOM.btnAllowLocationText;
+
+      if (!("geolocation" in navigator)) {
+        ns.UI.showToast("Perangkat ini tidak mendukung GPS.");
+        ns.UI.closeLocationModal();
+        return;
+      }
+
+      if (btn) btn.disabled = true;
+      if (btnText) btnText.innerHTML = `<span class="spinner" style="margin-right: 6px;"></span><span>Menunggu Izin Browser...</span>`;
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const lat = position.coords.latitude.toFixed(6);
+          const lng = position.coords.longitude.toFixed(6);
+          const accuracy = Math.round(position.coords.accuracy || 0);
+          const mapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
+
+          ns.state.location = {
+            lat: lat,
+            lng: lng,
+            accuracy: accuracy,
+            mapsUrl: mapsUrl,
+            timestamp: Date.now()
+          };
+
+          if (ns.DOM.previewLocation) {
+            ns.DOM.previewLocation.textContent = `Aktif (±${accuracy}m)`;
+            ns.DOM.previewLocation.style.color = "var(--status-success)";
+          }
+
+          if (btn) btn.disabled = false;
+          if (btnText) btnText.innerHTML = `<span>Izinkan Akses Lokasi</span>`;
+
+          ns.UI.closeLocationModal();
+          ns.UI.showToast("Izin lokasi berhasil diaktifkan.");
+
+          if (!ns.state.apiUrl) {
+            setTimeout(() => ns.UI.openSettingsModal(), 400);
+          }
+        },
+        (err) => {
+          console.warn("Geolocation prompt error:", err);
+          if (btn) btn.disabled = false;
+          if (btnText) btnText.innerHTML = `<span>Coba Minta Izin Lagi</span>`;
+
+          if (ns.DOM.locStatusText) {
+            if (err.code === err.PERMISSION_DENIED) {
+              ns.DOM.locStatusText.textContent = "Izin lokasi diblokir oleh browser. Anda dapat melanjutkan tanpa lokasi di bawah.";
+            } else {
+              ns.DOM.locStatusText.textContent = `Gagal memperoleh sinyal GPS: ${err.message}`;
+            }
+          }
+          if (ns.DOM.locStatusDot) {
+            ns.DOM.locStatusDot.style.background = "var(--status-error)";
+          }
+
+          ns.UI.showToast("Izin lokasi belum diberikan. Anda dapat lanjut tanpa lokasi.");
+        },
+        {
+          enableHighAccuracy: false,
+          timeout: 12000,
+          maximumAge: 300000
+        }
+      );
+    },
+
+    /**
+     * Dismiss full-screen blocking overlay and continue without location
+     */
+    handleSkipLocation() {
+      sessionStorage.setItem("absen_loc_dismissed", "true");
+      if (ns.DOM.previewLocation) {
+        ns.DOM.previewLocation.textContent = "Non-GPS (Dilewati)";
+        ns.DOM.previewLocation.style.color = "var(--text-muted)";
+      }
+      ns.UI.closeLocationModal();
+      ns.UI.showToast("Melanjutkan presensi tanpa koordinat GPS.");
+
+      if (!ns.state.apiUrl) {
+        setTimeout(() => ns.UI.openSettingsModal(), 400);
+      }
+    },
+
+    /**
+     * Parse query parameters from URL for automatic zero-configuration onboarding:
+     * Supports: ?q=https://script.google.com/... or ?api=https://...
+     * Optional: &gate=Gate+1 &panitia=Budi
+     */
+    checkUrlAutoConfig() {
+      try {
+        const searchParams = new URLSearchParams(window.location.search);
+        let hashParams = null;
+        if (window.location.hash && window.location.hash.includes("=")) {
+          hashParams = new URLSearchParams(window.location.hash.replace(/^#\/?/, ""));
+        }
+
+        const apiParam = searchParams.get("q") || 
+                         searchParams.get("api") || 
+                         searchParams.get("apiUrl") || 
+                         searchParams.get("url") || 
+                         searchParams.get("backend") || 
+                         (hashParams && (hashParams.get("q") || hashParams.get("api")));
+
+        const gateParam = searchParams.get("gate") || (hashParams && hashParams.get("gate"));
+        const panitiaParam = searchParams.get("panitia") || searchParams.get("operator") || (hashParams && hashParams.get("panitia"));
+
+        let hasNewConfig = false;
+
+        if (apiParam && apiParam.trim().startsWith("http")) {
+          const cleanApi = apiParam.trim();
+          ns.state.apiUrl = cleanApi;
+          localStorage.setItem("absen_api_url", cleanApi);
+          if (ns.DOM.inputApiUrl) ns.DOM.inputApiUrl.value = cleanApi;
+          hasNewConfig = true;
+        }
+
+        if (gateParam && gateParam.trim()) {
+          const cleanGate = gateParam.trim();
+          ns.state.gateName = cleanGate;
+          localStorage.setItem("absen_gate_name", cleanGate);
+          if (ns.DOM.inputGateName) ns.DOM.inputGateName.value = cleanGate;
+          hasNewConfig = true;
+        }
+
+        if (panitiaParam && panitiaParam.trim()) {
+          const cleanPanitia = panitiaParam.trim();
+          ns.state.panitiaName = cleanPanitia;
+          localStorage.setItem("absen_panitia_name", cleanPanitia);
+          if (ns.DOM.inputPanitiaName) ns.DOM.inputPanitiaName.value = cleanPanitia;
+          hasNewConfig = true;
+        }
+
+        if (hasNewConfig) {
+          // Bersihkan query string dari browser address bar agar tetap bersih dan rapi
+          const cleanUrl = window.location.origin + window.location.pathname;
+          window.history.replaceState({}, document.title, cleanUrl);
+
+          setTimeout(() => {
+            ns.UI.showToast("🔗 Terhubung otomatis ke Google Apps Script!");
+          }, 800);
+        }
+      } catch (e) {
+        console.warn("Auto-config URL parser error:", e);
+      }
+    },
+
+    /**
+     * Copy shareable pre-configured URL to clipboard for panitia:
+     * Creates: https://domain/?q=https://script.google.com/...
+     */
+    handleCopyShareLink() {
+      const url = (ns.DOM.inputApiUrl ? ns.DOM.inputApiUrl.value.trim() : "") || ns.state.apiUrl;
+      if (!url) {
+        ns.UI.showToast("Ketik atau simpan URL Google Apps Script terlebih dahulu.");
+        return;
+      }
+
+      const baseUrl = window.location.origin + window.location.pathname;
+      const shareUrl = `${baseUrl}?q=${encodeURIComponent(url)}`;
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(shareUrl).then(() => {
+          ns.UI.showToast("📋 Link otomatis disalin! Bagikan ke panitia (langsung aktif via ?q=...).");
+        }).catch(() => {
+          prompt("Salin link ini untuk dibagikan ke panitia:", shareUrl);
+        });
+      } else {
+        prompt("Salin link ini untuk dibagikan ke panitia:", shareUrl);
       }
     },
 

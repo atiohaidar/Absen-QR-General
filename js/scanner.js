@@ -80,10 +80,10 @@ window.EventPass = window.EventPass || {};
     const pillY = y - pillHeight / 2;
 
     // Clean pill tag
-    ctx.fillStyle = "rgba(15, 23, 42, 0.9)";
-    ctx.strokeStyle = isLocked ? "#15803d" : "#2563eb";
+    ctx.fillStyle = "rgba(12, 31, 20, 0.92)";
+    ctx.strokeStyle = isLocked ? "#62b32b" : "#0d532d";
     ctx.lineWidth = 1.5;
-    ctx.shadowColor = "rgba(0, 0, 0, 0.15)";
+    ctx.shadowColor = "rgba(0, 0, 0, 0.2)";
     ctx.shadowBlur = 4;
     ctx.shadowOffsetY = 2;
 
@@ -102,7 +102,7 @@ window.EventPass = window.EventPass || {};
     // Status indicator dot
     ctx.shadowBlur = 0;
     ctx.shadowOffsetY = 0;
-    ctx.fillStyle = isLocked ? "#15803d" : "#3b82f6";
+    ctx.fillStyle = isLocked ? "#62b32b" : "#22c55e";
     ctx.beginPath();
     ctx.arc(pillX + 12, y, 3.5, 0, Math.PI * 2);
     ctx.fill();
@@ -344,17 +344,17 @@ window.EventPass = window.EventPass || {};
         tCtx.lineTo(p2.x, p2.y);
         tCtx.lineTo(p3.x, p3.y);
         tCtx.closePath();
-        tCtx.fillStyle = ns.state.isProcessing ? "rgba(21, 128, 61, 0.16)" : "rgba(37, 99, 235, 0.12)";
+        tCtx.fillStyle = ns.state.isProcessing ? "rgba(13, 83, 45, 0.2)" : "rgba(98, 179, 43, 0.14)";
         tCtx.fill();
 
         // Thin outline
         tCtx.lineWidth = 1.5;
-        tCtx.strokeStyle = ns.state.isProcessing ? "rgba(21, 128, 61, 0.6)" : "rgba(37, 99, 235, 0.5)";
+        tCtx.strokeStyle = ns.state.isProcessing ? "rgba(13, 83, 45, 0.8)" : "rgba(98, 179, 43, 0.7)";
         tCtx.stroke();
 
         // 2. 4 Corner Brackets (Aligning with physical QR corners)
         const bracketLen = Math.max(16, Math.min(32, Math.hypot(p1.x - p0.x, p1.y - p0.y) * 0.22));
-        const bracketColor = ns.state.isProcessing ? "#15803d" : "#2563eb";
+        const bracketColor = ns.state.isProcessing ? "#62b32b" : "#0d532d";
 
         tCtx.shadowColor = "rgba(0, 0, 0, 0.25)";
         tCtx.shadowBlur = 3;

@@ -1,47 +1,50 @@
 :root {
-  /* Color Palette - Clean, Professional Light Mode */
-  --bg-body: #f8fafc;
+  /* Color Palette - Fresh Organic Forest Green & Leaf Theme */
+  --bg-body: #f4f8f5;
   --bg-card: #ffffff;
-  --bg-subtle: #f1f5f9;
-  --bg-hover: #e2e8f0;
-  --border-color: #e2e8f0;
-  --border-focus: #2563eb;
+  --bg-subtle: #ebf4ee;
+  --bg-hover: #dfeee3;
+  --border-color: #d7e6dc;
+  --border-focus: #0d532d;
 
   /* Typography Colors - High WCAG AA / AAA Contrast */
-  --text-main: #0f172a;       /* Slate 900 - 16.2:1 contrast on white */
-  --text-muted: #475569;      /* Slate 600 - 6.2:1 contrast on white */
-  --text-dim: #64748b;        /* Slate 500 - 4.6:1 contrast on white */
+  --text-main: #0c1f14;       /* Deep Forest Charcoal - 16+:1 contrast on white */
+  --text-muted: #385041;      /* Deep Sage Slate - 6.5:1 contrast on white */
+  --text-dim: #557060;        /* Sage 500 - 4.6:1 contrast on white */
 
-  /* Primary Brand Action (Solid Blue) */
-  --primary: #2563eb;         /* Blue 600 */
-  --primary-hover: #1d4ed8;   /* Blue 700 */
-  --primary-active: #1e40af;  /* Blue 800 */
-  --primary-text: #ffffff;    /* 4.6:1 contrast on blue-600 */
+  /* Primary Brand Action (Deep Forest Green & Fresh Leaf Accent) */
+  --primary: #0d532d;         /* Deep Forest Green */
+  --primary-hover: #093e21;   /* Darker Forest Green */
+  --primary-active: #062b16;  /* Deepest Forest Green */
+  --primary-text: #ffffff;    
+  --primary-light: #e8f5ec;   /* Soft Mint/Leaf Tint */
+  --accent-lime: #62b32b;     /* Fresh Spring Leaf Green */
+  --primary-gradient: linear-gradient(90deg, #0d532d 0%, #62b32b 100%);
 
-  /* Status Colors (High Contrast) */
-  --status-success: #15803d;  /* Emerald 700 - 4.8:1 contrast on white */
+  /* Status Colors */
+  --status-success: #0d532d;
   --status-success-bg: #f0fdf4;
   --status-success-border: #bbf7d0;
 
-  --status-warning: #b45309;  /* Amber 700 - 4.8:1 contrast on white */
+  --status-warning: #b45309;  /* Amber 700 */
   --status-warning-bg: #fffbeb;
   --status-warning-border: #fde68a;
 
-  --status-error: #b91c1c;    /* Red 700 - 5.8:1 contrast on white */
+  --status-error: #b91c1c;    /* Red 700 */
   --status-error-bg: #fef2f2;
   --status-error-border: #fecaca;
 
-  /* Border Radii */
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 16px;
+  /* Border Radii - Soft, clean organic rounding */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
   --radius-full: 9999px;
 
-  /* Elevation Shadows (Neutral, purposeful lighting - zero colored halos) */
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.03);
+  /* Elevation Shadows (Soft natural ambient lighting with subtle forest depth) */
+  --shadow-xs: 0 1px 2px rgba(13, 83, 45, 0.05);
+  --shadow-sm: 0 2px 5px rgba(13, 83, 45, 0.06), 0 1px 2px rgba(0, 0, 0, 0.02);
+  --shadow-md: 0 6px 14px -2px rgba(13, 83, 45, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.03);
+  --shadow-lg: 0 14px 28px -4px rgba(13, 83, 45, 0.12), 0 4px 8px -4px rgba(0, 0, 0, 0.04);
 
   --font-family: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
@@ -213,11 +216,14 @@ body {
 }
 
 .session-status-tag {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
-  color: var(--text-muted);
+  color: #ffffff;
+  background: var(--primary);
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
   text-transform: uppercase;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.5px;
   white-space: nowrap;
 }
 
@@ -324,7 +330,7 @@ body {
 }
 
 .dropdown-item.active {
-  background: #eff6ff; /* Soft Blue tint */
+  background: var(--primary-light);
   color: var(--primary);
   font-weight: 700;
 }
@@ -418,7 +424,7 @@ body {
 
 .tab-list {
   display: flex;
-  background: #e2e8f0;
+  background: #e1ece3;
   padding: 4px;
   border-radius: var(--radius-md);
   gap: 4px;
@@ -588,8 +594,22 @@ body {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: var(--status-success);
+  background: var(--accent-lime);
+  box-shadow: 0 0 0 0 rgba(98, 179, 43, 0.6);
+  animation: pulse-ring 2s cubic-bezier(0.45, 0, 0.2, 1) infinite;
   flex-shrink: 0;
+}
+
+@keyframes pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 rgba(98, 179, 43, 0.6);
+  }
+  70% {
+    box-shadow: 0 0 0 7px rgba(98, 179, 43, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(98, 179, 43, 0);
+  }
 }
 
 .status-label {
@@ -682,9 +702,10 @@ body {
 
 .section-title {
   font-size: 18px;
-  font-weight: 700;
-  color: var(--text-main);
+  font-weight: 800;
+  color: var(--primary);
   margin-bottom: 4px;
+  letter-spacing: -0.2px;
 }
 
 .section-desc {
@@ -734,7 +755,7 @@ body {
 
 .input-box:focus {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+  box-shadow: 0 0 0 3px rgba(13, 83, 45, 0.15);
 }
 
 .input-action-row {
@@ -765,12 +786,13 @@ body {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  box-shadow: var(--shadow-xs);
+  box-shadow: 0 2px 6px rgba(13, 83, 45, 0.18);
   transition: var(--transition);
 }
 
 .btn-primary:hover {
   background: var(--primary-hover);
+  box-shadow: 0 4px 10px rgba(13, 83, 45, 0.25);
 }
 
 .btn-primary:active {
@@ -779,11 +801,13 @@ body {
 }
 
 .btn-success {
-  background: var(--status-success);
+  background: var(--primary-gradient);
+  box-shadow: 0 3px 10px rgba(13, 83, 45, 0.22);
 }
 
 .btn-success:hover {
-  background: #166534;
+  filter: brightness(0.94);
+  box-shadow: 0 5px 14px rgba(13, 83, 45, 0.3);
 }
 
 .btn-secondary-danger {
@@ -1055,9 +1079,17 @@ body {
 }
 
 .result-banner.success {
-  background: var(--status-success-bg);
-  border-bottom: 1px solid var(--status-success-border);
-  color: var(--status-success);
+  background: linear-gradient(135deg, #0d532d 0%, #15803d 60%, #4da828 100%);
+  border-bottom: 1px solid var(--border-color);
+  color: #ffffff;
+}
+
+.result-banner.success .result-title {
+  color: #ffffff;
+}
+
+.result-banner.success .result-subtitle {
+  color: rgba(255, 255, 255, 0.92);
 }
 
 .result-banner.warning {
@@ -1086,7 +1118,8 @@ body {
 }
 
 .success .result-icon-circle {
-  background: var(--status-success);
+  background: rgba(255, 255, 255, 0.22);
+  border: 2px solid rgba(255, 255, 255, 0.45);
 }
 
 .warning .result-icon-circle {
@@ -1149,7 +1182,7 @@ body {
 .countdown-bar {
   height: 100%;
   width: 100%;
-  background: var(--primary);
+  background: var(--primary-gradient);
   transform-origin: left;
 }
 
@@ -1236,7 +1269,7 @@ body {
   left: 0;
   width: 100vw;
   height: 3px;
-  background: var(--primary);
+  background: var(--primary-gradient);
   z-index: 999;
   display: none;
 }
@@ -1259,6 +1292,134 @@ body {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+/* ==============================================================================
+   LOCATION PERMISSION BLOCKING MODAL (FULL SCREEN OVERLAY)
+   ============================================================================== */
+.location-backdrop {
+  z-index: 1000;
+  background: rgba(12, 31, 20, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.location-backdrop.show {
+  display: flex;
+}
+
+.location-modal-card {
+  width: 100%;
+  max-width: 440px;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 28px 24px 22px;
+  box-shadow: 0 20px 40px -10px rgba(13, 83, 45, 0.35);
+  text-align: center;
+  transform: scale(0.96);
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+}
+
+.location-backdrop.show .location-modal-card {
+  transform: scale(1);
+}
+
+.location-icon-wrapper {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  margin: 0 auto 12px;
+  background: var(--primary-light);
+  border: 2px solid #bbf7d0;
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 14px rgba(13, 83, 45, 0.12);
+}
+
+.location-badge-pill {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  background: var(--status-warning-bg);
+  color: var(--status-warning);
+  border: 1px solid var(--status-warning-border);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-bottom: 12px;
+}
+
+.location-title {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--primary);
+  letter-spacing: -0.3px;
+  margin-bottom: 8px;
+}
+
+.location-desc {
+  font-size: 13.5px;
+  color: var(--text-muted);
+  line-height: 1.55;
+  margin-bottom: 18px;
+}
+
+.location-info-box {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text-main);
+  margin-bottom: 20px;
+  text-align: left;
+}
+
+.loc-info-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--status-warning);
+  flex-shrink: 0;
+}
+
+.location-btn-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.btn-skip-loc {
+  width: 100%;
+  min-height: 44px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.btn-skip-loc:hover {
+  background: var(--bg-subtle);
+  color: var(--text-main);
+}
+
+.location-footnote {
+  font-size: 11.5px;
+  color: var(--text-dim);
+  margin-top: 14px;
+  line-height: 1.4;
 }
 
 /* ==============================================================================
@@ -1310,8 +1471,8 @@ body {
     border-radius: var(--radius-md);
   }
 
-  /* Bottom sheet behavior for modals on mobile */
-  .modal-backdrop {
+  /* Bottom sheet behavior for normal modals on mobile */
+  .modal-backdrop:not(.location-backdrop) {
     align-items: flex-end;
     padding: 0;
   }
@@ -1322,6 +1483,18 @@ body {
     border-radius: 20px 20px 0 0;
     margin: 0;
     padding-bottom: max(18px, env(safe-area-inset-bottom));
+  }
+
+  /* Location modal on mobile stays centered with touch padding */
+  .location-backdrop {
+    align-items: center;
+    padding: 16px;
+  }
+
+  .location-modal-card {
+    max-width: 100%;
+    border-radius: var(--radius-lg);
+    padding: 24px 18px 20px;
   }
 
   .input-action-row {

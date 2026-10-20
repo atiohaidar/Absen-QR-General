@@ -360,9 +360,18 @@
 
       <div class="form-group">
         <label class="form-label" for="cfg-api-url">Google Apps Script Web App URL</label>
-        <input type="url" id="cfg-api-url" class="input-box" placeholder="https://script.google.com/macros/s/.../exec">
+        <div style="display: flex; gap: 8px;">
+          <input type="url" id="cfg-api-url" class="input-box" placeholder="https://script.google.com/macros/s/.../exec">
+          <button type="button" id="btn-copy-share-link" class="ctrl-btn-outline" title="Salin link auto-config untuk dibagikan ke panitia" style="flex-shrink: 0; padding: 0 12px; gap: 5px; font-size: 13px; white-space: nowrap;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+            </svg>
+            <span>Salin Link</span>
+          </button>
+        </div>
         <small class="form-help-text">
-          Deploy dari Google Sheets: Extensions → Apps Script → Deploy → New Deployment → Web App (Who has access: Anyone).
+          Tips: Klik <strong>"Salin Link"</strong> untuk membagikan link siap pakai ke panitia (otomatis terhubung tanpa perlu ketik URL lagi).
         </small>
       </div>
 
@@ -373,7 +382,15 @@
         </div>
         <div style="display: flex; justify-content: space-between; align-items: center;">
           <span>Audit Lokasi (GPS):</span>
-          <strong id="cfg-location-info-preview" style="color: var(--status-success);">-</strong>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <strong id="cfg-location-info-preview" style="color: var(--status-success);">-</strong>
+            <button type="button" id="btn-retrigger-loc" class="btn-refresh-sm" title="Minta ulang izin lokasi" style="color: var(--primary);">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                <circle cx="12" cy="10" r="3"></circle>
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -421,6 +438,50 @@
         <button type="button" id="btn-execute-cancel" class="btn-secondary-danger" style="flex: 1.5; margin-top: 0;">
           Ya, Batalkan Presensi
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOCATION PERMISSION REQUIRED MODAL (FULL-SCREEN BLOCKING) -->
+  <div id="location-prompt-modal" class="modal-backdrop location-backdrop" role="dialog" aria-modal="true" aria-labelledby="loc-modal-title">
+    <div class="location-modal-card">
+      <div class="location-modal-header">
+        <div class="location-icon-wrapper">
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+            <circle cx="12" cy="10" r="3"></circle>
+          </svg>
+        </div>
+        <span id="loc-badge-pill" class="location-badge-pill">Izin Lokasi Belum Aktif</span>
+      </div>
+
+      <div class="location-modal-body">
+        <h3 id="loc-modal-title" class="location-title">Akses Lokasi Diperlukan</h3>
+        <p class="location-desc">
+          Sistem menggunakan koordinat GPS panitia untuk mencatat titik presensi peserta pada Google Sheets sebagai audit trail resmi kehadiran.
+        </p>
+
+        <div id="loc-status-box" class="location-info-box">
+          <div class="loc-info-dot"></div>
+          <span id="loc-status-text">Status: Belum diizinkan di browser ini</span>
+        </div>
+
+        <div class="location-btn-group">
+          <button type="button" id="btn-allow-location" class="btn-primary btn-success">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="3 11 22 2 13 21 11 13 3 11"></polygon>
+            </svg>
+            <span id="btn-allow-location-text">Izinkan Akses Lokasi</span>
+          </button>
+
+          <button type="button" id="btn-skip-location" class="ctrl-btn-outline btn-skip-loc">
+            <span>Lanjutkan Tanpa Lokasi</span>
+          </button>
+        </div>
+
+        <p class="location-footnote">
+          *Pilihan ini dapat diubah kapan saja melalui ikon pengaturan.
+        </p>
       </div>
     </div>
   </div>

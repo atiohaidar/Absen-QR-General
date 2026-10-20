@@ -186,6 +186,52 @@ window.EventPass = window.EventPass || {};
       ns.DOM.settingsModal.classList.remove("show");
     },
 
+    openLocationModal(type = "prompt") {
+      if (!ns.DOM.locationModal) return;
+
+      if (type === "denied") {
+        if (ns.DOM.locBadgePill) {
+          ns.DOM.locBadgePill.textContent = "Akses Lokasi Diblokir";
+          ns.DOM.locBadgePill.style.background = "var(--status-error-bg)";
+          ns.DOM.locBadgePill.style.color = "var(--status-error)";
+          ns.DOM.locBadgePill.style.borderColor = "var(--status-error-border)";
+        }
+        if (ns.DOM.locStatusText) {
+          ns.DOM.locStatusText.textContent = "Izin lokasi diblokir di browser. Aktifkan di ikon gembok bilah alamat, atau lanjutkan tanpa lokasi.";
+        }
+        if (ns.DOM.locStatusDot) {
+          ns.DOM.locStatusDot.style.background = "var(--status-error)";
+        }
+        if (ns.DOM.btnAllowLocationText) {
+          ns.DOM.btnAllowLocationText.textContent = "Coba Minta Izin Lagi";
+        }
+      } else {
+        if (ns.DOM.locBadgePill) {
+          ns.DOM.locBadgePill.textContent = "Izin Lokasi Belum Aktif";
+          ns.DOM.locBadgePill.style.background = "var(--status-warning-bg)";
+          ns.DOM.locBadgePill.style.color = "var(--status-warning)";
+          ns.DOM.locBadgePill.style.borderColor = "var(--status-warning-border)";
+        }
+        if (ns.DOM.locStatusText) {
+          ns.DOM.locStatusText.textContent = "Status: Belum diizinkan di browser ini";
+        }
+        if (ns.DOM.locStatusDot) {
+          ns.DOM.locStatusDot.style.background = "var(--status-warning)";
+        }
+        if (ns.DOM.btnAllowLocationText) {
+          ns.DOM.btnAllowLocationText.textContent = "Izinkan Akses Lokasi";
+        }
+      }
+
+      ns.DOM.locationModal.classList.add("show");
+    },
+
+    closeLocationModal() {
+      if (ns.DOM.locationModal) {
+        ns.DOM.locationModal.classList.remove("show");
+      }
+    },
+
     openCancelModal(target) {
       ns.state.pendingCancel = target;
       if (ns.DOM.cancelModalAttendeeName) {

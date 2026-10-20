@@ -116,11 +116,15 @@ absen qr/
 1. Push project ini ke repository GitHub Anda.
 2. Buka repo di GitHub: **Settings** → **Pages** → Source: **Deploy from a branch** (`main` / `root`) → Klik **Save**.
 3. Buka URL GitHub Pages di browser HP atau laptop.
-4. Masuk ke menu **Pengaturan ⚙️**:
-   - Masukkan **Nama Panitia** (misal: *Budi*).
-   - Masukkan **Gate** (misal: *Gate Utama*).
-   - Masukkan **Apps Script API URL** yang disalin di langkah sebelumnya.
-   - Klik **Simpan Pengaturan**.
+
+#### ⚡ Cara Praktis Bagikan Link ke Panitia (Zero-Config Auto Connect)
+Agar panitia **tidak bingung** dan tidak perlu repot copy-paste URL Apps Script secara manual, cukup tambahkan parameter `?q=` atau `?api=` pada link GitHub Pages:
+```text
+https://<username>.github.io/<nama-repo>/?q=https://script.google.com/macros/s/.../exec
+```
+- Begitu panitia membuka link tersebut di HP mereka, website **otomatis langsung terhubung ke Google Apps Script backend**, menyimpan konfigurasi secara permanen di perangkat, dan langsung memuat daftar sesi acara tanpa perlu membuka menu pengaturan!
+- **Tips 1-Klik:** Buka menu **Pengaturan ⚙️** di perangkat Anda, lalu klik tombol **"Salin Link"** di samping kolom URL Apps Script untuk menyalin link siap pakai ini ke WhatsApp panitia.
+- Anda juga dapat menyertakan parameter opsional seperti `&gate=Gate+Utama` atau `&panitia=Budi`.
 
 ---
 
