@@ -172,6 +172,7 @@ window.EventPass = window.EventPass || {};
     resultConfigGuide: document.getElementById("result-config-guide"),
     btnFixConfigUrl: document.getElementById("btn-fix-config-url"),
     btnNextScan: document.getElementById("btn-next-scan"),
+    btnRecheckServer: document.getElementById("btn-recheck-server"),
     btnCancelCheckin: document.getElementById("btn-cancel-checkin"),
 
     // Cancel Confirmation Modal

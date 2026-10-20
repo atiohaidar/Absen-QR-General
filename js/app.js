@@ -149,6 +149,84 @@ window.EventPass = window.EventPass || {};
         });
       }
 
+      if (DOM.btnRecheckServer) {
+        DOM.btnRecheckServer.addEventListener("click", async () => {
+          if (!ns.state.lastScanned || !ns.state.lastScanned.ticketId) return;
+          const { ticketId, sessionId, sessionName } = ns.state.lastScanned;
+          
+          DOM.btnRecheckServer.disabled = true;
+          DOM.btnRecheckServer.innerHTML = `<div class="spinner" style="width:12px;height:12px;border-width:1.5px;margin-right:6px;display:inline-block;vertical-align:middle;"></div> <span>Mengecek ke spreadsheet...</span>`;
+          
+          try {
+            const res = await ns.API.checkIn(ticketId);
+            if (res && res.success) {
+              // Sukses! Admin di Sheets sudah menghapus status hadirnya, sehingga checkIn baru diterima
+              ns.sounds.playSuccess();
+              if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+
+              const upperId = ticketId.toUpperCase();
+              if (ns.state.cachedAttendees && ns.state.cachedAttendees[upperId]) {
+                if (!ns.state.cachedAttendees[upperId].checkedInSessions) {
+                  ns.state.cachedAttendees[upperId].checkedInSessions = {};
+                }
+                ns.state.cachedAttendees[upperId].checkedInSessions[sessionId] = res.attendee?.checkInTime || new Date().toLocaleTimeString();
+                localStorage.setItem("absen_cached_attendees", JSON.stringify(ns.state.cachedAttendees));
+              }
+
+              ns.UI.recordHistory({
+                ticketId: ticketId,
+                sessionId: sessionId,
+                sessionName: sessionName,
+                name: res.attendee?.name || "Peserta",
+                status: "SUCCESS",
+                time: res.attendee?.checkInTime || new Date().toLocaleTimeString()
+              });
+
+              DOM.resultBanner.className = "result-banner success";
+              DOM.resultIcon.innerHTML = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+              DOM.resultTitle.textContent = "CHECK-IN BERHASIL";
+              DOM.resultSubtitle.textContent = `Status direset & Terverifikasi (${sessionName})`;
+              DOM.detailTime.textContent = res.attendee?.checkInTime || new Date().toLocaleTimeString();
+              DOM.btnRecheckServer.style.display = "none";
+              if (DOM.btnCancelCheckin) DOM.btnCancelCheckin.style.display = "flex";
+
+              ns.UI.showToast("✅ Status berhasil diverifikasi ulang dari spreadsheet!");
+            } else if (res && res.status === "NOT_FOUND") {
+              // Tiket telah dihapus admin di spreadsheet
+              ns.sounds.playError();
+              const upperId = ticketId.toUpperCase();
+              if (ns.state.cachedAttendees) {
+                delete ns.state.cachedAttendees[upperId];
+                localStorage.setItem("absen_cached_attendees", JSON.stringify(ns.state.cachedAttendees));
+              }
+              if (ns.Sync) ns.Sync.updateCacheCountUI();
+
+              DOM.resultBanner.className = "result-banner error";
+              DOM.resultIcon.innerHTML = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
+              DOM.resultTitle.textContent = "TIKET TELAH DIHAPUS";
+              DOM.resultSubtitle.textContent = "Data peserta tidak ada lagi di spreadsheet";
+              DOM.btnRecheckServer.style.display = "none";
+              if (DOM.btnCancelCheckin) DOM.btnCancelCheckin.style.display = "none";
+
+              ns.UI.showToast("⚠️ Tiket ini sudah dihapus di Google Sheets.");
+            } else {
+              // Masih tercatat hadir di database
+              ns.sounds.playWarning();
+              const prevTime = res.attendee?.firstCheckInTime || "-";
+              DOM.resultSubtitle.textContent = `Masih tercatat HADIR di spreadsheet (${prevTime})`;
+              DOM.btnRecheckServer.disabled = false;
+              DOM.btnRecheckServer.innerHTML = `<span>Sudah Dicek: Masih Hadir (${prevTime})</span>`;
+              ns.UI.showToast(`ℹ️ Di spreadsheet masih tercatat HADIR (${prevTime})`);
+            }
+          } catch (err) {
+            console.error("Recheck error:", err);
+            DOM.btnRecheckServer.disabled = false;
+            DOM.btnRecheckServer.innerHTML = `<span>Gagal cek (${err.message}). Coba lagi</span>`;
+            ns.UI.showToast(`Gagal cek spreadsheet: ${err.message}`);
+          }
+        });
+      }
+
       // 5. Cancel Confirmation Modal Actions
       if (DOM.btnCloseCancelModal) {
         DOM.btnCloseCancelModal.addEventListener("click", () => ns.UI.closeCancelModal());
@@ -544,9 +622,10 @@ window.EventPass = window.EventPass || {};
         const cachedAttendee = ns.state.cachedAttendees ? ns.state.cachedAttendees[upperTicketId] : null;
         const alreadyInCacheSession = cachedAttendee && cachedAttendee.checkedInSessions && cachedAttendee.checkedInSessions[currentSessionId];
         const alreadyInQueue = ns.state.syncQueue && ns.state.syncQueue.some(
-          item => String(item.ticketId || "").toUpperCase() === upperTicketId && item.sessionId === currentSessionId
+          item => String(item.ticketId || "").toUpperCase() === upperTicketId && item.sessionId === currentSessionId && !item.isDuplicate
         );
-        const alreadyInHistory = ns.state.history && ns.state.history.some(
+        // Fallback duplicate check: hanya jika tiket belum tersimpan di cache lokal
+        const alreadyInHistory = !cachedAttendee && ns.state.history && ns.state.history.some(
           h => String(h.ticketId || "").toUpperCase() === upperTicketId && h.sessionId === currentSessionId && (h.status === "SUCCESS" || h.status === "CHECKED_IN")
         );
 
@@ -579,7 +658,8 @@ window.EventPass = window.EventPass || {};
             email: cached.email || "-",
             time: checkTime,
             officer: currentOperator,
-            allowCancel: true
+            allowCancel: true,
+            allowRecheck: true
           });
 
           ns.UI.recordHistory({
@@ -590,6 +670,25 @@ window.EventPass = window.EventPass || {};
             status: "DUPLICATE",
             time: checkTime
           });
+
+          // 🌟 PENTING: Masukkan juga ke background sync queue agar tercatat di Google Sheets "Log Kehadiran" sebagai DUPLIKAT!
+          // Debounce agar scan bertubi-tubi tidak membanjiri antrean jika duplikat yang sama masih pending
+          const isAlreadyQueuedDup = ns.state.syncQueue && ns.state.syncQueue.some(
+            item => String(item.ticketId || "").toUpperCase() === upperTicketId && item.sessionId === currentSessionId && item.isDuplicate
+          );
+          if (!isAlreadyQueuedDup) {
+            ns.Sync.enqueue({
+              ticketId: rawTicketId,
+              sessionId: currentSessionId,
+              sessionName: currentSessionName,
+              scannedBy: ns.state.panitiaName || "Panitia",
+              gate: ns.state.gateName || "Pintu Masuk",
+              mapsUrl: ns.state.location ? ns.state.location.mapsUrl : "-",
+              deviceInfo: [navigator.platform, navigator.userAgent ? navigator.userAgent.substring(0, 50) : ""].filter(Boolean).join(" - "),
+              clientTime: new Date().toLocaleTimeString(),
+              isDuplicate: true
+            });
+          }
 
           return;
         }
@@ -807,10 +906,14 @@ window.EventPass = window.EventPass || {};
 
         // Update cache lokal agar scan selanjutnya langsung instant 0.05s
         if (!ns.state.cachedAttendees) ns.state.cachedAttendees = {};
-        ns.state.cachedAttendees[String(attendee.ticketId || scannedTicketId).toUpperCase().trim()] = {
+        const uId = String(attendee.ticketId || scannedTicketId).toUpperCase().trim();
+        const existingSessions = (ns.state.cachedAttendees[uId] && ns.state.cachedAttendees[uId].checkedInSessions) || {};
+        existingSessions[ns.state.currentSessionId || "SESI-01"] = checkTime;
+        ns.state.cachedAttendees[uId] = {
           ticketId: attendee.ticketId || scannedTicketId,
           name: attendeeName,
-          email: attendeeEmail
+          email: attendeeEmail,
+          checkedInSessions: existingSessions
         };
         try {
           localStorage.setItem("absen_cached_attendees", JSON.stringify(ns.state.cachedAttendees));
@@ -848,10 +951,14 @@ window.EventPass = window.EventPass || {};
 
         // Simpan info peserta ke cache lokal
         if (!ns.state.cachedAttendees) ns.state.cachedAttendees = {};
-        ns.state.cachedAttendees[String(attendee.ticketId || scannedTicketId).toUpperCase().trim()] = {
+        const uIdDup = String(attendee.ticketId || scannedTicketId).toUpperCase().trim();
+        const existingSessionsDup = (ns.state.cachedAttendees[uIdDup] && ns.state.cachedAttendees[uIdDup].checkedInSessions) || {};
+        existingSessionsDup[ns.state.currentSessionId || "SESI-01"] = checkTime;
+        ns.state.cachedAttendees[uIdDup] = {
           ticketId: attendee.ticketId || scannedTicketId,
           name: attendeeName,
-          email: attendeeEmail
+          email: attendeeEmail,
+          checkedInSessions: existingSessionsDup
         };
         try {
           localStorage.setItem("absen_cached_attendees", JSON.stringify(ns.state.cachedAttendees));
@@ -913,6 +1020,19 @@ window.EventPass = window.EventPass || {};
             ns.DOM.resultSubtitle.textContent = `Status direset ke belum hadir pada ${sessionName}`;
             ns.DOM.btnCancelCheckin.style.display = "none";
             setTimeout(() => ns.UI.closeResultModal(), 2000);
+          }
+
+          const upperId = (ticketId || "").toUpperCase();
+          if (ns.state.cachedAttendees && ns.state.cachedAttendees[upperId] && ns.state.cachedAttendees[upperId].checkedInSessions) {
+            delete ns.state.cachedAttendees[upperId].checkedInSessions[sessionId];
+            localStorage.setItem("absen_cached_attendees", JSON.stringify(ns.state.cachedAttendees));
+          }
+          if (ns.state.syncQueue) {
+            ns.state.syncQueue = ns.state.syncQueue.filter(
+              item => !(String(item.ticketId || "").toUpperCase() === upperId && item.sessionId === sessionId)
+            );
+            localStorage.setItem("absen_sync_queue", JSON.stringify(ns.state.syncQueue));
+            if (ns.Sync) ns.Sync.updateSyncUI();
           }
 
           const targetHistory = ns.state.history.find(h => h.ticketId === ticketId && h.sessionId === sessionId);

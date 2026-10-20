@@ -840,6 +840,35 @@ body {
   transform: scale(0.98);
 }
 
+.btn-secondary-outline {
+  width: 100%;
+  min-height: 44px;
+  background: #ffffff;
+  border: 1.5px solid var(--border-color);
+  color: var(--text-main);
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: var(--transition);
+  margin-top: 8px;
+}
+
+.btn-secondary-outline:hover {
+  background: var(--bg-subtle);
+  border-color: #cbd5e1;
+}
+
+.btn-secondary-outline:active {
+  transform: scale(0.98);
+}
+
 .ctrl-btn-outline {
   flex: 1;
   min-height: 46px;

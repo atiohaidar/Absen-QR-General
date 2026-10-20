@@ -66,15 +66,28 @@ window.EventPass = window.EventPass || {};
       try {
         const data = await ns.API.fetchAttendees();
         if (data && data.success && Array.isArray(data.attendees)) {
+          const pendingSessions = {};
+          if (ns.state.syncQueue) {
+            ns.state.syncQueue.forEach(item => {
+              if (item.ticketId && item.sessionId && !item.isDuplicate) {
+                const uId = String(item.ticketId).toUpperCase().trim();
+                if (!pendingSessions[uId]) pendingSessions[uId] = {};
+                pendingSessions[uId][item.sessionId] = item.clientTime || "Antrean";
+              }
+            });
+          }
+
           const newMap = {};
           data.attendees.forEach(a => {
             if (a.ticketId) {
               const upperId = a.ticketId.toUpperCase().trim();
+              const backendSessions = a.sessions || {};
+              const userPending = pendingSessions[upperId] || {};
               newMap[upperId] = {
                 ticketId: a.ticketId.trim(),
                 name: a.name || "Peserta",
                 email: a.email || "-",
-                checkedInSessions: (ns.state.cachedAttendees[upperId] && ns.state.cachedAttendees[upperId].checkedInSessions) || {}
+                checkedInSessions: Object.assign({}, backendSessions, userPending)
               };
             }
           });
@@ -160,6 +173,7 @@ window.EventPass = window.EventPass || {};
         mapsUrl: scanData.mapsUrl || "-",
         deviceInfo: scanData.deviceInfo || "-",
         clientTime: scanData.clientTime || new Date().toLocaleTimeString(),
+        isDuplicate: !!scanData.isDuplicate,
         queuedAt: Date.now()
       };
 
@@ -203,9 +217,11 @@ window.EventPass = window.EventPass || {};
             ns.state.syncQueue = ns.state.syncQueue.filter(item => !batchIds.has(item.queueId));
             localStorage.setItem("absen_sync_queue", JSON.stringify(ns.state.syncQueue));
 
-            // Check if any item was rejected by server (e.g. deleted in sheets)
+            // Check if any item was updated or rejected by server
             if (Array.isArray(response.results)) {
               response.results.forEach(res => {
+                const uId = (res.ticketId || "").toUpperCase();
+
                 if (res.status === "NOT_FOUND") {
                   // TIKET DIHAPUS DI SPREADSHEET (Rollback Alert)
                   ns.sounds.playError();
@@ -221,9 +237,27 @@ window.EventPass = window.EventPass || {};
                   }
 
                   // Purge from local cache
-                  delete ns.state.cachedAttendees[res.ticketId.toUpperCase()];
+                  delete ns.state.cachedAttendees[uId];
                   localStorage.setItem("absen_cached_attendees", JSON.stringify(ns.state.cachedAttendees));
                   this.updateCacheCountUI();
+                } else if (res.status === "CHECKED_IN") {
+                  // Di spreadsheet ternyata statusnya belum hadir/direset admin, sehingga server mencatat presensi baru
+                  if (ns.state.cachedAttendees[uId]) {
+                    if (!ns.state.cachedAttendees[uId].checkedInSessions) {
+                      ns.state.cachedAttendees[uId].checkedInSessions = {};
+                    }
+                    const sessId = res.attendee?.sessionName || "SESI-01";
+                    ns.state.cachedAttendees[uId].checkedInSessions[sessId] = res.attendee?.checkInTime || "Hadir";
+                    localStorage.setItem("absen_cached_attendees", JSON.stringify(ns.state.cachedAttendees));
+                  }
+
+                  // Balikkan item duplikat lokal menjadi SUKSES jika ada
+                  const dupHist = ns.state.history.find(h => h.ticketId === res.ticketId && h.status === "DUPLICATE");
+                  if (dupHist) {
+                    dupHist.status = "SUCCESS";
+                    localStorage.setItem("absen_history", JSON.stringify(ns.state.history));
+                    ns.UI.renderHistory();
+                  }
                 }
               });
             }

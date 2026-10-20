@@ -99,6 +99,7 @@ const mockDomIds = [
   "stat-duplicate", "stat-invalid", "result-modal", "result-banner", "result-icon",
   "result-title", "result-subtitle", "detail-name", "detail-ticket-id",
   "detail-email", "detail-time", "detail-officer", "btn-cancel-checkin",
+  "btn-recheck-server",
   "result-config-guide", "history-list", "history-empty", "history-count-badge",
   "cloud-sync-dot", "sync-queue-badge", "cache-status-text", "cfg-instant-mode",
   "btn-sync-attendees", "input-api-url", "input-gate-name", "input-panitia-name",
@@ -420,6 +421,13 @@ async function runStressTests() {
   ep.UI.closeResultModal();
   assert(modalLogs[modalLogs.length - 1].title.includes("SUDAH ABSEN"), "25. Subsequent scan of newly cached attendee recognized immediately as duplicate");
 
+  // Verify duplicate attempt was enqueued with isDuplicate flag for audit log
+  const dupItem = ep.state.syncQueue.find(q => q.ticketId === "TICK-9999");
+  assert(dupItem !== undefined && dupItem.isDuplicate === true, "26. Duplicate scan enqueued to sync queue with isDuplicate: true for Google Sheets audit log");
+
+  // Drain queue before TEST 6
+  await drainAllQueues();
+
   // ----------------------------------------------------------------------------
   // TEST 6: Auto-Fallback when Backend returns 'Action "batchCheckIn" tidak dikenali.'
   // ----------------------------------------------------------------------------
@@ -449,14 +457,52 @@ async function runStressTests() {
   ep.Sync.enqueue({ ticketId: "FB-002", sessionId: "SESI-01", sessionName: "Sesi Utama" });
   ep.Sync.enqueue({ ticketId: "FB-003", sessionId: "SESI-01", sessionName: "Sesi Utama" });
 
-  assert(ep.state.syncQueue.length === 3, "26. 3 items enqueued for fallback test");
+  assert(ep.state.syncQueue.length === 3, "27. 3 items enqueued for fallback test");
 
   // Drain all fallback queues
   await drainAllQueues();
 
-  assert(ep.Sync.batchSupported === false, "27. Detected older backend: batchSupported auto-flipped to FALSE");
-  assert(fallbackCheckInsReceived.length === 3, "28. Fallback: all 3 items sequentially processed via checkIn API", fallbackCheckInsReceived.join(", "));
-  assert(ep.state.syncQueue.length === 0, "29. Sync queue cleanly drained to 0 with zero stuck items");
+  assert(ep.Sync.batchSupported === false, "28. Detected older backend: batchSupported auto-flipped to FALSE");
+  assert(fallbackCheckInsReceived.length === 3, "29. Fallback: all 3 items sequentially processed via checkIn API", fallbackCheckInsReceived.join(", "));
+  assert(ep.state.syncQueue.length === 0, "30. Sync queue cleanly drained to 0 with zero stuck items");
+
+  // ----------------------------------------------------------------------------
+  // TEST 7: Real-time Database Sync & Attendance Cancellation
+  // ----------------------------------------------------------------------------
+  console.log("\n--- TEST 7: Sheet Deletion & Attendance Cancellation ---");
+
+  // Admin in Google Sheets cleared attendance of TIC-TUGADG (sessions: {})
+  ep.API.fetchAttendees = async () => {
+    return {
+      success: true,
+      count: 1,
+      attendees: [
+        { ticketId: "TIC-TUGADG", name: "Ahmad Haidar (Target User)", email: "target@event.com", sessions: {} }
+      ]
+    };
+  };
+
+  await ep.Sync.syncAttendees(true);
+  assert(
+    !ep.state.cachedAttendees["TIC-TUGADG"].checkedInSessions["SESI-01"],
+    "31. Sync database properly clears attendance if admin reset/deleted it in spreadsheet"
+  );
+
+  // Mark check-in locally then cancel
+  ep.state.cachedAttendees["TIC-TUGADG"].checkedInSessions["SESI-01"] = "15:00:00";
+  ep.Sync.enqueue({ ticketId: "TIC-TUGADG", sessionId: "SESI-01", sessionName: "Sesi Utama" });
+
+  ep.API.cancelCheckIn = async () => ({ success: true });
+  await ep.App.handleCancelAttendance("TIC-TUGADG", "SESI-01", "Sesi Utama", "Test Cancel");
+
+  assert(
+    !ep.state.cachedAttendees["TIC-TUGADG"].checkedInSessions["SESI-01"],
+    "32. Cancel attendance purges session from local cache"
+  );
+  assert(
+    !ep.state.syncQueue.some(q => q.ticketId === "TIC-TUGADG"),
+    "33. Cancel attendance purges matching pending items from sync queue"
+  );
 
   // Cleanup timers so Node process terminates cleanly
   if (ep.Sync.flushTimer) {
@@ -469,7 +515,7 @@ async function runStressTests() {
   console.log("\n=================================================================");
   console.log(`🎯 TEST RESULTS: ${passedTests} / ${totalTests} TESTS PASSED`);
   if (passedTests === totalTests) {
-    console.log("🎉 ALL 29 TESTS PASSED! Instant Mode, Offline Queue, & Batch Fallback are 100% rock solid.");
+    console.log(`🎉 ALL ${passedTests} TESTS PASSED! Instant Mode, Offline Queue, Duplicate Sync, & Sheet Refresh are 100% rock solid.`);
   } else {
     console.log("⚠️ SOME TESTS FAILED. Check log output above.");
   }

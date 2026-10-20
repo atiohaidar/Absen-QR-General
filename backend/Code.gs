@@ -405,6 +405,48 @@
   }
 
   /**
+  * Helper: Buat daftar peserta lengkap beserta status kehadiran sesi terkini dari spreadsheet
+  */
+  function buildAttendeesList(sheetPeserta) {
+    const pesertaData = sheetPeserta.getDataRange().getValues();
+    const { ticketCol, nameCol, emailCol } = getPesertaFieldIndices(sheetPeserta);
+
+    // Deteksi kolom-kolom sesi di header: format `Sesi: Nama Sesi [SESI-ID]`
+    const headers = pesertaData.length > 0 ? pesertaData[0] : [];
+    const sessionCols = [];
+    for (let c = 0; c < headers.length; c++) {
+      const h = String(headers[c] || "");
+      const match = h.match(/\[([A-Za-z0-9_-]+)\]/);
+      if (match) {
+        sessionCols.push({ colIdx: c, sessionId: match[1] });
+      }
+    }
+
+    const attendees = [];
+    for (let r = 1; r < pesertaData.length; r++) {
+      const tId = String(pesertaData[r][ticketCol] || "").trim();
+      if (!tId) continue;
+
+      const sessionsMap = {};
+      sessionCols.forEach(sc => {
+        const val = String(pesertaData[r][sc.colIdx] || "").trim();
+        if (val.startsWith("HADIR")) {
+          sessionsMap[sc.sessionId] = val.replace("HADIR - ", "").trim() || "HADIR";
+        }
+      });
+
+      attendees.push({
+        ticketId: tId,
+        name: String(pesertaData[r][nameCol] || "Peserta").trim(),
+        email: String(pesertaData[r][emailCol] || "-").trim(),
+        sessions: sessionsMap
+      });
+    }
+
+    return attendees;
+  }
+
+  /**
   * ==============================================================================
   * WEB API: doGet (DIAGNOSTIK, HEALTH CHECK & SINKRONISASI SESI)
   * ==============================================================================
@@ -425,18 +467,7 @@
 
       if (action === "getAttendees") {
         const sheetPeserta = getOrCreateSheet(CONFIG.SHEETS.DATA_PESERTA);
-        const pesertaData = sheetPeserta.getDataRange().getValues();
-        const { ticketCol, nameCol, emailCol } = getPesertaFieldIndices(sheetPeserta);
-        const attendees = [];
-        for (let r = 1; r < pesertaData.length; r++) {
-          const tId = String(pesertaData[r][ticketCol] || "").trim();
-          if (!tId) continue;
-          attendees.push({
-            ticketId: tId,
-            name: String(pesertaData[r][nameCol] || "Peserta").trim(),
-            email: String(pesertaData[r][emailCol] || "-").trim()
-          });
-        }
+        const attendees = buildAttendeesList(sheetPeserta);
         return createJsonResponse({
           success: true,
           attendees: attendees,
@@ -498,18 +529,7 @@
 
       // ACTION A2: GET ALL ATTENDEES (For Offline Local Pre-Caching & Instant Mode)
       if (action === "getAttendees") {
-        const pesertaData = sheetPeserta.getDataRange().getValues();
-        const { ticketCol, nameCol, emailCol } = getPesertaFieldIndices(sheetPeserta);
-        const attendees = [];
-        for (let r = 1; r < pesertaData.length; r++) {
-          const tId = String(pesertaData[r][ticketCol] || "").trim();
-          if (!tId) continue;
-          attendees.push({
-            ticketId: tId,
-            name: String(pesertaData[r][nameCol] || "Peserta").trim(),
-            email: String(pesertaData[r][emailCol] || "-").trim()
-          });
-        }
+        const attendees = buildAttendeesList(sheetPeserta);
         return createJsonResponse({
           success: true,
           attendees: attendees,
