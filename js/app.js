@@ -353,35 +353,50 @@ function setupTabNavigation() {
 }
 
 // ==========================================
-// QR CODE SCANNER ENGINE
+// QR CODE SCANNER ENGINE (ROBUST & RACE-FREE)
 // ==========================================
+let isCameraTransitioning = false;
+
 async function initScanner() {
   try {
-    state.html5QrCode = new Html5Qrcode("qr-video-reader");
-    
-    const devices = await Html5Qrcode.getCameras();
-    if (devices && devices.length > 0) {
-      state.cameras = devices;
-      // Utamakan kamera belakang (environment)
-      const backCam = devices.find(d => 
-        d.label.toLowerCase().includes("back") || 
-        d.label.toLowerCase().includes("belakang") || 
-        d.label.toLowerCase().includes("rear")
-      );
-      state.currentCameraId = backCam ? backCam.id : devices[devices.length - 1].id;
-
-      startScanning();
-    } else {
-      updateScannerStatus("Tidak ada kamera terdeteksi", "Gunakan tab Manual Check-In");
+    if (!state.html5QrCode) {
+      state.html5QrCode = new Html5Qrcode("qr-video-reader");
     }
+    
+    try {
+      const devices = await Html5Qrcode.getCameras();
+      if (devices && devices.length > 0) {
+        state.cameras = devices;
+        // Utamakan kamera belakang (environment/rear)
+        const backCam = devices.find(d => 
+          d.label.toLowerCase().includes("back") || 
+          d.label.toLowerCase().includes("belakang") || 
+          d.label.toLowerCase().includes("rear")
+        );
+        state.currentCameraId = backCam ? backCam.id : devices[0].id;
+      }
+    } catch (camErr) {
+      console.warn("Camera list query warning:", camErr);
+    }
+
+    await startScanning();
   } catch (err) {
-    console.error("Camera init error:", err);
-    updateScannerStatus("Izin kamera belum diberikan", "Buka izin akses kamera browser");
+    console.warn("Camera init error:", err);
+    updateScannerStatus("Izin kamera belum diberikan", "Klik di sini untuk menyalakan kamera");
   }
 }
 
 async function startScanning() {
-  if (!state.html5QrCode || state.isScanning) return;
+  if (!state.html5QrCode || isCameraTransitioning) return;
+  
+  // Jika sudah dalam kondisi scanning, tidak perlu panggil start() lagi
+  if (state.html5QrCode.isScanning) {
+    state.isScanning = true;
+    return;
+  }
+
+  isCameraTransitioning = true;
+  updateScannerStatus("Menghubungkan Kamera...", "Mohon izinkan akses kamera jika diminta...");
 
   try {
     const config = {
@@ -390,8 +405,13 @@ async function startScanning() {
       aspectRatio: 1.0
     };
 
+    // Gunakan cameraId jika ada, atau fallback ke facingMode environment
+    const cameraConfig = state.currentCameraId 
+      ? state.currentCameraId 
+      : { facingMode: "environment" };
+
     await state.html5QrCode.start(
-      state.currentCameraId,
+      cameraConfig,
       config,
       onQrCodeSuccess,
       onQrCodeProgress
@@ -400,19 +420,39 @@ async function startScanning() {
     state.isScanning = true;
     updateScannerStatus("Siap Memindai", `Sesi: ${state.currentSessionName}`);
   } catch (err) {
-    console.error("Start scanning error:", err);
-    updateScannerStatus("Kamera offline", "Klik coba lagi atau gunakan input manual");
+    console.warn("Start scanning warning:", err);
+    state.isScanning = false;
+    
+    const errText = String(err || "");
+    if (errText.includes("Timeout") || errText.includes("AbortError")) {
+      updateScannerStatus("Kamera Timeout", "Klik di sini untuk coba lagi (pastikan kamera tidak dipakai aplikasi lain)");
+    } else if (errText.includes("NotAllowed") || errText.includes("Permission")) {
+      updateScannerStatus("Akses Kamera Ditolak", "Klik ikon gembok di URL browser untuk izinkan kamera");
+    } else {
+      updateScannerStatus("Kamera Offline", "Klik di sini untuk menyalakan kamera kembali");
+    }
+  } finally {
+    isCameraTransitioning = false;
   }
 }
 
 async function stopScanning() {
-  if (state.html5QrCode && state.isScanning) {
-    try {
-      await state.html5QrCode.stop();
-      state.isScanning = false;
-    } catch (e) {
-      console.warn("Stop scanner error:", e);
-    }
+  if (!state.html5QrCode || isCameraTransitioning) return;
+  
+  // Jika memang sedang tidak scanning, tidak perlu stop()
+  if (!state.html5QrCode.isScanning) {
+    state.isScanning = false;
+    return;
+  }
+
+  isCameraTransitioning = true;
+  try {
+    await state.html5QrCode.stop();
+    state.isScanning = false;
+  } catch (e) {
+    console.warn("Stop scanner warning:", e);
+  } finally {
+    isCameraTransitioning = false;
   }
 }
 
@@ -432,9 +472,21 @@ function updateScannerStatus(title, sub) {
   if (DOM.statusSub) DOM.statusSub.textContent = sub;
 }
 
+// Camera Retry on Status Box Click
+const statusBox = document.querySelector(".scanner-status-box");
+if (statusBox) {
+  statusBox.addEventListener("click", () => {
+    if (!state.isScanning && !isCameraTransitioning) {
+      showToast("🔄 Menghubungkan ulang kamera...");
+      startScanning();
+    }
+  });
+}
+
 // Camera Flip Handler
 if (DOM.btnFlipCam) {
   DOM.btnFlipCam.addEventListener("click", async () => {
+    if (isCameraTransitioning) return;
     if (state.cameras.length <= 1) {
       showToast("Hanya 1 kamera tersedia pada perangkat ini.");
       return;
