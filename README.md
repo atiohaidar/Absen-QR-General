@@ -71,9 +71,12 @@ absen qr/
 ├── backend/
 │   ├── Code.gs             # Google Apps Script (onFormSubmit + Multi-Session API + Revert + doGet)
 │   └── appsscript.json     # Manifest Apps Script (Timezone Asia/Jakarta & Minimal Scopes)
+├── ARCHITECTURE_AND_LESSONS_LEARNED.md # 🏛️ Panduan Arsitektur & Lessons Learned Backend Spreadsheet
 ├── constrain.md            # Constraint catatan teknis
 └── README.md               # Dokumentasi lengkap setup
 ```
+
+> 📖 **Developer Guide**: Bagi developer yang ingin mempelajari bagaimana logika konkurensi (LockService), instant scan caching (0.05 detik), trik 0 kuota email Google Drive, dan penanganan offline dirancang, silakan baca [ARCHITECTURE_AND_LESSONS_LEARNED.md](ARCHITECTURE_AND_LESSONS_LEARNED.md).
 
 ---
 
