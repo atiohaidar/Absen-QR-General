@@ -504,6 +504,59 @@ async function runStressTests() {
     "33. Cancel attendance purges matching pending items from sync queue"
   );
 
+  // ----------------------------------------------------------------------------
+  // TEST 8: Standard Mode Verification (instantMode = false / Dimatikan)
+  // ----------------------------------------------------------------------------
+  console.log("\n--- TEST 8: Standard Server-Check Mode (Instant Scan OFF) ---");
+
+  // Disable instant mode
+  ep.state.instantMode = false;
+
+  let directServerCalls = [];
+  ep.API.checkIn = async (tid) => {
+    directServerCalls.push(tid);
+    if (tid === "TIC-TUGADG") {
+      return {
+        success: true,
+        status: "CHECKED_IN",
+        message: "Check in server berhasil",
+        attendee: { ticketId: tid, name: "Ahmad Haidar", sessionName: "Sesi Utama", checkInTime: "16:20:00" }
+      };
+    }
+    if (tid === "TIC-DUP") {
+      return {
+        success: false,
+        status: "ALREADY_CHECKED_IN",
+        message: "Tiket sudah digunakan",
+        attendee: { ticketId: tid, name: "Peserta Duplikat", sessionName: "Sesi Utama", firstCheckInTime: "14:00:00" }
+      };
+    }
+    return {
+      success: false,
+      status: "NOT_FOUND",
+      message: "Tiket tidak terdaftar"
+    };
+  };
+
+  // 1. Valid scan in Standard Mode
+  await ep.App.processCheckIn("TIC-TUGADG");
+  ep.UI.closeResultModal();
+  assert(directServerCalls.includes("TIC-TUGADG"), "34. Standard Mode: Directly contacts server API on scan");
+  assert(modalLogs[modalLogs.length - 1].title.includes("BERHASIL"), "35. Standard Mode: Successfully displays CHECK-IN BERHASIL");
+
+  // 2. Duplicate scan in Standard Mode
+  await ep.App.processCheckIn("TIC-DUP");
+  ep.UI.closeResultModal();
+  assert(modalLogs[modalLogs.length - 1].title.includes("SUDAH ABSEN"), "36. Standard Mode: Correctly displays SUDAH ABSEN DI SESI INI from server response");
+
+  // 3. Not Found scan in Standard Mode
+  await ep.App.processCheckIn("INVALID-999");
+  ep.UI.closeResultModal();
+  assert(modalLogs[modalLogs.length - 1].title.includes("TIDAK TERDAFTAR") || modalLogs[modalLogs.length - 1].title.includes("INVALID") || modalLogs[modalLogs.length - 1].type === "error", "37. Standard Mode: Correctly displays error for invalid/deleted tickets");
+
+  // Reset instantMode to true
+  ep.state.instantMode = true;
+
   // Cleanup timers so Node process terminates cleanly
   if (ep.Sync.flushTimer) {
     clearInterval(ep.Sync.flushTimer);
@@ -515,7 +568,7 @@ async function runStressTests() {
   console.log("\n=================================================================");
   console.log(`🎯 TEST RESULTS: ${passedTests} / ${totalTests} TESTS PASSED`);
   if (passedTests === totalTests) {
-    console.log(`🎉 ALL ${passedTests} TESTS PASSED! Instant Mode, Offline Queue, Duplicate Sync, & Sheet Refresh are 100% rock solid.`);
+    console.log(`🎉 ALL ${passedTests} TESTS PASSED! Both Instant Mode & Standard Mode (Instant OFF) are 100% rock solid.`);
   } else {
     console.log("⚠️ SOME TESTS FAILED. Check log output above.");
   }
