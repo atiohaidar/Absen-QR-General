@@ -153,6 +153,8 @@ const DOM = {
   // Scanner UI (Native Video & Canvas for jsQR)
   scanVideo: document.getElementById("scan-video"),
   scanCanvas: document.getElementById("scan-canvas"),
+  qrTrackingCanvas: document.getElementById("qr-tracking-canvas"),
+  scannerOverlay: document.querySelector(".scanner-overlay"),
   statusLabel: document.getElementById("scanner-status-label"),
   statusSub: document.getElementById("scanner-status-sub"),
   verifyingBox: document.getElementById("verifying-box"),
@@ -354,20 +356,111 @@ function setupTabNavigation() {
 }
 
 // ==========================================
-// QR CODE SCANNER ENGINE (Native jsQR + BarcodeDetector)
+// TELEGRAM-STYLE DYNAMIC AR QR TRACKER ENGINE
 // ==========================================
 const nativeBarcodeDetector = ('BarcodeDetector' in window) 
   ? new BarcodeDetector({ formats: ['qr_code'] }) 
   : null;
+
+const qrTracker = {
+  currentCorners: null, // [ {x, y}, {x, y}, {x, y}, {x, y} ]
+  targetCorners: null,
+  detectedText: null,
+  lastSeenTime: 0,
+  opacity: 0,
+  activeScanTriggered: false
+};
+
+function mapVideoToDisplay(pt, vW, vH, dW, dH) {
+  const videoAspect = vW / vH;
+  const displayAspect = dW / dH;
+  let scale, offsetX = 0, offsetY = 0;
+
+  if (videoAspect > displayAspect) {
+    scale = dH / vH;
+    offsetX = (dW - vW * scale) / 2;
+  } else {
+    scale = dW / vW;
+    offsetY = (dH - vH * scale) / 2;
+  }
+
+  return {
+    x: pt.x * scale + offsetX,
+    y: pt.y * scale + offsetY
+  };
+}
+
+function lerp(start, end, amt) {
+  return start + (end - start) * amt;
+}
+
+function drawTelegramCornerBracket(ctx, corner, nextPt, prevPt, len) {
+  const dxN = nextPt.x - corner.x;
+  const dyN = nextPt.y - corner.y;
+  const lenN = Math.hypot(dxN, dyN) || 1;
+  const uNext = { x: dxN / lenN, y: dyN / lenN };
+
+  const dxP = prevPt.x - corner.x;
+  const dyP = prevPt.y - corner.y;
+  const lenP = Math.hypot(dxP, dyP) || 1;
+  const uPrev = { x: dxP / lenP, y: dyP / lenP };
+
+  ctx.beginPath();
+  ctx.moveTo(corner.x + uPrev.x * len, corner.y + uPrev.y * len);
+  ctx.lineTo(corner.x, corner.y);
+  ctx.lineTo(corner.x + uNext.x * len, corner.y + uNext.y * len);
+  ctx.stroke();
+}
+
+function drawFloatingTag(ctx, x, y, text, isLocked) {
+  ctx.save();
+  ctx.font = "bold 12px 'Outfit', sans-serif";
+  const paddingH = 12;
+  const pillHeight = 26;
+  const textWidth = ctx.measureText(text).width;
+  const pillWidth = textWidth + paddingH * 2 + 14;
+  const pillX = x - pillWidth / 2;
+  const pillY = y - pillHeight / 2;
+
+  // Glassmorphism card
+  ctx.fillStyle = "rgba(17, 24, 39, 0.92)";
+  ctx.strokeStyle = isLocked ? "#10b981" : "#38bdf8";
+  ctx.lineWidth = 1.5;
+  ctx.shadowColor = isLocked ? "rgba(16, 185, 129, 0.6)" : "rgba(56, 189, 248, 0.5)";
+  ctx.shadowBlur = 10;
+
+  // Round rect
+  ctx.beginPath();
+  const r = 13;
+  ctx.moveTo(pillX + r, pillY);
+  ctx.arcTo(pillX + pillWidth, pillY, pillX + pillWidth, pillY + pillHeight, r);
+  ctx.arcTo(pillX + pillWidth, pillY + pillHeight, pillX, pillY + pillHeight, r);
+  ctx.arcTo(pillX, pillY + pillHeight, pillX, pillY, r);
+  ctx.arcTo(pillX, pillY, pillX + pillWidth, pillY, r);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Cyan / Emerald pulse indicator
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = isLocked ? "#10b981" : "#38bdf8";
+  ctx.beginPath();
+  ctx.arc(pillX + 12, y, 3.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Text label
+  ctx.fillStyle = "#ffffff";
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, pillX + 22, y + 0.5);
+  ctx.restore();
+}
 
 async function initScanner() {
   await startScanning();
 }
 
 async function startScanning() {
-  // Matikan stream lama jika masih ada
   stopScanning();
-
   updateScannerStatus("Menghubungkan Kamera...", "Mohon izinkan akses kamera jika diminta...");
 
   try {
@@ -424,44 +517,156 @@ function stopScanning() {
 async function scanFrame() {
   if (!state.isScanning || !DOM.scanVideo) return;
 
+  const tCanvas = DOM.qrTrackingCanvas;
+  const tCtx = tCanvas ? tCanvas.getContext("2d") : null;
+
   if (DOM.scanVideo.readyState === DOM.scanVideo.HAVE_ENOUGH_DATA) {
+    const vW = DOM.scanVideo.videoWidth;
+    const vH = DOM.scanVideo.videoHeight;
+    const dW = DOM.scanVideo.clientWidth;
+    const dH = DOM.scanVideo.clientHeight;
+
+    // Sinkronkan ukuran tracking canvas dengan tampilan video
+    if (tCanvas && (tCanvas.width !== dW || tCanvas.height !== dH)) {
+      tCanvas.width = dW;
+      tCanvas.height = dH;
+    }
+
     const canvas = DOM.scanCanvas;
     if (canvas) {
       const ctx = canvas.getContext("2d", { willReadFrequently: true });
 
-      if (!state.isProcessing) {
-        let qrDetectedText = null;
+      let rawText = null;
+      let rawCorners = null;
 
-        // 1. Fast path: Native BarcodeDetector bawaan browser (C++ accelerated)
-        if (nativeBarcodeDetector) {
-          try {
-            const barcodes = await nativeBarcodeDetector.detect(DOM.scanVideo);
-            if (barcodes.length > 0 && barcodes[0].rawValue) {
-              qrDetectedText = barcodes[0].rawValue;
+      // 1. Fast path: Native BarcodeDetector bawaan browser (C++ accelerated)
+      if (nativeBarcodeDetector && !state.isProcessing) {
+        try {
+          const barcodes = await nativeBarcodeDetector.detect(DOM.scanVideo);
+          if (barcodes.length > 0 && barcodes[0].rawValue) {
+            rawText = barcodes[0].rawValue;
+            if (barcodes[0].cornerPoints && barcodes[0].cornerPoints.length === 4) {
+              rawCorners = barcodes[0].cornerPoints;
             }
-          } catch (e) {
-            // Fallback ke jsQR
           }
-        }
-
-        // 2. Standard path: jsQR (Apache 2.0 Pure JS)
-        if (!qrDetectedText && typeof jsQR !== "undefined") {
-          canvas.width = DOM.scanVideo.videoWidth;
-          canvas.height = DOM.scanVideo.videoHeight;
-          ctx.drawImage(DOM.scanVideo, 0, 0, canvas.width, canvas.height);
-          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const code = jsQR(imageData.data, imageData.width, imageData.height, {
-            inversionAttempts: "dontInvert"
-          });
-          if (code && code.data) {
-            qrDetectedText = code.data;
-          }
-        }
-
-        if (qrDetectedText) {
-          onQrCodeSuccess(qrDetectedText);
+        } catch (e) {
+          // Fallback ke jsQR
         }
       }
+
+      // 2. Standard path: jsQR (Apache 2.0 Pure JS)
+      if (!rawText && typeof jsQR !== "undefined" && !state.isProcessing) {
+        canvas.width = vW;
+        canvas.height = vH;
+        ctx.drawImage(DOM.scanVideo, 0, 0, vW, vH);
+        const imageData = ctx.getImageData(0, 0, vW, vH);
+        const code = jsQR(imageData.data, vW, vH, { inversionAttempts: "dontInvert" });
+
+        if (code && code.data) {
+          rawText = code.data;
+          if (code.location) {
+            rawCorners = [
+              code.location.topLeftCorner,
+              code.location.topRightCorner,
+              code.location.bottomRightCorner,
+              code.location.bottomLeftCorner
+            ];
+          }
+        }
+      }
+
+      // Jika QR code terdeteksi pada frame ini:
+      if (rawCorners && rawText) {
+        const mappedCorners = rawCorners.map(pt => mapVideoToDisplay(pt, vW, vH, dW, dH));
+        qrTracker.targetCorners = mappedCorners;
+        qrTracker.detectedText = rawText;
+        qrTracker.lastSeenTime = Date.now();
+        qrTracker.opacity = 1;
+
+        if (!qrTracker.currentCorners) {
+          qrTracker.currentCorners = mappedCorners.map(p => ({ x: p.x, y: p.y }));
+        }
+
+        // Trigger proses check-in
+        if (!state.isProcessing && !qrTracker.activeScanTriggered) {
+          qrTracker.activeScanTriggered = true;
+          onQrCodeSuccess(rawText);
+        }
+      }
+    }
+  }
+
+  // Render Telegram Dynamic AR Tracking di atas kamera
+  if (tCtx && tCanvas) {
+    tCtx.clearRect(0, 0, tCanvas.width, tCanvas.height);
+
+    const now = Date.now();
+    const isRecentlySeen = (now - qrTracker.lastSeenTime) < 320;
+
+    if (!isRecentlySeen) {
+      qrTracker.opacity = Math.max(0, qrTracker.opacity - 0.08);
+      qrTracker.activeScanTriggered = false;
+    }
+
+    if (qrTracker.opacity > 0 && qrTracker.currentCorners && qrTracker.targetCorners) {
+      // Butter-smooth interpolation (Lerp) mengikuti gerakan QR fisik
+      const lerpSpeed = 0.45;
+      for (let i = 0; i < 4; i++) {
+        qrTracker.currentCorners[i].x = lerp(qrTracker.currentCorners[i].x, qrTracker.targetCorners[i].x, lerpSpeed);
+        qrTracker.currentCorners[i].y = lerp(qrTracker.currentCorners[i].y, qrTracker.targetCorners[i].y, lerpSpeed);
+      }
+
+      tCtx.save();
+      tCtx.globalAlpha = qrTracker.opacity;
+
+      const p0 = qrTracker.currentCorners[0];
+      const p1 = qrTracker.currentCorners[1];
+      const p2 = qrTracker.currentCorners[2];
+      const p3 = qrTracker.currentCorners[3];
+
+      const centerX = (p0.x + p1.x + p2.x + p3.x) / 4;
+      const minY = Math.min(p0.y, p1.y, p2.y, p3.y);
+
+      // 1. Semi-translucent Polygon Fill di dalam QR
+      tCtx.beginPath();
+      tCtx.moveTo(p0.x, p0.y);
+      tCtx.lineTo(p1.x, p1.y);
+      tCtx.lineTo(p2.x, p2.y);
+      tCtx.lineTo(p3.x, p3.y);
+      tCtx.closePath();
+      tCtx.fillStyle = state.isProcessing ? "rgba(16, 185, 129, 0.22)" : "rgba(56, 189, 248, 0.14)";
+      tCtx.fill();
+
+      // Thin outline
+      tCtx.lineWidth = 1.5;
+      tCtx.strokeStyle = state.isProcessing ? "rgba(16, 185, 129, 0.6)" : "rgba(56, 189, 248, 0.4)";
+      tCtx.stroke();
+
+      // 2. Telegram Futuristic 4 Siku-siku Brackets (Menempel di sudut QR)
+      const bracketLen = Math.max(16, Math.min(32, Math.hypot(p1.x - p0.x, p1.y - p0.y) * 0.22));
+      const bracketColor = state.isProcessing ? "#10b981" : "#38bdf8";
+
+      tCtx.shadowColor = bracketColor;
+      tCtx.shadowBlur = 12;
+      tCtx.strokeStyle = bracketColor;
+      tCtx.lineWidth = 4;
+      tCtx.lineCap = "round";
+      tCtx.lineJoin = "round";
+
+      drawTelegramCornerBracket(tCtx, p0, p1, p3, bracketLen); // Top-Left
+      drawTelegramCornerBracket(tCtx, p1, p2, p0, bracketLen); // Top-Right
+      drawTelegramCornerBracket(tCtx, p2, p3, p1, bracketLen); // Bottom-Right
+      drawTelegramCornerBracket(tCtx, p3, p0, p2, bracketLen); // Bottom-Left
+
+      // 3. Floating Tag melayang di atas QR yang bergerak
+      if (qrTracker.detectedText) {
+        const displayLabel = qrTracker.detectedText.length > 20 
+          ? qrTracker.detectedText.substring(0, 18) + "..." 
+          : qrTracker.detectedText;
+        drawFloatingTag(tCtx, centerX, minY - 26, `⚡ ${displayLabel}`, state.isProcessing);
+      }
+
+      tCtx.restore();
     }
   }
 
@@ -794,6 +999,9 @@ function closeResultModal() {
   clearTimeout(state.autoResumeTimer);
   DOM.resultModal.classList.remove("show");
   state.isProcessing = false;
+  qrTracker.activeScanTriggered = false;
+  qrTracker.lastSeenTime = 0;
+  qrTracker.opacity = 0;
 }
 
 if (DOM.btnNextScan) {

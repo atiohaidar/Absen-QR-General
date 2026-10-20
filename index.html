@@ -136,15 +136,8 @@
         <div class="scanner-viewport-wrapper">
           <video id="scan-video" playsinline autoplay muted></video>
           <canvas id="scan-canvas" style="display: none;"></canvas>
-
-          <!-- Futuristic Viewfinder Overlay -->
-          <div class="scanner-overlay">
-            <div class="viewfinder-frame">
-              <span class="corner-tr"></span>
-              <span class="corner-bl"></span>
-              <div class="scanner-laser"></div>
-            </div>
-          </div>
+          <!-- Telegram-Style Dynamic AR Tracking Canvas (Mengikuti QR secara real-time) -->
+          <canvas id="qr-tracking-canvas"></canvas>
 
           <!-- Scanner Center Loading HUD Overlay -->
           <div id="scanner-loading-hud" class="scanner-loading-hud">
