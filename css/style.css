@@ -414,17 +414,11 @@ body {
   justify-content: center;
 }
 
-#qr-video-reader {
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: cover !important;
-}
-
-#qr-video-reader video {
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: cover !important;
-  border-radius: 0 !important;
+#scan-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 /* Overlay Viewfinder & Target Reticle */

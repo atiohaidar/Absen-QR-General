@@ -6,11 +6,11 @@
 
 // App State
 const state = {
-  html5QrCode: null,
+  mediaStream: null,
+  animationFrameId: null,
   isScanning: false,
   isProcessing: false,
-  currentCameraId: null,
-  cameras: [],
+  currentFacingMode: "environment", // "environment" (rear) or "user" (front)
   isTorchOn: false,
   autoResumeTimer: null,
   
@@ -150,8 +150,9 @@ const DOM = {
   tabButtons: document.querySelectorAll(".tab-btn"),
   tabPanes: document.querySelectorAll(".tab-pane"),
   
-  // Scanner UI
-  scannerContainer: document.getElementById("qr-video-reader"),
+  // Scanner UI (Native Video & Canvas for jsQR)
+  scanVideo: document.getElementById("scan-video"),
+  scanCanvas: document.getElementById("scan-canvas"),
   statusLabel: document.getElementById("scanner-status-label"),
   statusSub: document.getElementById("scanner-status-sub"),
   verifyingBox: document.getElementById("verifying-box"),
@@ -340,11 +341,11 @@ function setupTabNavigation() {
 
       // Pause/resume scanner based on tab
       if (targetTab === "scan") {
-        if (!state.isScanning && state.html5QrCode) {
+        if (!state.isScanning) {
           startScanning();
         }
       } else {
-        if (state.isScanning && state.html5QrCode) {
+        if (state.isScanning) {
           stopScanning();
         }
       }
@@ -353,106 +354,119 @@ function setupTabNavigation() {
 }
 
 // ==========================================
-// QR CODE SCANNER ENGINE (ROBUST & RACE-FREE)
+// QR CODE SCANNER ENGINE (Native jsQR + BarcodeDetector)
 // ==========================================
-let isCameraTransitioning = false;
+const nativeBarcodeDetector = ('BarcodeDetector' in window) 
+  ? new BarcodeDetector({ formats: ['qr_code'] }) 
+  : null;
 
 async function initScanner() {
-  try {
-    if (!state.html5QrCode) {
-      state.html5QrCode = new Html5Qrcode("qr-video-reader");
-    }
-    
-    try {
-      const devices = await Html5Qrcode.getCameras();
-      if (devices && devices.length > 0) {
-        state.cameras = devices;
-        // Utamakan kamera belakang (environment/rear)
-        const backCam = devices.find(d => 
-          d.label.toLowerCase().includes("back") || 
-          d.label.toLowerCase().includes("belakang") || 
-          d.label.toLowerCase().includes("rear")
-        );
-        state.currentCameraId = backCam ? backCam.id : devices[0].id;
-      }
-    } catch (camErr) {
-      console.warn("Camera list query warning:", camErr);
-    }
-
-    await startScanning();
-  } catch (err) {
-    console.warn("Camera init error:", err);
-    updateScannerStatus("Izin kamera belum diberikan", "Klik di sini untuk menyalakan kamera");
-  }
+  await startScanning();
 }
 
 async function startScanning() {
-  if (!state.html5QrCode || isCameraTransitioning) return;
-  
-  // Jika sudah dalam kondisi scanning, tidak perlu panggil start() lagi
-  if (state.html5QrCode.isScanning) {
-    state.isScanning = true;
-    return;
-  }
+  // Matikan stream lama jika masih ada
+  stopScanning();
 
-  isCameraTransitioning = true;
   updateScannerStatus("Menghubungkan Kamera...", "Mohon izinkan akses kamera jika diminta...");
 
   try {
-    const config = {
-      fps: 15,
-      qrbox: { width: 250, height: 250 },
-      aspectRatio: 1.0
+    const constraints = {
+      video: {
+        facingMode: { ideal: state.currentFacingMode },
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      },
+      audio: false
     };
 
-    // Gunakan cameraId jika ada, atau fallback ke facingMode environment
-    const cameraConfig = state.currentCameraId 
-      ? state.currentCameraId 
-      : { facingMode: "environment" };
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    state.mediaStream = stream;
 
-    await state.html5QrCode.start(
-      cameraConfig,
-      config,
-      onQrCodeSuccess,
-      onQrCodeProgress
-    );
+    if (DOM.scanVideo) {
+      DOM.scanVideo.srcObject = stream;
+      DOM.scanVideo.setAttribute("playsinline", "true");
+      await DOM.scanVideo.play();
+    }
 
     state.isScanning = true;
     updateScannerStatus("Siap Memindai", `Sesi: ${state.currentSessionName}`);
+
+    // Mulai frame scan loop
+    scanFrame();
   } catch (err) {
-    console.warn("Start scanning warning:", err);
+    console.warn("Camera start warning:", err);
     state.isScanning = false;
-    
     const errText = String(err || "");
-    if (errText.includes("Timeout") || errText.includes("AbortError")) {
-      updateScannerStatus("Kamera Timeout", "Klik di sini untuk coba lagi (pastikan kamera tidak dipakai aplikasi lain)");
-    } else if (errText.includes("NotAllowed") || errText.includes("Permission")) {
-      updateScannerStatus("Akses Kamera Ditolak", "Klik ikon gembok di URL browser untuk izinkan kamera");
+    if (errText.includes("NotAllowed") || errText.includes("Permission")) {
+      updateScannerStatus("Izin Kamera Ditolak", "Klik ikon gembok di URL browser untuk mengizinkan kamera");
     } else {
-      updateScannerStatus("Kamera Offline", "Klik di sini untuk menyalakan kamera kembali");
+      updateScannerStatus("Kamera Offline", "Klik di sini untuk menyalakan kamera");
     }
-  } finally {
-    isCameraTransitioning = false;
   }
 }
 
-async function stopScanning() {
-  if (!state.html5QrCode || isCameraTransitioning) return;
-  
-  // Jika memang sedang tidak scanning, tidak perlu stop()
-  if (!state.html5QrCode.isScanning) {
-    state.isScanning = false;
-    return;
+function stopScanning() {
+  state.isScanning = false;
+  if (state.animationFrameId) {
+    cancelAnimationFrame(state.animationFrameId);
+    state.animationFrameId = null;
+  }
+  if (state.mediaStream) {
+    state.mediaStream.getTracks().forEach(track => track.stop());
+    state.mediaStream = null;
+  }
+  if (DOM.scanVideo) {
+    DOM.scanVideo.srcObject = null;
+  }
+}
+
+async function scanFrame() {
+  if (!state.isScanning || !DOM.scanVideo) return;
+
+  if (DOM.scanVideo.readyState === DOM.scanVideo.HAVE_ENOUGH_DATA) {
+    const canvas = DOM.scanCanvas;
+    if (canvas) {
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+
+      if (!state.isProcessing) {
+        let qrDetectedText = null;
+
+        // 1. Fast path: Native BarcodeDetector bawaan browser (C++ accelerated)
+        if (nativeBarcodeDetector) {
+          try {
+            const barcodes = await nativeBarcodeDetector.detect(DOM.scanVideo);
+            if (barcodes.length > 0 && barcodes[0].rawValue) {
+              qrDetectedText = barcodes[0].rawValue;
+            }
+          } catch (e) {
+            // Fallback ke jsQR
+          }
+        }
+
+        // 2. Standard path: jsQR (Apache 2.0 Pure JS)
+        if (!qrDetectedText && typeof jsQR !== "undefined") {
+          canvas.width = DOM.scanVideo.videoWidth;
+          canvas.height = DOM.scanVideo.videoHeight;
+          ctx.drawImage(DOM.scanVideo, 0, 0, canvas.width, canvas.height);
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: "dontInvert"
+          });
+          if (code && code.data) {
+            qrDetectedText = code.data;
+          }
+        }
+
+        if (qrDetectedText) {
+          onQrCodeSuccess(qrDetectedText);
+        }
+      }
+    }
   }
 
-  isCameraTransitioning = true;
-  try {
-    await state.html5QrCode.stop();
-    state.isScanning = false;
-  } catch (e) {
-    console.warn("Stop scanner warning:", e);
-  } finally {
-    isCameraTransitioning = false;
+  if (state.isScanning) {
+    state.animationFrameId = requestAnimationFrame(scanFrame);
   }
 }
 
@@ -461,10 +475,6 @@ function onQrCodeSuccess(decodedText) {
   const ticketId = decodedText.trim();
   if (!ticketId) return;
   processCheckIn(ticketId);
-}
-
-function onQrCodeProgress(error) {
-  // Silent frame callback
 }
 
 function updateScannerStatus(title, sub) {
@@ -476,38 +486,35 @@ function updateScannerStatus(title, sub) {
 const statusBox = document.querySelector(".scanner-status-box");
 if (statusBox) {
   statusBox.addEventListener("click", () => {
-    if (!state.isScanning && !isCameraTransitioning) {
+    if (!state.isScanning) {
       showToast("🔄 Menghubungkan ulang kamera...");
       startScanning();
     }
   });
 }
 
-// Camera Flip Handler
+// Camera Flip Handler (Front / Rear)
 if (DOM.btnFlipCam) {
   DOM.btnFlipCam.addEventListener("click", async () => {
-    if (isCameraTransitioning) return;
-    if (state.cameras.length <= 1) {
-      showToast("Hanya 1 kamera tersedia pada perangkat ini.");
-      return;
-    }
-
-    const currentIndex = state.cameras.findIndex(c => c.id === state.currentCameraId);
-    const nextIndex = (currentIndex + 1) % state.cameras.length;
-    state.currentCameraId = state.cameras[nextIndex].id;
-
-    await stopScanning();
+    state.currentFacingMode = (state.currentFacingMode === "environment") ? "user" : "environment";
     await startScanning();
-    showToast(`Beralih ke: ${state.cameras[nextIndex].label || "Kamera " + (nextIndex + 1)}`);
+    showToast(`Beralih ke kamera ${state.currentFacingMode === "environment" ? "belakang" : "depan"}`);
   });
 }
 
 // Torch Handler
 if (DOM.btnTorch) {
   DOM.btnTorch.addEventListener("click", async () => {
+    if (!state.mediaStream) {
+      showToast("Kamera belum aktif.");
+      return;
+    }
+    const track = state.mediaStream.getVideoTracks()[0];
+    if (!track) return;
+
     try {
       state.isTorchOn = !state.isTorchOn;
-      await state.html5QrCode.applyVideoConstraints({
+      await track.applyConstraints({
         advanced: [{ torch: state.isTorchOn }]
       });
       DOM.btnTorch.classList.toggle("active", state.isTorchOn);

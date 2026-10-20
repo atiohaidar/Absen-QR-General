@@ -14,8 +14,8 @@
   <!-- CSS Stylesheet -->
   <link rel="stylesheet" href="css/style.css">
 
-  <!-- HTML5 QR Code Scanner Library -->
-  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <!-- jsQR Library (Apache 2.0 Licensed, Super Lightweight & Stable) -->
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 </head>
 <body>
 
@@ -134,7 +134,8 @@
     <div id="tab-scan" class="tab-pane active">
       <div class="scanner-card">
         <div class="scanner-viewport-wrapper">
-          <div id="qr-video-reader"></div>
+          <video id="scan-video" playsinline autoplay muted></video>
+          <canvas id="scan-canvas" style="display: none;"></canvas>
 
           <!-- Futuristic Viewfinder Overlay -->
           <div class="scanner-overlay">
