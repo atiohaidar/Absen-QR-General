@@ -52,7 +52,10 @@ window.EventPass = window.EventPass || {};
     // Operator & Session
     operatorBadge: document.getElementById("operator-badge-text"),
     statTotal: document.getElementById("stat-total"),
-    selectSession: document.getElementById("select-session"),
+    sessionDropdownContainer: document.getElementById("custom-session-dropdown"),
+    sessionTrigger: document.getElementById("session-select-trigger"),
+    sessionLabel: document.getElementById("session-select-label"),
+    sessionMenu: document.getElementById("session-dropdown-menu"),
     btnRefreshSessions: document.getElementById("btn-refresh-sessions"),
     tabButtons: document.querySelectorAll(".tab-btn"),
     tabPanes: document.querySelectorAll(".tab-pane"),
@@ -82,6 +85,15 @@ window.EventPass = window.EventPass || {};
     countdownBar: document.getElementById("countdown-bar"),
     btnNextScan: document.getElementById("btn-next-scan"),
     btnCancelCheckin: document.getElementById("btn-cancel-checkin"),
+
+    // Cancel Confirmation Modal
+    cancelModal: document.getElementById("cancel-confirm-modal"),
+    cancelModalAttendeeName: document.getElementById("cancel-modal-attendee-name"),
+    cancelModalDetails: document.getElementById("cancel-modal-details"),
+    cancelReasonInput: document.getElementById("cancel-reason-input"),
+    btnCloseCancelModal: document.getElementById("btn-close-cancel-modal"),
+    btnDismissCancel: document.getElementById("btn-dismiss-cancel"),
+    btnExecuteCancel: document.getElementById("btn-execute-cancel"),
 
     // Settings Modal
     btnOpenSettings: document.getElementById("btn-open-settings"),

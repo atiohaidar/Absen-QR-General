@@ -34,27 +34,81 @@ window.EventPass = window.EventPass || {};
     },
 
     renderSessionDropdown() {
-      if (!ns.DOM.selectSession) return;
-      ns.DOM.selectSession.innerHTML = "";
+      if (!ns.DOM.sessionDropdownContainer || !ns.DOM.sessionMenu) return;
 
       const list = ns.state.sessions.length > 0 ? ns.state.sessions : [
         { id: "SESI-01", name: "Pertemuan 1 - Pembukaan", label: "Pertemuan 1 - Pembukaan" },
         { id: "SESI-02", name: "Pertemuan 2 - Workshop", label: "Pertemuan 2 - Workshop" }
       ];
 
-      list.forEach(sesi => {
-        const opt = document.createElement("option");
-        opt.value = sesi.id;
-        opt.textContent = sesi.label || sesi.name;
-        opt.setAttribute("data-name", sesi.name);
-        if (sesi.id === ns.state.currentSessionId) opt.selected = true;
-        ns.DOM.selectSession.appendChild(opt);
-      });
+      // Sinkronkan sesi yang aktif atau fallback ke sesi pertama
+      let current = list.find(s => s.id === ns.state.currentSessionId);
+      if (!current) {
+        current = list[0];
+        ns.state.currentSessionId = current.id;
+        ns.state.currentSessionName = current.name;
+        localStorage.setItem("absen_current_session_id", current.id);
+        localStorage.setItem("absen_current_session_name", current.name);
+      } else {
+        ns.state.currentSessionName = current.name;
+      }
 
-      const selectedOpt = ns.DOM.selectSession.options[ns.DOM.selectSession.selectedIndex];
-      if (selectedOpt) {
-        ns.state.currentSessionId = selectedOpt.value;
-        ns.state.currentSessionName = selectedOpt.getAttribute("data-name") || selectedOpt.textContent;
+      if (ns.DOM.sessionLabel) {
+        ns.DOM.sessionLabel.textContent = current.label || current.name;
+      }
+
+      ns.DOM.sessionMenu.innerHTML = "";
+
+      list.forEach(sesi => {
+        const itemBtn = document.createElement("button");
+        itemBtn.type = "button";
+        const isActive = sesi.id === ns.state.currentSessionId;
+        itemBtn.className = `dropdown-item ${isActive ? "active" : ""}`;
+        itemBtn.setAttribute("role", "option");
+        itemBtn.setAttribute("aria-selected", isActive ? "true" : "false");
+
+        itemBtn.innerHTML = `
+          <div class="dropdown-item-info">
+            <span class="dropdown-item-title">${ns.escapeHtml(sesi.name)}</span>
+            <span class="dropdown-item-date">${ns.escapeHtml(sesi.date || sesi.id)}</span>
+          </div>
+          <svg class="dropdown-item-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+        `;
+
+        itemBtn.addEventListener("click", () => {
+          ns.state.currentSessionId = sesi.id;
+          ns.state.currentSessionName = sesi.name;
+
+          localStorage.setItem("absen_current_session_id", sesi.id);
+          localStorage.setItem("absen_current_session_name", sesi.name);
+
+          ns.UI.renderSessionDropdown();
+          ns.UI.closeSessionDropdown();
+
+          ns.UI.showToast(`Sesi aktif: ${sesi.name}`);
+          ns.UI.updateScannerStatus("Siap Memindai", `Sesi: ${sesi.name}`);
+        });
+
+        ns.DOM.sessionMenu.appendChild(itemBtn);
+      });
+    },
+
+    toggleSessionDropdown() {
+      if (!ns.DOM.sessionDropdownContainer) return;
+      const isOpen = ns.DOM.sessionDropdownContainer.classList.toggle("open");
+      if (ns.DOM.sessionTrigger) {
+        ns.DOM.sessionTrigger.setAttribute("aria-expanded", isOpen ? "true" : "false");
+      }
+    },
+
+    closeSessionDropdown() {
+      if (ns.DOM.sessionDropdownContainer) {
+        ns.DOM.sessionDropdownContainer.classList.remove("open");
+        if (ns.DOM.sessionTrigger) {
+          ns.DOM.sessionTrigger.setAttribute("aria-expanded", "false");
+        }
       }
     },
 
@@ -118,6 +172,32 @@ window.EventPass = window.EventPass || {};
       ns.DOM.settingsModal.classList.remove("show");
     },
 
+    openCancelModal(target) {
+      ns.state.pendingCancel = target;
+      if (ns.DOM.cancelModalAttendeeName) {
+        ns.DOM.cancelModalAttendeeName.textContent = target.attendeeName || "Peserta";
+      }
+      if (ns.DOM.cancelModalDetails) {
+        ns.DOM.cancelModalDetails.textContent = `${target.ticketId} • ${target.sessionName || "Sesi"}`;
+      }
+      if (ns.DOM.cancelReasonInput) {
+        ns.DOM.cancelReasonInput.value = "";
+      }
+      if (ns.DOM.cancelModal) {
+        ns.DOM.cancelModal.classList.add("show");
+        setTimeout(() => {
+          if (ns.DOM.cancelReasonInput) ns.DOM.cancelReasonInput.focus();
+        }, 150);
+      }
+    },
+
+    closeCancelModal() {
+      ns.state.pendingCancel = null;
+      if (ns.DOM.cancelModal) {
+        ns.DOM.cancelModal.classList.remove("show");
+      }
+    },
+
     recordHistory(entry) {
       ns.state.history.unshift(entry);
       if (ns.state.history.length > 50) ns.state.history.pop();
@@ -171,20 +251,19 @@ window.EventPass = window.EventPass || {};
         ns.DOM.historyList.appendChild(div);
       });
 
-      // Attach undo handlers
+      // Attach undo handlers that open the cancel confirmation modal with optional reason
       ns.DOM.historyList.querySelectorAll(".btn-undo-sm").forEach(btn => {
-        btn.addEventListener("click", async (e) => {
+        btn.addEventListener("click", (e) => {
           const tId = e.currentTarget.getAttribute("data-id");
           const sId = e.currentTarget.getAttribute("data-session");
           const name = e.currentTarget.getAttribute("data-name");
 
-          const confirmBatal = confirm(`Batalkan kehadiran untuk ${name} (${tId})? Data di Google Sheets akan otomatis di-reset.`);
-          if (!confirmBatal) return;
-
-          e.currentTarget.disabled = true;
-          e.currentTarget.textContent = "Membatalkan...";
-
-          await ns.App.handleCancelAttendance(tId, sId, ns.state.currentSessionName);
+          ns.UI.openCancelModal({
+            ticketId: tId,
+            sessionId: sId,
+            sessionName: ns.state.currentSessionName,
+            attendeeName: name
+          });
         });
       });
     },

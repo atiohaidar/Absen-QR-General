@@ -60,9 +60,21 @@
           <circle cx="12" cy="10" r="3"></circle>
         </svg>
         <span class="session-status-tag">Sesi:</span>
-        <select id="select-session" class="select-session-box" aria-label="Pilih Sesi Acara">
-          <option value="SESI-01">Sesi 1 (Memuat...)</option>
-        </select>
+
+        <!-- Custom Web Dropdown (Bukan select bawaan Chrome/OS) -->
+        <div class="custom-dropdown-container" id="custom-session-dropdown">
+          <button type="button" id="session-select-trigger" class="custom-dropdown-trigger" aria-haspopup="listbox" aria-expanded="false">
+            <span id="session-select-label">Memuat sesi...</span>
+            <svg class="dropdown-chevron" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+          
+          <div id="session-dropdown-menu" class="custom-dropdown-menu" role="listbox" aria-label="Daftar Sesi Acara">
+            <!-- Items rendered dynamically by JS -->
+          </div>
+        </div>
+
         <button id="btn-refresh-sessions" class="btn-refresh-sm" title="Refresh Daftar Sesi dari Sheet">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
@@ -360,6 +372,43 @@
         </button>
         <button id="btn-save-settings" class="btn-primary" style="flex: 1.5;">
           Simpan Pengaturan
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CANCEL ATTENDANCE CONFIRMATION MODAL -->
+  <div id="cancel-confirm-modal" class="modal-backdrop" role="dialog" aria-modal="true">
+    <div class="settings-modal-card">
+      <div class="modal-header">
+        <h3 class="section-title" style="margin-bottom: 0; color: var(--status-error);">Batalkan Kehadiran</h3>
+        <button id="btn-close-cancel-modal" class="btn-close" aria-label="Tutup">✕</button>
+      </div>
+
+      <div style="margin-bottom: 16px;">
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 8px;">
+          Konfirmasi pembatalan status presensi peserta berikut:
+        </p>
+        <div style="background: var(--bg-subtle); padding: 12px 14px; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+          <strong id="cancel-modal-attendee-name" style="color: var(--text-main); display: block; font-size: 15px; margin-bottom: 2px;">-</strong>
+          <div id="cancel-modal-details" style="font-size: 12px; color: var(--text-muted); font-family: monospace;">-</div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="cancel-reason-input">Alasan Pembatalan (Opsional)</label>
+        <input type="text" id="cancel-reason-input" class="input-box" placeholder="Misal: Salah orang, salah sesi, tiket tertukar..." autocomplete="off">
+        <small class="form-help-text">
+          Alasan akan dicatat pada sheet Log Kehadiran sebagai audit trail resmi.
+        </small>
+      </div>
+
+      <div class="modal-btn-row">
+        <button type="button" id="btn-dismiss-cancel" class="ctrl-btn-outline">
+          Batal
+        </button>
+        <button type="button" id="btn-execute-cancel" class="btn-secondary-danger" style="flex: 1.5; margin-top: 0;">
+          Ya, Batalkan Presensi
         </button>
       </div>
     </div>

@@ -39,23 +39,35 @@ window.EventPass = window.EventPass || {};
     bindEventListeners() {
       const DOM = ns.DOM;
 
-      // 1. Session Picker & Refresh
-      if (DOM.selectSession) {
-        DOM.selectSession.addEventListener("change", (e) => {
-          const opt = e.target.options[e.target.selectedIndex];
-          ns.state.currentSessionId = e.target.value;
-          ns.state.currentSessionName = opt.getAttribute("data-name") || opt.textContent;
-
-          localStorage.setItem("absen_current_session_id", ns.state.currentSessionId);
-          localStorage.setItem("absen_current_session_name", ns.state.currentSessionName);
-
-          ns.UI.showToast(`Sesi aktif: ${ns.state.currentSessionName}`);
-          ns.UI.updateScannerStatus("Siap Memindai", `Sesi: ${ns.state.currentSessionName}`);
+      // 1. Custom Session Dropdown & Refresh
+      if (DOM.sessionTrigger) {
+        DOM.sessionTrigger.addEventListener("click", (e) => {
+          e.stopPropagation();
+          ns.UI.toggleSessionDropdown();
         });
       }
 
+      // Close dropdown when clicking outside
+      document.addEventListener("click", (e) => {
+        if (DOM.sessionDropdownContainer && !DOM.sessionDropdownContainer.contains(e.target)) {
+          ns.UI.closeSessionDropdown();
+        }
+      });
+
+      // Keyboard Esc to close dropdown & modals
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          ns.UI.closeSessionDropdown();
+          ns.UI.closeCancelModal();
+          ns.UI.closeSettingsModal();
+        }
+      });
+
       if (DOM.btnRefreshSessions) {
-        DOM.btnRefreshSessions.addEventListener("click", () => this.syncSessions(true));
+        DOM.btnRefreshSessions.addEventListener("click", (e) => {
+          e.stopPropagation();
+          this.syncSessions(true);
+        });
       }
 
       // 2. Navigation Tabs
@@ -100,18 +112,32 @@ window.EventPass = window.EventPass || {};
         DOM.btnNextScan.addEventListener("click", () => ns.UI.closeResultModal());
       }
       if (DOM.btnCancelCheckin) {
-        DOM.btnCancelCheckin.addEventListener("click", async () => {
+        DOM.btnCancelCheckin.addEventListener("click", () => {
           if (!ns.state.lastScanned) return;
-          const target = ns.state.lastScanned;
-          const confirmCancel = confirm(`Batalkan kehadiran untuk ${target.attendeeName} (${target.ticketId}) pada ${target.sessionName}?`);
-          if (!confirmCancel) return;
-
           clearTimeout(ns.state.autoResumeTimer);
-          await this.handleCancelAttendance(target.ticketId, target.sessionId, target.sessionName);
+          ns.UI.openCancelModal(ns.state.lastScanned);
         });
       }
 
-      // 5. Manual Check-In & Search
+      // 5. Cancel Confirmation Modal Actions
+      if (DOM.btnCloseCancelModal) {
+        DOM.btnCloseCancelModal.addEventListener("click", () => ns.UI.closeCancelModal());
+      }
+      if (DOM.btnDismissCancel) {
+        DOM.btnDismissCancel.addEventListener("click", () => ns.UI.closeCancelModal());
+      }
+      if (DOM.btnExecuteCancel) {
+        DOM.btnExecuteCancel.addEventListener("click", async () => {
+          if (!ns.state.pendingCancel) return;
+          const target = ns.state.pendingCancel;
+          const reason = (DOM.cancelReasonInput ? DOM.cancelReasonInput.value.trim() : "") || "Dibatalkan oleh panitia";
+
+          ns.UI.closeCancelModal();
+          await this.handleCancelAttendance(target.ticketId, target.sessionId, target.sessionName, reason);
+        });
+      }
+
+      // 6. Manual Check-In & Search
       if (DOM.btnManualCheckin) {
         DOM.btnManualCheckin.addEventListener("click", () => {
           const id = DOM.inputManualId.value.trim();
@@ -131,12 +157,12 @@ window.EventPass = window.EventPass || {};
         });
       }
 
-      // 6. On-The-Spot (OTS) Registration Form
+      // 7. On-The-Spot (OTS) Registration Form
       if (DOM.btnSubmitOts) {
         DOM.btnSubmitOts.addEventListener("click", () => this.handleOtsSubmit());
       }
 
-      // 7. Settings Modal
+      // 8. Settings Modal
       if (DOM.btnOpenSettings) {
         DOM.btnOpenSettings.addEventListener("click", () => ns.UI.openSettingsModal());
       }
@@ -150,7 +176,7 @@ window.EventPass = window.EventPass || {};
         DOM.btnSaveSettings.addEventListener("click", () => this.handleSaveSettings());
       }
 
-      // 8. History Clear
+      // 9. History Clear
       if (DOM.btnClearHistory) {
         DOM.btnClearHistory.addEventListener("click", () => {
           ns.state.history = [];
@@ -362,7 +388,7 @@ window.EventPass = window.EventPass || {};
     /**
      * Cancel attendance check-in
      */
-    async handleCancelAttendance(ticketId, sessionId, sessionName) {
+    async handleCancelAttendance(ticketId, sessionId, sessionName, reason = "Dibatalkan oleh panitia") {
       if (ns.DOM.globalLoadingBar) ns.DOM.globalLoadingBar.classList.add("active");
       if (ns.DOM.btnCancelCheckin) {
         ns.DOM.btnCancelCheckin.disabled = true;
@@ -370,7 +396,7 @@ window.EventPass = window.EventPass || {};
       }
 
       try {
-        const result = await ns.API.cancelCheckIn(ticketId, sessionId, sessionName);
+        const result = await ns.API.cancelCheckIn(ticketId, sessionId, sessionName, reason);
 
         if (result.success) {
           ns.sounds.playWarning();

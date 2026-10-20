@@ -6,7 +6,7 @@
 
 window.EventPass = window.EventPass || {};
 
-(function(ns) {
+(function (ns) {
   'use strict';
 
   const DEFAULT_TIMEOUT_MS = 12000; // 12 seconds request timeout
@@ -135,7 +135,7 @@ window.EventPass = window.EventPass || {};
         sessionId: sessionId,
         sessionName: sessionName,
         cancelledBy: ns.state.panitiaName,
-        reason: reason || 'Dibatalkan oleh panitia (nama/tiket tidak cocok)'
+        reason: reason || 'Dibatalkan oleh panitia'
       };
 
       return await postJsonWithRetry(payload, 1);
