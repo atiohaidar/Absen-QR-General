@@ -77,54 +77,58 @@ absen qr/
 
 ---
 
-## 🚀 Panduan Setup Singkat (5 Menit)
+---
 
-### 1. Buat Google Form & Google Sheet
-1. Buat **Google Form** dengan pertanyaan:
-   - `Nama Lengkap` (Short answer, Wajib)
-   - `Email` (Short answer, Wajib)
-2. Di tab Responses Google Form, klik icon hijau **Link to Sheets** untuk membuat spreadsheet baru.
+## 🚀 Panduan Setup Kilat (Hanya 2 Menit - Khusus Orang Awam)
 
-### 2. Pasang Script Backend
+Tidak perlu paham koding, tidak perlu setup Git/GitHub, dan tidak perlu atur trigger manual. Cukup ikuti 3 langkah berikut:
+
+### Langkah 1: Buka & Buat Salinan Template Google Sheet
+1. Buka link template master Google Sheet berikut di browser komputer Anda:
+   *(Ganti ID Spreadsheet dengan Master Template Anda)*
+   ```text
+   https://docs.google.com/spreadsheets/d/<SPREADSHEET_ID>/copy
+   ```
+2. Klik tombol biru **"Make a copy"** (Buat Salinan).
+   *Seluruh tab sheet, formula, dan script backend otomatis tersalin rapi ke Google Drive Anda!*
+
+### Langkah 2: Jalankan 1-Click Setup dari Menu Toolbar
+1. Di Google Sheets Anda, tunggu beberapa detik sampai muncul menu khusus di samping menu Help:
+   👉 **`⚡ Presensi Event`**
+2. Klik **`⚡ Presensi Event`** → **`🚀 1. Setup Otomatis (Inisialisasi & Pasang Trigger)`**.
+   * Jika Google meminta izin akses (*Authorization Required*), klik **Continue** → pilih akun Google Anda → klik **Advanced** → klik **Go to... (unsafe)** → **Allow**.
+   * Script akan **otomatis membuat tab Master Sesi, Data Peserta, Log Kehadiran, folder Drive QR, dan memasang trigger presensi** tanpa Anda perlu mengutak-atik menu alarm/triggers!
+3. *(Opsional)* Jika belum punya Google Form pendaftaran:
+   Klik **`⚡ Presensi Event`** → **`📝 2. Buat Google Form Pendaftaran Otomatis`**. Form pendaftaran langsung jadi dan otomatis terhubung!
+
+### Langkah 3: Aktifkan API & Bagikan ke Panitia
 1. Di Google Sheets, klik menu **Extensions** → **Apps Script**.
-2. Salin isi [`backend/Code.gs`](backend/Code.gs) ke file `Code.gs` di editor Apps Script.
-3. *(Opsional)* Pada menu **Project Settings** (icon gear), centang *Show "appsscript.json" manifest file in editor*, lalu salin isi [`backend/appsscript.json`](backend/appsscript.json).
-4. Klik **Save** (icon disket).
-5. Pada dropdown fungsi di bagian atas, pilih `testInitSheets`, lalu klik **Run**:
-   - Berikan izin akses Google (Drive & Spreadsheet).
-   - Script akan otomatis membuat tab **Master Sesi**, **Data Peserta**, dan **Log Kehadiran** dengan rapi.
+2. Klik tombol biru **Deploy** (kanan atas) → **New deployment**.
+3. Klik icon gear ⚙️ di samping *Select type* → pilih **Web app**.
+4. Atur:
+   - **Execute as:** `Me (akun Anda)`
+   - **Who has access:** `Anyone` *(Wajib Anyone agar scanner HP bisa akses)*
+5. Klik **Deploy**, lalu salin **Web App URL** (`https://script.google.com/macros/s/.../exec`).
+6. Kembali ke Google Sheets, klik menu **`⚡ Presensi Event`** → **`🔗 3. Buka / Bagikan Link Scanner Panitia`**.
+7. Tempel Web App URL Anda, lalu klik **Buat Link Siap Pakai** & **Salin Link**.
+8. Bagikan link tersebut ke WhatsApp panitia. Selesai! Panitia langsung buka di HP dan langsung siap scan!
 
-### 3. Pasang Trigger Otomatis
-1. Di sidebar kiri Apps Script, klik menu **Triggers** (icon alarm).
-2. Klik tombol **+ Add Trigger** (kanan bawah).
-3. Atur:
-   - Function: `onFormSubmit`
-   - Deployment: `Head`
-   - Event source: `From spreadsheet`
-   - Event type: `On form submit`
-4. Klik **Save**.
+---
 
-### 4. Deploy Web App API
-1. Klik tombol biru **Deploy** → **New deployment**.
-2. Pilih jenis **Web app**.
-3. Atur:
-   - Execute as: **Me**
-   - Who has access: **Anyone** *(Wajib Anyone agar bisa diakses scanner)*.
-4. Klik **Deploy**, lalu salin **Web App URL** (format: `https://script.google.com/macros/s/.../exec`).
+## 🛠️ Panduan Manual / Developer (Bagi yang Ingin Buat dari Nol)
 
-### 5. Deploy Frontend ke GitHub Pages
-1. Push project ini ke repository GitHub Anda.
-2. Buka repo di GitHub: **Settings** → **Pages** → Source: **Deploy from a branch** (`main` / `root`) → Klik **Save**.
-3. Buka URL GitHub Pages di browser HP atau laptop.
+Jika Anda ingin membuat dari spreadsheet kosong:
+1. Buat Google Sheet baru.
+2. Buka **Extensions** → **Apps Script**.
+3. Salin isi [`backend/Code.gs`](backend/Code.gs) dan isi [`backend/appsscript.json`](backend/appsscript.json) (aktifkan show manifest di Project Settings).
+4. Klik **Save**, reload Google Sheet, lalu gunakan menu **`⚡ Presensi Event`** seperti panduan di atas.
+5. Deploy Frontend ke GitHub Pages / Vercel jika ingin custom domain sendiri.
 
-#### ⚡ Cara Praktis Bagikan Link ke Panitia (Zero-Config Auto Connect)
-Agar panitia **tidak bingung** dan tidak perlu repot copy-paste URL Apps Script secara manual, cukup tambahkan parameter `?q=` atau `?api=` pada link GitHub Pages:
+#### ⚡ Format Link Zero-Config Panitia
+Link panitia menggunakan parameter `?q=` agar HP panitia langsung terhubung otomatis tanpa ketik URL lagi:
 ```text
-https://<username>.github.io/<nama-repo>/?q=https://script.google.com/macros/s/.../exec
+https://<scanner-url>/?q=https://script.google.com/macros/s/.../exec&panitia=Budi&gate=Gate+1
 ```
-- Begitu panitia membuka link tersebut di HP mereka, website **otomatis langsung terhubung ke Google Apps Script backend**, menyimpan konfigurasi secara permanen di perangkat, dan langsung memuat daftar sesi acara tanpa perlu membuka menu pengaturan!
-- **Tips 1-Klik:** Buka menu **Pengaturan ⚙️** di perangkat Anda, lalu klik tombol **"Salin Link"** di samping kolom URL Apps Script untuk menyalin link siap pakai ini ke WhatsApp panitia.
-- Anda juga dapat menyertakan parameter opsional seperti `&gate=Gate+Utama` atau `&panitia=Budi`.
 
 ---
 
