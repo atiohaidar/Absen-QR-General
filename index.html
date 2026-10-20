@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>EventPass • Sistem Presensi & QR Code Scanner</title>
+  <meta name="description" content="Sistem absensi dan verifikasi tiket QR Code presisi tinggi terintegrasi dengan Google Sheets dan Google Drive.">
+  
+  <!-- Google Fonts: Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <!-- CSS Stylesheet -->
+  <link rel="stylesheet" href="css/style.css">
+
+  <!-- HTML5 QR Code Scanner Library -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+</head>
+<body>
+
+  <!-- Global Top Progress / Loading Bar -->
+  <div id="global-loading-bar" class="top-loading-bar"></div>
+
+  <!-- Background Ambient Glow -->
+  <div class="ambient-bg" aria-hidden="true">
+    <div class="ambient-orb orb-1"></div>
+    <div class="ambient-orb orb-2"></div>
+  </div>
+
+  <!-- App Header -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand-wrapper">
+        <div class="brand-icon" aria-hidden="true">⚡</div>
+        <div>
+          <h1 class="brand-title">EventPass</h1>
+          <div class="brand-subtitle">
+            <span class="status-dot"></span>
+            <span>Cloud Sync Active</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <button id="btn-open-settings" class="btn-icon" title="Pengaturan Panitia & API" aria-label="Settings">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Operator & Quick Stats Bar -->
+  <section class="operator-bar">
+    <div class="operator-container">
+      <div id="operator-badge-btn" class="operator-pill" title="Klik untuk ubah nama panitia">
+        <span>👤</span>
+        <span id="operator-badge-text">Panitia Gate 1 • Pintu Masuk</span>
+      </div>
+
+      <div class="stats-counter">
+        <div class="stat-item">
+          <span>Terpindai:</span>
+          <span id="stat-total" class="stat-val">0</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Navigation Tabs -->
+  <nav class="nav-tabs" aria-label="Menu Presensi">
+    <div class="tab-list">
+      <button class="tab-btn active" data-tab="scan" id="tab-btn-scan">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 7V5a2 2 0 0 1 2-2h2"></path>
+          <path d="M17 3h2a2 2 0 0 1 2 2v2"></path>
+          <path d="M21 17v2a2 2 0 0 1-2 2h-2"></path>
+          <path d="M7 21H5a2 2 0 0 1-2-2v-2"></path>
+          <rect x="7" y="7" width="10" height="10" rx="1"></rect>
+        </svg>
+        <span>QR Scanner</span>
+      </button>
+
+      <button class="tab-btn" data-tab="manual" id="tab-btn-manual">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <span>Cari Manual</span>
+      </button>
+
+      <button class="tab-btn" data-tab="history" id="tab-btn-history">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <polyline points="12 6 12 12 16 14"></polyline>
+        </svg>
+        <span>Riwayat</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Main Content Area -->
+  <main class="main-content">
+
+    <!-- TAB 1: QR SCANNER -->
+    <div id="tab-scan" class="tab-pane active">
+      <div class="scanner-card">
+        <div class="scanner-viewport-wrapper">
+          <div id="qr-video-reader"></div>
+
+          <!-- Futuristic Viewfinder Overlay -->
+          <div class="scanner-overlay">
+            <div class="viewfinder-frame">
+              <span class="corner-tr"></span>
+              <span class="corner-bl"></span>
+              <div class="scanner-laser"></div>
+            </div>
+          </div>
+
+          <!-- Scanner Center Loading HUD Overlay -->
+          <div id="scanner-loading-hud" class="scanner-loading-hud">
+            <div class="hud-spinner-ring"></div>
+            <div class="hud-title">MEMVERIFIKASI TIKET...</div>
+            <div id="hud-ticket-id" class="hud-subtitle">TIC-XXXXXX</div>
+          </div>
+
+          <!-- Camera Floating Controls -->
+          <div class="camera-controls">
+            <button id="btn-flip-cam" class="ctrl-btn" title="Ganti Kamera Depan/Belakang">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+              </svg>
+              <span>Kamera</span>
+            </button>
+            <button id="btn-toggle-torch" class="ctrl-btn" title="Nyalakan/Matikan Senter">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+              </svg>
+              <span>Senter</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Scanner Status Bar & Anti-Hang Feedback -->
+        <div class="scanner-status-box">
+          <div class="status-info">
+            <div class="pulse-indicator"></div>
+            <div>
+              <div id="scanner-status-label" class="status-label">Siap Memindai</div>
+              <div id="scanner-status-sub" class="status-sub">Arahkan kamera ke QR Code tiket peserta</div>
+            </div>
+          </div>
+
+          <div id="verifying-box" class="verifying-pill">
+            <div class="spinner"></div>
+            <span id="verifying-text">Memproses...</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: MANUAL SEARCH & CHECK-IN -->
+    <div id="tab-manual" class="tab-pane">
+      <div class="manual-card">
+        <h2 class="section-title">Manual Check-In</h2>
+        <p class="section-desc">Gunakan ini jika kamera kesulitan membaca QR atau ponsel peserta kehabisan daya baterai.</p>
+
+        <!-- Direct ID Input -->
+        <div class="form-group">
+          <label class="form-label" for="manual-ticket-id">Input ID Tiket Langsung</label>
+          <div style="display: flex; gap: 8px;">
+            <input type="text" id="manual-ticket-id" class="input-box" placeholder="Contoh: TIC-9A82B" autocomplete="off" style="text-transform: uppercase;">
+            <button id="btn-manual-checkin" class="btn-primary" style="width: auto; padding: 0 20px;">Check In</button>
+          </div>
+        </div>
+
+        <div style="height: 1px; background: rgba(255, 255, 255, 0.08); margin: 24px 0;"></div>
+
+        <!-- Search by Name/Email -->
+        <div class="form-group">
+          <label class="form-label" for="manual-search-query">Cari Berdasarkan Nama / Email</label>
+          <div style="display: flex; gap: 8px;">
+            <input type="text" id="manual-search-query" class="input-box" placeholder="Ketik nama atau email peserta...">
+            <button id="btn-search-query" class="btn-primary" style="width: auto; padding: 0 20px;">Cari</button>
+          </div>
+        </div>
+
+        <!-- Search Results List -->
+        <div id="search-results-list" class="search-results-list"></div>
+      </div>
+    </div>
+
+    <!-- TAB 3: HISTORY -->
+    <div id="tab-history" class="tab-pane">
+      <div class="history-card">
+        <div class="history-header">
+          <div>
+            <h2 class="section-title" style="margin-bottom: 2px;">Riwayat Pemindaian</h2>
+            <p class="section-desc" style="margin-bottom: 0;">Daftar aktivitas check-in pada perangkat ini.</p>
+          </div>
+          <button id="btn-clear-history" class="btn-icon" style="width: auto; padding: 6px 12px; font-size: 12px; gap: 4px;" title="Bersihkan Riwayat">
+            <span>Bersihkan</span>
+          </button>
+        </div>
+
+        <div id="history-list" class="history-list"></div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- SCAN RESULT MODAL (POPUP / BOTTOM SHEET) -->
+  <div id="scan-result-modal" class="modal-backdrop" role="dialog" aria-modal="true">
+    <div class="result-card">
+      <div id="result-banner" class="result-banner success">
+        <div class="result-icon-circle">
+          <span id="result-icon">✓</span>
+        </div>
+        <h3 id="result-title" class="result-title">CHECK-IN BERHASIL</h3>
+        <p id="result-subtitle" class="result-subtitle">Akses Terverifikasi</p>
+      </div>
+
+      <div class="result-body">
+        <table class="detail-table">
+          <tbody>
+            <tr>
+              <td>Nama Peserta</td>
+              <td id="detail-name">-</td>
+            </tr>
+            <tr>
+              <td>ID Tiket</td>
+              <td id="detail-ticket-id" style="font-family: monospace; letter-spacing: 1px;">-</td>
+            </tr>
+            <tr>
+              <td>Email</td>
+              <td id="detail-email">-</td>
+            </tr>
+            <tr>
+              <td>Waktu Masuk</td>
+              <td id="detail-time">-</td>
+            </tr>
+            <tr>
+              <td>Petugas / Gate</td>
+              <td id="detail-officer">-</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Auto Countdown Bar -->
+        <div class="countdown-bar-container" title="Auto-resume scan">
+          <div id="countdown-bar" class="countdown-bar"></div>
+        </div>
+
+        <button id="btn-next-scan" class="btn-primary">
+          <span>Lanjut Scan Berikutnya</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS MODAL -->
+  <div id="settings-modal" class="modal-backdrop" role="dialog" aria-modal="true">
+    <div class="settings-modal-card">
+      <div class="modal-header">
+        <h3 class="section-title" style="margin-bottom: 0;">Pengaturan Panitia & API</h3>
+        <button id="btn-close-settings" class="btn-close" aria-label="Tutup">✕</button>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="cfg-panitia-name">Nama Petugas / Panitia</label>
+        <input type="text" id="cfg-panitia-name" class="input-box" placeholder="Misal: Budi">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="cfg-gate-name">Gate / Pos Pemeriksaan</label>
+        <input type="text" id="cfg-gate-name" class="input-box" placeholder="Misal: Gate Utama / Pintu VIP">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="cfg-api-url">Google Apps Script Web App URL</label>
+        <input type="url" id="cfg-api-url" class="input-box" placeholder="https://script.google.com/macros/s/.../exec">
+        <small style="color: var(--text-dim); font-size: 11px; display: block; margin-top: 6px;">
+          Deploy dari Google Sheets: Extensions → Apps Script → Deploy → New Deployment → Web App (Who has access: Anyone).
+        </small>
+      </div>
+
+      <div style="display: flex; gap: 8px; margin-top: 24px;">
+        <button id="btn-test-connection" class="ctrl-btn" style="flex: 1; padding: 12px; justify-content: center;">
+          Test Koneksi
+        </button>
+        <button id="btn-save-settings" class="btn-primary" style="flex: 1.5; padding: 12px;">
+          Simpan Pengaturan
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast-notice" class="toast-notice" role="alert" aria-live="polite">
+    <span id="toast-msg">Pemberitahuan</span>
+  </div>
+
+  <!-- Application Logic -->
+  <script src="js/app.js"></script>
+</body>
+</html>
