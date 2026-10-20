@@ -182,11 +182,11 @@ body {
   transform: scale(0.95);
 }
 
-/* Operator Info Bar */
+/* Operator & Session Selector Bar */
 .operator-bar {
-  background: rgba(17, 24, 39, 0.6);
+  background: rgba(17, 24, 39, 0.7);
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  padding: 8px 18px;
+  padding: 10px 18px;
   font-size: 12px;
   color: var(--text-muted);
 }
@@ -195,25 +195,118 @@ body {
   max-width: 680px;
   margin: 0 auto;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.operator-pill {
-  display: inline-flex;
+@media (min-width: 520px) {
+  .operator-container {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.operator-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.session-picker-wrapper {
+  display: flex;
   align-items: center;
   gap: 6px;
-  background: rgba(56, 189, 248, 0.1);
-  color: var(--accent-blue);
-  padding: 4px 10px;
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  padding: 2px 8px;
   border-radius: var(--radius-full);
-  font-weight: 500;
+}
+
+.select-session-box {
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+  max-width: 220px;
+}
+
+.select-session-box option {
+  background: #111827;
+  color: #fff;
+}
+
+.btn-refresh-sm {
+  background: transparent;
+  border: none;
+  color: var(--accent-blue);
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: var(--transition);
+}
+
+.btn-refresh-sm:hover {
+  transform: rotate(90deg);
+}
+
+.btn-refresh-sm.spinning {
+  animation: spin 0.8s linear infinite;
+}
+
+/* Secondary Danger Button (Batalkan Kehadiran) */
+.btn-secondary-danger {
+  width: 100%;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #f87171;
+  padding: 11px;
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: var(--transition);
+  margin-top: 8px;
+}
+
+.btn-secondary-danger:hover {
+  background: rgba(239, 68, 68, 0.22);
+  border-color: #ef4444;
+  color: #fff;
+}
+
+.btn-secondary-danger:active {
+  transform: scale(0.98);
+}
+
+.btn-undo-sm {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #f87171;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 600;
   cursor: pointer;
   transition: var(--transition);
 }
 
-.operator-pill:hover {
-  background: rgba(56, 189, 248, 0.2);
+.btn-undo-sm:hover {
+  background: #ef4444;
+  color: #fff;
 }
 
 .stats-counter {

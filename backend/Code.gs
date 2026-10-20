@@ -1,224 +1,224 @@
 /**
  * ==============================================================================
- * BLUEPRINT QR CODE ATTENDANCE & CHECK-IN SYSTEM (Google Apps Script Backend)
+ * BLUEPRINT QR CODE ATTENDANCE SYSTEM (MULTI-SESSION & REVERT CAPABLE)
  * ==============================================================================
  * 
- * FEATURES:
- * 1. onFormSubmit Trigger:
- *    - Auto-generates unique Ticket ID (e.g. TIC-8F29A)
- *    - Generates QR Code image
- *    - Saves QR File into Google Drive folder
- *    - Grants participant viewer access via: DriveApp.getFileById(fileId).addViewer(email)
- *      (Zero Gmail quota usage! Otomatis masuk ke 'Shared with me' di Google Drive peserta)
- *    - Logs Ticket ID, File ID, Drive URL, & Attendance Status in Google Sheets
+ * 4-SHEET ARCHITECTURE:
+ * 1. "Form Responses 1" -> Raw submission data dari Google Form (IMMUTABLE, TIDAK DIOTAK-ATIK)
+ * 2. "Master Sesi"      -> Daftar sesi pertemuan yang diatur oleh Admin [ID Sesi | Nama Sesi | Tanggal | Status]
+ * 3. "Data Peserta"     -> Master data peserta & matrix kehadiran per sesi [Ticket ID | Nama | Email | Sesi 1 | Sesi 2 ...]
+ * 4. "Log Kehadiran"    -> Audit trail catatan setiap scan [Timestamp | Sesi | Ticket ID | Nama | Status | Panitia | Keterangan]
  * 
- * 2. Web API (doPost & doGet):
- *    - Fast in-memory lookup (<5ms)
- *    - Concurrency lock protection (LockService) to prevent race conditions
- *    - Anti double-scan validation
- *    - Real-time check-in logging (Timestamp, Panitia name, Gate location)
- *    - Manual search endpoint for backup
+ * FITUR UTAMA:
+ * - 1 QR Code berlaku untuk seluruh sesi acara (Multi-Session Matrix)
+ * - Auto-detect folder & auto-create folder 'QR Code Peserta' di Google Drive
+ * - DriveApp.getFileById(fileId).addViewer(email) (Zero email quota usage!)
+ * - Dukungan Check-In & PEMBATALAN KEHADIRAN (Cancel / Undo Check-In)
+ * - In-memory lookup ultra-fast (<3ms) & Concurrency LockService
  * ==============================================================================
  */
 
-// ==========================================
-// CONFIGURATION (Sesuaikan dengan kebutuhan)
-// ==========================================
 const CONFIG = {
-  EVENT_NAME: "Event Tech Summit 2026",
-  
-  // Nama subfolder tempat menyimpan file QR para peserta di Google Drive
-  // (Otomatis dibuat di dalam folder yang sama dengan Google Spreadsheet/Form!)
+  EVENT_NAME: "Event Tech Series 2026",
   QR_SUBFOLDER_NAME: "QR Code Peserta",
-  
-  // Prefix untuk Ticket ID unik (e.g. TIC-A8F29)
   TICKET_PREFIX: "TIC-",
   
-  // Nama Sheet utama (Tempat respon Google Form disimpan)
-  SHEET_NAME: "Form Responses 1", // Ganti jika nama tab sheet berbeda
-
-  // Header nama kolom di Google Sheet
-  COLUMNS: {
-    TIMESTAMP: "Timestamp",
-    NAMA: "Nama Lengkap",
-    EMAIL: "Email",
-    TICKET_ID: "Ticket ID",
-    DRIVE_FILE_ID: "Drive File ID",
-    DRIVE_URL: "Drive File URL",
-    STATUS: "Status Kehadiran",        // UNCHECKED / CHECKED_IN
-    CHECKIN_TIME: "Waktu Check-In",
-    SCANNED_BY: "Petugas / Panitia",
-    GATE: "Gate / Pos"
+  SHEETS: {
+    RAW_FORM: "Form Responses 1",
+    MASTER_SESI: "Master Sesi",
+    DATA_PESERTA: "Data Peserta",
+    LOG_KEHADIRAN: "Log Kehadiran"
   }
 };
 
 /**
- * Helper: Ambil folder tempat file spreadsheet/form berada, 
- * lalu cari atau buat subfolder 'QR Code Peserta' secara otomatis.
+ * ==============================================================================
+ * HELPER: INISIALISASI STRUKTUR 4 SHEET
+ * ==============================================================================
  */
-function getOrCreateQrFolder() {
-  try {
-    const ssId = SpreadsheetApp.getActiveSpreadsheet().getId();
-    const ssFile = DriveApp.getFileById(ssId);
-    const parents = ssFile.getParents();
-    
-    // Ambil parent folder dari spreadsheet/form
-    const parentFolder = parents.hasNext() ? parents.next() : DriveApp.getRootFolder();
-    
-    // Cek apakah subfolder QR sudah ada di dalam parent folder tersebut
-    const existingFolders = parentFolder.getFoldersByName(CONFIG.QR_SUBFOLDER_NAME);
-    if (existingFolders.hasNext()) {
-      return existingFolders.next();
-    } else {
-      // Jika belum ada, otomatis buat folder baru
-      const newFolder = parentFolder.createFolder(CONFIG.QR_SUBFOLDER_NAME);
-      Logger.log("📁 Berhasil membuat folder baru: " + CONFIG.QR_SUBFOLDER_NAME);
-      return newFolder;
-    }
-  } catch (err) {
-    Logger.log("Warning getOrCreateQrFolder: " + err.message + ", fallback ke root");
-    return DriveApp.getRootFolder();
-  }
+function getSpreadsheet() {
+  return SpreadsheetApp.getActiveSpreadsheet();
 }
 
-/**
- * Helper: Ambil Sheet aktif atau sheet berdasarkan CONFIG.SHEET_NAME
- */
-function getTargetSheet() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
+function getOrCreateSheet(sheetName) {
+  const ss = getSpreadsheet();
+  let sheet = ss.getSheetByName(sheetName);
   if (!sheet) {
-    sheet = ss.getSheets()[0]; // Fallback ke sheet pertama jika nama tab beda
+    sheet = ss.insertSheet(sheetName);
   }
   return sheet;
 }
 
 /**
- * Helper: Pastikan semua header kolom yang dibutuhkan sudah ada di baris 1
+ * Setup header kolom di seluruh sheet yang dibutuhkan
  */
-function ensureSheetHeaders() {
-  const sheet = getTargetSheet();
-  const headers = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0];
-  
-  const requiredHeaders = [
-    CONFIG.COLUMNS.TICKET_ID,
-    CONFIG.COLUMNS.DRIVE_FILE_ID,
-    CONFIG.COLUMNS.DRIVE_URL,
-    CONFIG.COLUMNS.STATUS,
-    CONFIG.COLUMNS.CHECKIN_TIME,
-    CONFIG.COLUMNS.SCANNED_BY,
-    CONFIG.COLUMNS.GATE
-  ];
+function ensureAllSheetsSetup() {
+  const ss = getSpreadsheet();
 
-  requiredHeaders.forEach(colName => {
-    if (!headers.includes(colName)) {
-      const nextCol = sheet.getLastColumn() + 1;
-      sheet.getRange(1, nextCol).setValue(colName).setFontWeight("bold");
-    }
-  });
+  // 1. Sheet Master Sesi
+  const sheetSesi = getOrCreateSheet(CONFIG.SHEETS.MASTER_SESI);
+  if (sheetSesi.getLastRow() === 0) {
+    sheetSesi.appendRow(["ID Sesi", "Nama Sesi", "Tanggal Pelaksanaan", "Status"]);
+    sheetSesi.getRange(1, 1, 1, 4).setFontWeight("bold").setBackground("#e2e8f0");
+    // Tambahkan 3 contoh sesi awal
+    sheetSesi.appendRow(["SESI-01", "Pertemuan 1 - Pembukaan & Onboarding", formatDateOnly(new Date()), "AKTIF"]);
+    sheetSesi.appendRow(["SESI-02", "Pertemuan 2 - Workshop Inti", formatDateOnly(new Date(Date.now() + 86400000)), "AKTIF"]);
+    sheetSesi.appendRow(["SESI-03", "Pertemuan 3 - Evaluasi & Penutupan", formatDateOnly(new Date(Date.now() + 172800000)), "AKTIF"]);
+  }
+
+  // 2. Sheet Data Peserta
+  const sheetPeserta = getOrCreateSheet(CONFIG.SHEETS.DATA_PESERTA);
+  if (sheetPeserta.getLastRow() === 0) {
+    const headers = ["Ticket ID", "Nama Lengkap", "Email", "Drive File ID", "Drive File URL", "Waktu Daftar"];
+    sheetPeserta.appendRow(headers);
+    sheetPeserta.getRange(1, 1, 1, headers.length).setFontWeight("bold").setBackground("#e2e8f0");
+  }
+
+  // 3. Sheet Log Kehadiran
+  const sheetLog = getOrCreateSheet(CONFIG.SHEETS.LOG_KEHADIRAN);
+  if (sheetLog.getLastRow() === 0) {
+    const logHeaders = ["Timestamp Log", "ID Sesi", "Nama Sesi", "Ticket ID", "Nama Peserta", "Status Scan", "Petugas / Panitia", "Gate", "Keterangan"];
+    sheetLog.appendRow(logHeaders);
+    sheetLog.getRange(1, 1, 1, logHeaders.length).setFontWeight("bold").setBackground("#e2e8f0");
+  }
 }
 
 /**
- * Helper: Generate Random Unique Ticket ID
+ * Helper: Ambil atau buat subfolder 'QR Code Peserta' di Google Drive
  */
-function generateTicketId() {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // Hindari karakter membingungkan (0, O, 1, I)
-  let result = "";
-  for (let i = 0; i < 6; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
+function getOrCreateQrFolder() {
+  try {
+    const ssId = getSpreadsheet().getId();
+    const ssFile = DriveApp.getFileById(ssId);
+    const parents = ssFile.getParents();
+    const parentFolder = parents.hasNext() ? parents.next() : DriveApp.getRootFolder();
+    
+    const existing = parentFolder.getFoldersByName(CONFIG.QR_SUBFOLDER_NAME);
+    if (existing.hasNext()) {
+      return existing.next();
+    } else {
+      const newFolder = parentFolder.createFolder(CONFIG.QR_SUBFOLDER_NAME);
+      Logger.log("📁 Folder baru dibuat: " + CONFIG.QR_SUBFOLDER_NAME);
+      return newFolder;
+    }
+  } catch (err) {
+    Logger.log("Folder error: " + err.message + ", fallback ke root");
+    return DriveApp.getRootFolder();
   }
-  return CONFIG.TICKET_PREFIX + result;
+}
+
+function generateTicketId() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let res = "";
+  for (let i = 0; i < 6; i++) {
+    res += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return CONFIG.TICKET_PREFIX + res;
+}
+
+function formatDateOnly(d) {
+  return Utilities.formatDate(d, Session.getScriptTimeZone(), "yyyy-MM-dd");
+}
+
+function formatFullDateTime(d) {
+  return Utilities.formatDate(d, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
 }
 
 /**
  * ==============================================================================
- * TRIGGER: onFormSubmit (Dipanggil otomatis saat ada submit Google Form baru)
+ * TRIGGER: onFormSubmit (MEMBACA DATA FORM TANPA MENGOTAK-ATIK FORM RESPONSES 1)
  * ==============================================================================
  */
 function onFormSubmit(e) {
   const lock = LockService.getScriptLock();
-  lock.tryLock(30000); // 30s timeout
+  lock.tryLock(30000);
 
   try {
-    ensureSheetHeaders();
-    const sheet = getTargetSheet();
-    const lastRow = sheet.getLastRow();
+    ensureAllSheetsSetup();
+    const ss = getSpreadsheet();
     
-    // Ambil mapping header ke index kolom
-    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-    const headerMap = {};
-    headers.forEach((h, idx) => { headerMap[h.trim()] = idx + 1; });
-
-    // Ambil data dari baris terbaru
-    const rowValues = sheet.getRange(lastRow, 1, 1, sheet.getLastColumn()).getValues()[0];
-
-    // Cari index Email dan Nama dari header yang cocok
-    let emailColIdx = -1;
-    let nameColIdx = -1;
-
-    for (let h in headerMap) {
-      const lower = h.toLowerCase();
-      if (lower.includes("email")) emailColIdx = headerMap[h];
-      if (lower.includes("nama") || lower.includes("name")) nameColIdx = headerMap[h];
+    // 1. Ambil data mentah dari Form Responses 1 (HANYA BACA, TIDAK DIUBAH)
+    let sheetRaw = ss.getSheetByName(CONFIG.SHEETS.RAW_FORM);
+    if (!sheetRaw) {
+      sheetRaw = ss.getSheets()[0]; // Fallback ke sheet pertama
     }
+    
+    const lastRawRow = sheetRaw.getLastRow();
+    if (lastRawRow <= 1) return;
 
-    if (emailColIdx === -1 || nameColIdx === -1) {
-      Logger.log("Kolom Nama atau Email tidak ditemukan!");
+    const rawHeaders = sheetRaw.getRange(1, 1, 1, sheetRaw.getLastColumn()).getValues()[0];
+    const rawData = sheetRaw.getRange(lastRawRow, 1, 1, sheetRaw.getLastColumn()).getValues()[0];
+
+    // Cari kolom Nama dan Email di form
+    let nameIdx = -1;
+    let emailIdx = -1;
+    let timeIdx = 0;
+
+    rawHeaders.forEach((h, idx) => {
+      const lower = String(h).toLowerCase();
+      if (lower.includes("nama") || lower.includes("name")) nameIdx = idx;
+      if (lower.includes("email")) emailIdx = idx;
+      if (lower.includes("timestamp")) timeIdx = idx;
+    });
+
+    if (nameIdx === -1 || emailIdx === -1) {
+      Logger.log("Kolom Nama atau Email tidak ditemukan di Form Responses!");
       return;
     }
 
-    const email = String(rowValues[emailColIdx - 1]).trim();
-    const name = String(rowValues[nameColIdx - 1]).trim();
+    const name = String(rawData[nameIdx] || "").trim();
+    const email = String(rawData[emailIdx] || "").trim();
+    const regTimestamp = rawData[timeIdx] ? formatFullDateTime(new Date(rawData[timeIdx])) : formatFullDateTime(new Date());
 
-    if (!email) {
-      Logger.log("Email kosong pada baris " + lastRow);
-      return;
+    if (!email || !name) return;
+
+    // 2. Cek apakah peserta sudah pernah ada di sheet "Data Peserta" (berdasarkan email)
+    const sheetPeserta = getOrCreateSheet(CONFIG.SHEETS.DATA_PESERTA);
+    const pesertaData = sheetPeserta.getDataRange().getValues();
+    
+    for (let r = 1; r < pesertaData.length; r++) {
+      if (String(pesertaData[r][2]).trim().toLowerCase() === email.toLowerCase()) {
+        Logger.log("Peserta dengan email " + email + " sudah terdaftar di Data Peserta.");
+        return;
+      }
     }
 
-    // Cek apakah Ticket ID sudah pernah dibuat (mencegah double execution)
-    const ticketIdColIdx = headerMap[CONFIG.COLUMNS.TICKET_ID];
-    const existingTicketId = rowValues[ticketIdColIdx - 1];
-    if (existingTicketId) {
-      Logger.log("Baris " + lastRow + " sudah memiliki Ticket ID: " + existingTicketId);
-      return;
-    }
-
-    // 1. Generate Unique Ticket ID
+    // 3. Generate Ticket ID & QR Code Image
     const ticketId = generateTicketId();
-
-    // 2. Generate QR Code Image Blob via QuickChart API
     const qrUrl = "https://quickchart.io/qr?text=" + encodeURIComponent(ticketId) + "&size=450&margin=2";
     const qrResponse = UrlFetchApp.fetch(qrUrl);
     const sanitizedName = name.replace(/[^a-zA-Z0-9_-]/g, "_");
     const qrBlob = qrResponse.getBlob().setName("QR_" + sanitizedName + "_" + ticketId + ".png");
 
-    // 3. Simpan File QR Code ke Google Drive
-    // Otomatis simpan di dalam subfolder 'QR Code Peserta' di lokasi yang sama dengan Google Form/Spreadsheet!
+    // 4. Simpan ke Google Drive folder
     const targetFolder = getOrCreateQrFolder();
     const driveFile = targetFolder.createFile(qrBlob);
     const fileId = driveFile.getId();
     const fileUrl = driveFile.getUrl();
 
-    // 4. SESUAI CONSTRAINT & KUOTA OPTIMIZATION:
-    // Cukup gunakan DriveApp.getFileById(fileId).addViewer(email)
-    // agar TIDAK MENGHABISKAN KUOTA EMAIL (Gmail daily quota limit)!
+    // 5. SESUAI CONSTRAINT: Share akses file ke peserta tanpa kuota email!
     try {
       DriveApp.getFileById(fileId).addViewer(email);
-      Logger.log("✅ Drive file viewer access granted to: " + email);
+      Logger.log("✅ Drive file viewer granted to: " + email);
     } catch (shareErr) {
-      Logger.log("⚠️ Gagal menambahkan viewer drive: " + shareErr.message);
+      Logger.log("⚠️ Drive viewer error: " + shareErr.message);
     }
 
-    // 5. Update data di Google Sheet
-    sheet.getRange(lastRow, headerMap[CONFIG.COLUMNS.TICKET_ID]).setValue(ticketId);
-    sheet.getRange(lastRow, headerMap[CONFIG.COLUMNS.DRIVE_FILE_ID]).setValue(fileId);
-    sheet.getRange(lastRow, headerMap[CONFIG.COLUMNS.DRIVE_URL]).setValue(fileUrl);
-    sheet.getRange(lastRow, headerMap[CONFIG.COLUMNS.STATUS]).setValue("UNCHECKED");
-    SpreadsheetApp.flush();
+    // 6. Masukkan data ke sheet "Data Peserta" (Form Responses 1 tetap bersih!)
+    sheetPeserta.appendRow([
+      ticketId,
+      name,
+      email,
+      fileId,
+      fileUrl,
+      regTimestamp
+    ]);
 
-    Logger.log("Sukses memproses pendaftaran untuk: " + name + " (" + ticketId + ")");
+    SpreadsheetApp.flush();
+    Logger.log("✅ Sukses menambahkan peserta baru: " + name + " (" + ticketId + ")");
+
   } catch (err) {
-    Logger.log("Error pada onFormSubmit: " + err.toString());
+    Logger.log("Error onFormSubmit: " + err.message);
   } finally {
     lock.releaseLock();
   }
@@ -226,159 +226,204 @@ function onFormSubmit(e) {
 
 /**
  * ==============================================================================
- * WEB API: doPost (Menerima Request Scan dari Scanner GitHub Pages)
+ * HELPER: AMBIL ATAU BUAT KOLOM SESI DI SHEET "DATA PESERTA"
+ * ==============================================================================
+ */
+function getOrCreateSessionColumn(sheetPeserta, sessionId, sessionName) {
+  const headers = sheetPeserta.getRange(1, 1, 1, sheetPeserta.getLastColumn()).getValues()[0];
+  const colHeaderTitle = `Sesi: ${sessionName} [${sessionId}]`;
+
+  // Cari apakah kolom ini sudah ada
+  for (let c = 0; c < headers.length; c++) {
+    if (String(headers[c]).includes(`[${sessionId}]`)) {
+      return c + 1; // 1-based index
+    }
+  }
+
+  // Jika belum ada, buat kolom sesi baru
+  const newColIdx = sheetPeserta.getLastColumn() + 1;
+  sheetPeserta.getRange(1, newColIdx)
+    .setValue(colHeaderTitle)
+    .setFontWeight("bold")
+    .setBackground("#dbeafe"); // Soft blue header
+  
+  return newColIdx;
+}
+
+/**
+ * ==============================================================================
+ * WEB API: doGet (Health check & Ambil Daftar Sesi Aktif)
+ * ==============================================================================
+ */
+function doGet(e) {
+  const action = (e && e.parameter && e.parameter.action) || "getSessions";
+  
+  if (action === "getSessions") {
+    ensureAllSheetsSetup();
+    const sessions = getActiveSessions();
+    return createJsonResponse({
+      success: true,
+      sessions: sessions,
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  return createJsonResponse({
+    success: true,
+    message: "EventPass Multi-Session Attendance API is Online!",
+    event: CONFIG.EVENT_NAME
+  });
+}
+
+/**
+ * Helper: Ambil sesi berstatus AKTIF dari sheet "Master Sesi"
+ */
+function getActiveSessions() {
+  const sheetSesi = getOrCreateSheet(CONFIG.SHEETS.MASTER_SESI);
+  const data = sheetSesi.getDataRange().getValues();
+  const sessions = [];
+
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    const id = String(row[0] || "").trim();
+    const name = String(row[1] || "").trim();
+    const date = row[2] ? formatDateOnly(new Date(row[2])) : "";
+    const status = String(row[3] || "AKTIF").trim().toUpperCase();
+
+    if (id && status === "AKTIF") {
+      sessions.push({
+        id: id,
+        name: name,
+        date: date,
+        status: status,
+        label: `${name} (${date || id})`
+      });
+    }
+  }
+
+  return sessions;
+}
+
+/**
+ * ==============================================================================
+ * WEB API: doPost (Check-In, Cancel/Undo Check-In, Search, & Fetch Sessions)
  * ==============================================================================
  */
 function doPost(e) {
   const lock = LockService.getScriptLock();
-  
-  // Tunggu lock hingga 10 detik agar aman dari race condition (2 scanner scan bareng)
-  if (!lock.tryLock(10000)) {
+  if (!lock.tryLock(15000)) {
     return createJsonResponse({
       success: false,
       status: "SERVER_BUSY",
-      message: "Server sedang sibuk, silakan coba scan ulang dalam 1 detik."
+      message: "Server sibuk, silakan ulangi dalam 1 detik."
     });
   }
 
   try {
+    ensureAllSheetsSetup();
     let payload;
     try {
       payload = JSON.parse(e.postData.contents);
     } catch (err) {
-      return createJsonResponse({
-        success: false,
-        status: "INVALID_JSON",
-        message: "Payload format salah (bukan JSON valid)."
-      });
+      return createJsonResponse({ success: false, message: "Invalid JSON payload" });
     }
 
-    const action = payload.action || "scan";
-    const sheet = getTargetSheet();
-    const data = sheet.getDataRange().getValues();
+    const action = payload.action || "checkIn";
+    const sheetPeserta = getOrCreateSheet(CONFIG.SHEETS.DATA_PESERTA);
+    const sheetLog = getOrCreateSheet(CONFIG.SHEETS.LOG_KEHADIRAN);
+    const pesertaData = sheetPeserta.getDataRange().getValues();
 
-    if (data.length <= 1) {
+    // -------------------------------------------------------------
+    // ACTION 1: GET SESSIONS (Ambil list sesi via POST)
+    // -------------------------------------------------------------
+    if (action === "getSessions") {
       return createJsonResponse({
-        success: false,
-        status: "EMPTY_SHEET",
-        message: "Spreadsheet belum memiliki data peserta."
-      });
-    }
-
-    // Buat map index header
-    const headers = data[0];
-    const headerMap = {};
-    headers.forEach((h, idx) => { headerMap[String(h).trim()] = idx; });
-
-    const colTicketId = headerMap[CONFIG.COLUMNS.TICKET_ID];
-    const colStatus = headerMap[CONFIG.COLUMNS.STATUS];
-    const colCheckInTime = headerMap[CONFIG.COLUMNS.CHECKIN_TIME];
-    const colScannedBy = headerMap[CONFIG.COLUMNS.SCANNED_BY];
-    const colGate = headerMap[CONFIG.COLUMNS.GATE];
-    
-    // Cari index Nama dan Email
-    let colName = -1;
-    let colEmail = -1;
-    for (let h in headerMap) {
-      const lower = h.toLowerCase();
-      if (lower.includes("nama") || lower.includes("name")) colName = headerMap[h];
-      if (lower.includes("email")) colEmail = headerMap[h];
-    }
-
-    if (colTicketId === undefined || colStatus === undefined) {
-      return createJsonResponse({
-        success: false,
-        status: "CONFIG_ERROR",
-        message: "Header kolom Ticket ID atau Status belum ada di Spreadsheet. Jalankan ensureSheetHeaders()."
+        success: true,
+        sessions: getActiveSessions()
       });
     }
 
     // -------------------------------------------------------------
-    // ACTION: SCAN / CHECK-IN
+    // ACTION 2: CHECK-IN SESI TERTENTU
     // -------------------------------------------------------------
-    if (action === "scan" || action === "checkIn") {
-      const rawScannedId = (payload.ticketId || "").trim();
+    if (action === "checkIn" || action === "scan") {
+      const ticketId = (payload.ticketId || "").trim();
+      const sessionId = (payload.sessionId || "SESI-01").trim();
+      const sessionName = (payload.sessionName || sessionId).trim();
       const scannedBy = (payload.scannedBy || "Panitia").trim();
       const gate = (payload.gate || "Pintu Masuk").trim();
+      const nowStr = formatFullDateTime(new Date());
 
-      if (!rawScannedId) {
-        return createJsonResponse({
-          success: false,
-          status: "EMPTY_ID",
-          message: "ID tiket tidak boleh kosong."
-        });
+      if (!ticketId) {
+        return createJsonResponse({ success: false, message: "ID Tiket tidak boleh kosong." });
       }
 
-      // Fast In-Memory Lookup (< 2ms)
-      let foundRowIndex = -1;
-      let matchedRow = null;
+      // Cari baris peserta di Data Peserta
+      let foundRow = -1;
+      let attendeeName = "";
+      let attendeeEmail = "";
 
-      for (let r = 1; r < data.length; r++) {
-        const rowId = String(data[r][colTicketId]).trim();
-        if (rowId.toUpperCase() === rawScannedId.toUpperCase()) {
-          foundRowIndex = r + 1; // 1-based index untuk SpreadsheetApp
-          matchedRow = data[r];
+      for (let r = 1; r < pesertaData.length; r++) {
+        if (String(pesertaData[r][0]).toUpperCase() === ticketId.toUpperCase()) {
+          foundRow = r + 1; // 1-based row index
+          attendeeName = pesertaData[r][1] || "Peserta";
+          attendeeEmail = pesertaData[r][2] || "-";
           break;
         }
       }
 
-      // Skenario 1: ID Tidak Ditemukan
-      if (foundRowIndex === -1) {
+      // Skenario A: Tiket Tidak Ditemukan
+      if (foundRow === -1) {
+        sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, "-", "TIDAK_VALID", scannedBy, gate, "ID tidak terdaftar di sistem"]);
+        SpreadsheetApp.flush();
         return createJsonResponse({
           success: false,
           status: "NOT_FOUND",
-          message: `Tiket dengan ID "${rawScannedId}" TIDAK TERDAFTAR dalam sistem!`
+          message: `Tiket "${ticketId}" TIDAK TERDAFTAR dalam sistem!`
         });
       }
 
-      const currentStatus = String(matchedRow[colStatus] || "").trim().toUpperCase();
-      const attendeeName = colName !== -1 ? matchedRow[colName] : "Peserta";
-      const attendeeEmail = colEmail !== -1 ? matchedRow[colEmail] : "-";
-      const existingCheckInTime = colCheckInTime !== undefined ? matchedRow[colCheckInTime] : "";
-      const existingScannedBy = colScannedBy !== undefined ? matchedRow[colScannedBy] : "";
+      // Ambil kolom sesi untuk sesi ini
+      const sessionColIdx = getOrCreateSessionColumn(sheetPeserta, sessionId, sessionName);
+      const existingStatus = String(sheetPeserta.getRange(foundRow, sessionColIdx).getValue() || "").trim();
 
-      // Skenario 2: Tiket Sudah Pernah Digunakan (Double Scan Prevention)
-      if (currentStatus === "CHECKED_IN") {
+      // Skenario B: Tiket Sudah Pernah Di-scan di Sesi Ini (Double Scan)
+      if (existingStatus.startsWith("HADIR")) {
+        sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, attendeeName, "DUPLIKAT", scannedBy, gate, `Sudah absen sebelumnya: ${existingStatus}`]);
+        SpreadsheetApp.flush();
         return createJsonResponse({
           success: false,
           status: "ALREADY_CHECKED_IN",
-          message: `PERINGATAN! Tiket sudah pernah di-scan sebelumnya!`,
+          message: `TIKET SUDAH DIGUNAKAN untuk sesi "${sessionName}"!`,
           attendee: {
-            ticketId: rawScannedId,
+            ticketId: ticketId,
             name: attendeeName,
             email: attendeeEmail,
-            firstCheckInTime: existingCheckInTime ? formatReadableDate(existingCheckInTime) : "Sebelumnya",
-            scannedBy: existingScannedBy || "Panitia lain"
+            sessionName: sessionName,
+            firstCheckInTime: existingStatus.replace("HADIR - ", "").trim() || "Sebelumnya",
+            scannedBy: scannedBy
           }
         });
       }
 
-      // Skenario 3: Check-in Berhasil!
-      const checkInTimeStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
-
-      // Update baris di Google Sheet
-      sheet.getRange(foundRowIndex, colStatus + 1).setValue("CHECKED_IN");
-      if (colCheckInTime !== undefined) {
-        sheet.getRange(foundRowIndex, colCheckInTime + 1).setValue(checkInTimeStr);
-      }
-      if (colScannedBy !== undefined) {
-        sheet.getRange(foundRowIndex, colScannedBy + 1).setValue(scannedBy);
-      }
-      if (colGate !== undefined) {
-        sheet.getRange(foundRowIndex, colGate + 1).setValue(gate);
-      }
-
+      // Skenario C: Check-In Berhasil!
+      const statusValue = `HADIR - ${nowStr}`;
+      sheetPeserta.getRange(foundRow, sessionColIdx).setValue(statusValue);
+      
+      // Catat di sheet Log Kehadiran
+      sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, attendeeName, "BERHASIL", scannedBy, gate, "Presensi tercatat"]);
       SpreadsheetApp.flush();
 
       return createJsonResponse({
         success: true,
         status: "CHECKED_IN",
-        message: "Check-in berhasil! Selamat datang.",
+        message: `Presensi berhasil dicatat untuk ${sessionName}!`,
         attendee: {
-          ticketId: rawScannedId,
+          ticketId: ticketId,
           name: attendeeName,
           email: attendeeEmail,
-          checkInTime: checkInTimeStr,
+          sessionName: sessionName,
+          checkInTime: nowStr,
           scannedBy: scannedBy,
           gate: gate
         }
@@ -386,120 +431,207 @@ function doPost(e) {
     }
 
     // -------------------------------------------------------------
-    // ACTION: SEARCH (Manual Search Peserta by Name / Email / Ticket)
+    // ACTION 3: BATALKAN KEHADIRAN (CANCEL / UNDO CHECK-IN)
     // -------------------------------------------------------------
-    if (action === "search") {
-      const query = (payload.query || "").toLowerCase().trim();
-      if (!query) {
-        return createJsonResponse({ success: true, results: [] });
+    if (action === "cancelCheckIn" || action === "undo") {
+      const ticketId = (payload.ticketId || "").trim();
+      const sessionId = (payload.sessionId || "").trim();
+      const sessionName = (payload.sessionName || sessionId).trim();
+      const cancelledBy = (payload.cancelledBy || payload.scannedBy || "Panitia").trim();
+      const reason = (payload.reason || "Dibatalkan oleh panitia (nama/tiket tidak cocok)").trim();
+      const nowStr = formatFullDateTime(new Date());
+
+      if (!ticketId || !sessionId) {
+        return createJsonResponse({ success: false, message: "Ticket ID dan Session ID wajib diisi untuk pembatalan." });
       }
 
-      const results = [];
-      for (let r = 1; r < data.length; r++) {
-        const row = data[r];
-        const rowId = String(row[colTicketId] || "");
-        const rowName = colName !== -1 ? String(row[colName] || "") : "";
-        const rowEmail = colEmail !== -1 ? String(row[colEmail] || "") : "";
-        const rowStatus = String(row[colStatus] || "UNCHECKED");
-        const rowTime = colCheckInTime !== undefined ? row[colCheckInTime] : "";
+      // Cari baris peserta
+      let foundRow = -1;
+      let attendeeName = "";
 
-        if (
-          rowId.toLowerCase().includes(query) ||
-          rowName.toLowerCase().includes(query) ||
-          rowEmail.toLowerCase().includes(query)
-        ) {
-          results.push({
-            ticketId: rowId,
-            name: rowName,
-            email: rowEmail,
-            status: rowStatus,
-            checkInTime: rowTime ? formatReadableDate(rowTime) : ""
-          });
+      for (let r = 1; r < pesertaData.length; r++) {
+        if (String(pesertaData[r][0]).toUpperCase() === ticketId.toUpperCase()) {
+          foundRow = r + 1;
+          attendeeName = pesertaData[r][1] || "Peserta";
+          break;
         }
-
-        if (results.length >= 15) break; // Batasi 15 hasil maksimal
       }
+
+      if (foundRow === -1) {
+        return createJsonResponse({ success: false, message: "Peserta tidak ditemukan." });
+      }
+
+      // Ambil kolom sesi
+      const sessionColIdx = getOrCreateSessionColumn(sheetPeserta, sessionId, sessionName);
+      
+      // Kosongkan status di sheet Data Peserta (Revert kembali)
+      sheetPeserta.getRange(foundRow, sessionColIdx).setValue("");
+
+      // Catat event pembatalan di sheet Log Kehadiran
+      sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, attendeeName, "DIBATALKAN", cancelledBy, payload.gate || "-", reason]);
+      SpreadsheetApp.flush();
 
       return createJsonResponse({
         success: true,
-        results: results
+        status: "CANCELLED",
+        message: `Kehadiran ${attendeeName} pada ${sessionName} berhasil dibatalkan.`,
+        attendee: {
+          ticketId: ticketId,
+          name: attendeeName
+        }
       });
     }
 
-    // Action tidak dikenal
-    return createJsonResponse({
-      success: false,
-      status: "UNKNOWN_ACTION",
-      message: `Action "${action}" tidak dikenali.`
-    });
+    // -------------------------------------------------------------
+    // ACTION 4: SEARCH PESERTA (Manual Search by Name/Email/Ticket)
+    // -------------------------------------------------------------
+    if (action === "search") {
+      const query = (payload.query || "").toLowerCase().trim();
+      const sessionId = (payload.sessionId || "SESI-01").trim();
+      const sessionName = (payload.sessionName || sessionId).trim();
+
+      if (!query) return createJsonResponse({ success: true, results: [] });
+
+      const sessionColIdx = getOrCreateSessionColumn(sheetPeserta, sessionId, sessionName);
+      const results = [];
+
+      for (let r = 1; r < pesertaData.length; r++) {
+        const row = pesertaData[r];
+        const tId = String(row[0] || "");
+        const tName = String(row[1] || "");
+        const tEmail = String(row[2] || "");
+        const currentSessionStatus = String(row[sessionColIdx - 1] || "");
+
+        if (tId.toLowerCase().includes(query) || tName.toLowerCase().includes(query) || tEmail.toLowerCase().includes(query)) {
+          const isHadir = currentSessionStatus.startsWith("HADIR");
+          results.push({
+            ticketId: tId,
+            name: tName,
+            email: tEmail,
+            status: isHadir ? "HADIR" : "BELUM_HADIR",
+            statusDetail: currentSessionStatus || "Belum Absen",
+            sessionId: sessionId,
+            sessionName: sessionName
+          });
+        }
+        if (results.length >= 15) break;
+      }
+
+      return createJsonResponse({ success: true, results: results });
+    }
+
+    // -------------------------------------------------------------
+    // ACTION 5: REGISTRASI CEPAT ON-THE-SPOT (OTS / WALK-IN)
+    // -------------------------------------------------------------
+    if (action === "registerOts" || action === "ots") {
+      const name = (payload.name || "").trim();
+      const contact = (payload.contact || "").trim();
+      const notes = (payload.notes || "Walk-In OTS").trim();
+      const sessionId = (payload.sessionId || "SESI-01").trim();
+      const sessionName = (payload.sessionName || sessionId).trim();
+      const scannedBy = (payload.scannedBy || "Panitia").trim();
+      const gate = (payload.gate || "Pintu Masuk").trim();
+      const nowStr = formatFullDateTime(new Date());
+
+      if (!name) {
+        return createJsonResponse({ success: false, message: "Nama lengkap peserta wajib diisi." });
+      }
+
+      // 1. Generate Unique Ticket ID dengan prefix OTS
+      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      let randomPart = "";
+      for (let i = 0; i < 4; i++) {
+        randomPart += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      const ticketId = "TIC-OTS-" + randomPart;
+
+      // 2. Generate QR Code Image & simpan di Drive
+      let fileId = "-";
+      let fileUrl = "-";
+      try {
+        const qrUrl = "https://quickchart.io/qr?text=" + encodeURIComponent(ticketId) + "&size=450&margin=2";
+        const qrResponse = UrlFetchApp.fetch(qrUrl);
+        const sanitizedName = name.replace(/[^a-zA-Z0-9_-]/g, "_");
+        const qrBlob = qrResponse.getBlob().setName("QR_OTS_" + sanitizedName + "_" + ticketId + ".png");
+
+        const targetFolder = getOrCreateQrFolder();
+        const driveFile = targetFolder.createFile(qrBlob);
+        fileId = driveFile.getId();
+        fileUrl = driveFile.getUrl();
+
+        // Jika kontak merupakan email, berikan viewer access
+        if (contact && contact.includes("@")) {
+          try {
+            DriveApp.getFileById(fileId).addViewer(contact);
+          } catch (e) {
+            Logger.log("Viewer share error: " + e.message);
+          }
+        }
+      } catch (err) {
+        Logger.log("QR Drive save error: " + err.message);
+      }
+
+      // 3. Masukkan ke sheet Data Peserta
+      const effectiveContact = contact || "OTS (Tanpa HP)";
+      const newRow = [
+        ticketId,
+        name,
+        effectiveContact,
+        fileId,
+        fileUrl,
+        nowStr
+      ];
+
+      // Ambil kolom sesi untuk sesi aktif
+      const sessionColIdx = getOrCreateSessionColumn(sheetPeserta, sessionId, sessionName);
+      
+      // Buat baris baru di Data Peserta
+      sheetPeserta.appendRow(newRow);
+      const newRowIdx = sheetPeserta.getLastRow();
+
+      // Langsung tandai HADIR di sesi aktif!
+      const statusValue = `HADIR - ${nowStr}`;
+      sheetPeserta.getRange(newRowIdx, sessionColIdx).setValue(statusValue);
+
+      // 4. Catat di Log Kehadiran
+      sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, name, "BERHASIL (OTS)", scannedBy, gate, notes]);
+      SpreadsheetApp.flush();
+
+      return createJsonResponse({
+        success: true,
+        status: "CHECKED_IN",
+        message: `Registrasi OTS berhasil! ${name} langsung tercatat hadir pada ${sessionName}.`,
+        attendee: {
+          ticketId: ticketId,
+          name: name,
+          email: effectiveContact,
+          sessionName: sessionName,
+          checkInTime: nowStr,
+          scannedBy: scannedBy,
+          gate: gate,
+          isOts: true
+        }
+      });
+    }
+
+    return createJsonResponse({ success: false, message: "Action tidak dikenali." });
 
   } catch (err) {
-    return createJsonResponse({
-      success: false,
-      status: "SERVER_ERROR",
-      message: "Terjadi kesalahan server: " + err.message
-    });
+    return createJsonResponse({ success: false, message: "Server error: " + err.message });
   } finally {
     lock.releaseLock();
   }
 }
 
-/**
- * ==============================================================================
- * WEB API: doGet (Health Check & Test URL)
- * ==============================================================================
- */
-function doGet(e) {
-  return createJsonResponse({
-    success: true,
-    message: "Google Apps Script Attendance API is running online!",
-    event: CONFIG.EVENT_NAME,
-    timestamp: new Date().toISOString()
-  });
-}
-
-/**
- * Helper: Create JSON Response Output
- */
 function createJsonResponse(data) {
   return ContentService.createTextOutput(JSON.stringify(data))
     .setMimeType(ContentService.MimeType.JSON);
 }
 
 /**
- * Helper: Format Date ke string yang enak dibaca
+ * Utility test manual di editor Apps Script
  */
-function formatReadableDate(dateVal) {
-  try {
-    const d = new Date(dateVal);
-    if (isNaN(d.getTime())) return String(dateVal);
-    return Utilities.formatDate(d, Session.getScriptTimeZone(), "dd MMM yyyy, HH:mm:ss");
-  } catch (e) {
-    return String(dateVal);
-  }
-}
-
-/**
- * ==============================================================================
- * UTILITY TESTING FUNCTIONS (Bisa dijalankan manual di editor Apps Script)
- * ==============================================================================
- */
-function testSetup() {
-  ensureSheetHeaders();
-  Logger.log("Headers initialized successfully!");
-}
-
-function testManualCheckIn() {
-  const testPayload = {
-    postData: {
-      contents: JSON.stringify({
-        action: "scan",
-        ticketId: "TIC-TEST01",
-        scannedBy: "Panitia Test",
-        gate: "Gate Utama"
-      })
-    }
-  };
-  const response = doPost(testPayload);
-  Logger.log(response.getContent());
+function testInitSheets() {
+  ensureAllSheetsSetup();
+  Logger.log("Semua sheet berhasil diinisialisasi!");
 }
