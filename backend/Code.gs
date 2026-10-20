@@ -151,23 +151,52 @@
   }
 
   /**
-  * Helper: Ambil atau buat subfolder 'QR Code Peserta' di Google Drive
-  */
+   * Helper: Ambil atau buat subfolder 'QR Code Peserta' di Google Drive
+   * Dilengkapi pengaman privasi:
+   * 1. Jika parent folder terlanjur di-share PUBLIC, folder QR dialihkan ke Root My Drive agar tidak bocor.
+   * 2. Folder QR selalu dikunci ke mode PRIVATE (Restricted), sehingga hanya pemilik & peserta bersangkutan yang punya akses.
+   */
   function getOrCreateQrFolder() {
     try {
       const ssId = getSpreadsheet().getId();
       const ssFile = DriveApp.getFileById(ssId);
       const parents = ssFile.getParents();
-      const parentFolder = parents.hasNext() ? parents.next() : DriveApp.getRootFolder();
+      let parentFolder = parents.hasNext() ? parents.next() : DriveApp.getRootFolder();
       
-      const existing = parentFolder.getFoldersByName(CONFIG.QR_SUBFOLDER_NAME);
-      if (existing.hasNext()) {
-        return existing.next();
-      } else {
-        const newFolder = parentFolder.createFolder(CONFIG.QR_SUBFOLDER_NAME);
-        Logger.log("📁 Folder baru dibuat: " + CONFIG.QR_SUBFOLDER_NAME);
-        return newFolder;
+      // Keamanan Ekstra: Deteksi apakah folder parent bersifat publik (Anyone / Anyone with link)
+      let isParentPublic = false;
+      try {
+        const parentAccess = parentFolder.getSharingAccess();
+        if (parentAccess === DriveApp.Access.ANYONE || parentAccess === DriveApp.Access.ANYONE_WITH_LINK) {
+          isParentPublic = true;
+        }
+      } catch (accessErr) {
+        Logger.log("Notice checking parent access: " + accessErr.message);
       }
+
+      // Jika parent folder publik, isolasi folder QR ke My Drive Root agar peserta tidak bisa jelajahi parent
+      if (isParentPublic) {
+        Logger.log("⚠️ Parent folder bersifat PUBLIK. Untuk privasi peserta, folder QR dialihkan ke Root My Drive.");
+        parentFolder = DriveApp.getRootFolder();
+      }
+
+      const existing = parentFolder.getFoldersByName(CONFIG.QR_SUBFOLDER_NAME);
+      let targetFolder;
+      if (existing.hasNext()) {
+        targetFolder = existing.next();
+      } else {
+        targetFolder = parentFolder.createFolder(CONFIG.QR_SUBFOLDER_NAME);
+        Logger.log("📁 Folder baru dibuat: " + CONFIG.QR_SUBFOLDER_NAME);
+      }
+
+      // Kunci akses folder agar selalu PRIVATE (Restricted / Dibatasi)
+      try {
+        targetFolder.setSharing(DriveApp.Access.PRIVATE, DriveApp.Permission.NONE);
+      } catch (shareErr) {
+        Logger.log("Folder setSharing notice: " + shareErr.message);
+      }
+
+      return targetFolder;
     } catch (err) {
       Logger.log("Folder error: " + err.message + ", fallback ke root");
       return DriveApp.getRootFolder();

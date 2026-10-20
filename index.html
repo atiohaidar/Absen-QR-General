@@ -1,23 +1,29 @@
 <!DOCTYPE html>
 <html lang="id">
+
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
   <meta name="theme-color" content="#ffffff">
   <title>EventPass • Sistem Presensi & QR Code Scanner</title>
-  <meta name="description" content="Sistem absensi dan verifikasi tiket QR Code presisi tinggi terintegrasi dengan Google Sheets.">
-  
+  <meta name="description"
+    content="Sistem absensi dan verifikasi tiket QR Code presisi tinggi terintegrasi dengan Google Sheets.">
+
   <!-- Google Fonts: Outfit & Inter -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  
+  <link
+    href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
+
   <!-- CSS Stylesheet -->
   <link rel="stylesheet" href="css/style.css">
 
   <!-- jsQR Library (Apache 2.0 Licensed, Super Lightweight & Stable) -->
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 </head>
+
 <body>
 
   <!-- Global Top Progress / Loading Bar -->
@@ -27,35 +33,40 @@
   <header class="app-header">
     <div class="header-container">
       <button id="operator-badge-btn" class="nav-operator-btn" title="Klik untuk ubah nama panitia">
-          <span class="status-dot" title="Cloud Sync Aktif"></span>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;">
-            <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
-            <circle cx="12" cy="7" r="4"></circle>
-          </svg>
-          <span id="operator-badge-text">Panitia Gate 1</span>
-        </button>
+        <span class="status-dot" title="Cloud Sync Aktif"></span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;">
+          <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+          <circle cx="12" cy="7" r="4"></circle>
+        </svg>
+        <span id="operator-badge-text">Panitia Gate 1</span>
+      </button>
 
-        <div class="header-right-tools">
-          <div class="stat-item" title="Jumlah peserta berhasil presensi">
-            <span class="stat-label">Terpindai:</span>
-            <span id="stat-total" class="stat-val">0</span>
-          </div>
-
-          <button id="btn-open-settings" class="btn-icon" title="Pengaturan Panitia & API" aria-label="Settings">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="3"></circle>
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-            </svg>
-          </button>
+      <div class="header-right-tools">
+        <div class="stat-item" title="Jumlah peserta berhasil presensi">
+          <span class="stat-label">Terpindai:</span>
+          <span id="stat-total" class="stat-val">0</span>
         </div>
+
+        <button id="btn-open-settings" class="btn-icon" title="Pengaturan Panitia & API" aria-label="Settings">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path
+              d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+            </path>
+          </svg>
+        </button>
       </div>
+    </div>
   </header>
 
   <!-- Sesi Acara Aktif Bar (Di atas Main Menu Tabs) -->
   <section class="session-bar" aria-label="Sesi Acara Aktif">
     <div class="session-bar-container">
       <div class="session-picker-wrapper" title="Sesi Acara Aktif">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;">
           <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
           <circle cx="12" cy="10" r="3"></circle>
         </svg>
@@ -63,21 +74,24 @@
 
         <!-- Custom Web Dropdown (Bukan select bawaan Chrome/OS) -->
         <div class="custom-dropdown-container" id="custom-session-dropdown">
-          <button type="button" id="session-select-trigger" class="custom-dropdown-trigger" aria-haspopup="listbox" aria-expanded="false">
+          <button type="button" id="session-select-trigger" class="custom-dropdown-trigger" aria-haspopup="listbox"
+            aria-expanded="false">
             <span id="session-select-label">Memuat sesi...</span>
-            <svg class="dropdown-chevron" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <svg class="dropdown-chevron" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="6 9 12 15 18 9"></polyline>
             </svg>
           </button>
-          
+
           <div id="session-dropdown-menu" class="custom-dropdown-menu" role="listbox" aria-label="Daftar Sesi Acara">
             <!-- Items rendered dynamically by JS -->
           </div>
         </div>
 
         <button id="btn-refresh-sessions" class="btn-refresh-sm" title="Refresh Daftar Sesi dari Sheet">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
           </svg>
         </button>
       </div>
@@ -88,7 +102,8 @@
   <nav class="nav-tabs" aria-label="Menu Presensi">
     <div class="tab-list">
       <button class="tab-btn active" data-tab="scan" id="tab-btn-scan">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
           <path d="M3 7V5a2 2 0 0 1 2-2h2"></path>
           <path d="M17 3h2a2 2 0 0 1 2 2v2"></path>
           <path d="M21 17v2a2 2 0 0 1-2 2h-2"></path>
@@ -99,7 +114,8 @@
       </button>
 
       <button class="tab-btn" data-tab="manual" id="tab-btn-manual">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
           <circle cx="11" cy="11" r="8"></circle>
           <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
         </svg>
@@ -107,7 +123,8 @@
       </button>
 
       <button class="tab-btn" data-tab="ots" id="tab-btn-ots">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
           <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
           <circle cx="8.5" cy="7" r="4"></circle>
           <line x1="20" y1="8" x2="20" y2="14"></line>
@@ -117,7 +134,8 @@
       </button>
 
       <button class="tab-btn" data-tab="history" id="tab-btn-history">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="10"></circle>
           <polyline points="12 6 12 12 16 14"></polyline>
         </svg>
@@ -148,13 +166,15 @@
           <!-- Camera Floating Controls -->
           <div class="camera-controls">
             <button id="btn-flip-cam" class="ctrl-btn" title="Ganti Kamera Depan/Belakang">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
               </svg>
               <span>Kamera</span>
             </button>
             <button id="btn-toggle-torch" class="ctrl-btn" title="Nyalakan/Matikan Senter">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
                 <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
               </svg>
               <span>Senter</span>
@@ -184,13 +204,15 @@
     <div id="tab-manual" class="tab-pane">
       <div class="manual-card">
         <h2 class="section-title">Manual Check-In</h2>
-        <p class="section-desc">Gunakan ini jika kamera kesulitan membaca QR atau ponsel peserta kehabisan daya baterai.</p>
+        <p class="section-desc">Gunakan ini jika kamera kesulitan membaca QR atau ponsel peserta kehabisan daya baterai.
+        </p>
 
         <!-- Direct ID Input -->
         <div class="form-group">
           <label class="form-label" for="manual-ticket-id">Input ID Tiket Langsung</label>
           <div class="input-action-row">
-            <input type="text" id="manual-ticket-id" class="input-box" placeholder="Contoh: TIC-9A82B" autocomplete="off" style="text-transform: uppercase;">
+            <input type="text" id="manual-ticket-id" class="input-box" placeholder="Contoh: TIC-9A82B"
+              autocomplete="off" style="text-transform: uppercase;">
             <button id="btn-manual-checkin" class="btn-primary" style="width: auto; padding: 0 22px;">Check In</button>
           </div>
         </div>
@@ -201,7 +223,8 @@
         <div class="form-group">
           <label class="form-label" for="manual-search-query">Cari Berdasarkan Nama / Email</label>
           <div class="input-action-row">
-            <input type="text" id="manual-search-query" class="input-box" placeholder="Ketik nama atau email peserta...">
+            <input type="text" id="manual-search-query" class="input-box"
+              placeholder="Ketik nama atau email peserta...">
             <button id="btn-search-query" class="btn-primary" style="width: auto; padding: 0 22px;">Cari</button>
           </div>
         </div>
@@ -232,7 +255,8 @@
     <div id="tab-ots" class="tab-pane">
       <div class="manual-card">
         <div class="ots-header-title">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.5"
+            stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;">
             <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
             <circle cx="9" cy="7" r="4"></circle>
             <line x1="19" y1="8" x2="19" y2="14"></line>
@@ -240,17 +264,20 @@
           </svg>
           <h2 class="section-title" style="margin-bottom: 0;">Registrasi Cepat OTS (Walk-In)</h2>
         </div>
-        <p class="section-desc">Khusus peserta yang tidak membawa HP, HP mati, atau tamu walk-in. Langsung terdaftar dan otomatis tercatat hadir di sesi aktif!</p>
+        <p class="section-desc">Khusus peserta yang tidak membawa HP, HP mati, atau tamu walk-in. Langsung terdaftar dan
+          otomatis tercatat hadir di sesi aktif!</p>
 
         <form id="form-ots" onsubmit="return false;">
           <div class="form-group">
             <label class="form-label" for="ots-name">Nama Lengkap Peserta <span class="required-star">*</span></label>
-            <input type="text" id="ots-name" class="input-box" placeholder="Contoh: Pak Joko Santoso" required autocomplete="off">
+            <input type="text" id="ots-name" class="input-box" placeholder="Contoh: Pak Joko Santoso" required
+              autocomplete="off">
           </div>
 
           <div class="form-group">
             <label class="form-label" for="ots-contact">No. WhatsApp / Email (Opsional)</label>
-            <input type="text" id="ots-contact" class="input-box" placeholder="Contoh: 08123456789 atau email..." autocomplete="off">
+            <input type="text" id="ots-contact" class="input-box" placeholder="Contoh: 08123456789 atau email..."
+              autocomplete="off">
             <small class="form-help-text">
               Jika tidak punya email/HP, biarkan kosong. Sistem akan membuat ID khusus OTS.
             </small>
@@ -258,12 +285,14 @@
 
           <div class="form-group">
             <label class="form-label" for="ots-notes">Catatan / Asal (Opsional)</label>
-            <input type="text" id="ots-notes" class="input-box" placeholder="Misal: Warga sekitar, Tamu RT, Walk-In" autocomplete="off">
+            <input type="text" id="ots-notes" class="input-box" placeholder="Misal: Warga sekitar, Tamu RT, Walk-In"
+              autocomplete="off">
           </div>
 
           <div style="margin-top: 24px;">
             <button type="submit" id="btn-submit-ots" class="btn-primary btn-success">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                stroke-linecap="round" stroke-linejoin="round">
                 <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
                 <circle cx="8.5" cy="7" r="4"></circle>
                 <polyline points="17 11 19 13 23 9"></polyline>
@@ -283,7 +312,8 @@
       <div id="result-banner" class="result-banner success">
         <div class="result-icon-circle">
           <div id="result-icon" class="result-icon-svg">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
+              stroke-linecap="round" stroke-linejoin="round">
               <polyline points="20 6 9 17 4 12"></polyline>
             </svg>
           </div>
@@ -321,7 +351,8 @@
         <!-- Troubleshooting Box for Apps Script / Connection Errors (hidden by default) -->
         <div id="result-config-guide" class="result-config-guide" style="display: none;">
           <div class="config-guide-header">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2.2"
+              stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="10"></circle>
               <line x1="12" y1="8" x2="12" y2="12"></line>
               <line x1="12" y1="16" x2="12.01" y2="16"></line>
@@ -329,7 +360,8 @@
             <strong>Kemungkinan Penyebab & Cara Perbaiki:</strong>
           </div>
           <p class="config-guide-desc">
-            Browser gagal terhubung ke Google Apps Script (<em>Failed to fetch / 404</em>). URL Web App Anda mungkin salah, deployment lama terhapus, atau akses belum dibuka untuk umum (<strong>Anyone</strong>).
+            Browser gagal terhubung ke Google Apps Script (<em>Failed to fetch / 404</em>). URL Web App Anda mungkin
+            salah, deployment lama terhapus, atau akses belum dibuka untuk umum (<strong>Anyone</strong>).
           </p>
           <div class="config-guide-steps">
             <div class="config-step-item">
@@ -338,11 +370,13 @@
             </div>
             <div class="config-step-item">
               <span class="step-num">2</span>
-              <span>Klik menu toolbar <strong>⚡ Presensi Event</strong> &rarr; <strong>Bagikan Link Web App Panitia</strong>.</span>
+              <span>Klik menu toolbar <strong>⚡ Presensi Event</strong> &rarr; <strong>Bagikan Link Web App
+                  Panitia</strong>.</span>
             </div>
             <div class="config-step-item">
               <span class="step-num">3</span>
-              <span>Atau klik <strong>Deploy</strong> &rarr; <strong>Manage deployments</strong>, pastikan <em>Who has access: Anyone</em>.</span>
+              <span>Atau klik <strong>Deploy</strong> &rarr; <strong>Manage deployments</strong>, pastikan <em>Who has
+                  access: Anyone</em>.</span>
             </div>
             <div class="config-step-item">
               <span class="step-num">4</span>
@@ -354,9 +388,12 @@
             </div>
           </div>
           <button id="btn-fix-config-url" class="btn-fix-url" type="button">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+              stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="3"></circle>
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+              <path
+                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+              </path>
             </svg>
             <span>Buka Pengaturan & Ganti URL</span>
           </button>
@@ -364,14 +401,17 @@
 
         <button id="btn-next-scan" class="btn-primary" style="margin-top: 6px;">
           <span>Lanjut Scan Berikutnya</span>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+            stroke-linecap="round" stroke-linejoin="round">
             <polyline points="9 18 15 12 9 6"></polyline>
           </svg>
         </button>
 
         <button id="btn-cancel-checkin" class="btn-secondary-danger">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"/>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path
+              d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6" />
           </svg>
           <span>Batalkan Kehadiran (Salah Orang)</span>
         </button>
@@ -387,21 +427,7 @@
         <button id="btn-close-settings" class="btn-close" aria-label="Tutup">✕</button>
       </div>
 
-      <!-- QUICK START HELPER FOR BEGINNERS -->
-      <div class="setup-guide-box" style="margin-bottom: 16px; padding: 12px 14px; background: rgba(37, 99, 235, 0.06); border: 1px solid rgba(37, 99, 235, 0.2); border-radius: var(--radius-md); font-size: 12px; color: var(--text-muted); line-height: 1.5;">
-        <div style="font-weight: 600; color: var(--text-main); margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-          </svg>
-          <span>Panduan Kilat Pasang Baru (2 Menit)</span>
-        </div>
-        <div style="display: flex; flex-direction: column; gap: 3px;">
-          <span>1. Buka spreadsheet template di Google Sheets Anda.</span>
-          <span>2. Klik menu toolbar <strong>⚡ Presensi Event → 🚀 1. Setup Otomatis</strong>.</span>
-          <span>3. Buka <em>Extensions → Apps Script</em>, klik <strong>Deploy → Web app</strong> (Access: Anyone).</span>
-          <span>4. Tempel URL Web App ke kolom di bawah ini. Selesai!</span>
-        </div>
-      </div>
+
 
       <div class="form-group">
         <label class="form-label" for="cfg-panitia-name">Nama Petugas / Panitia</label>
@@ -416,9 +442,13 @@
       <div class="form-group">
         <label class="form-label" for="cfg-api-url">Google Apps Script Web App URL</label>
         <div style="display: flex; gap: 8px;">
-          <input type="url" id="cfg-api-url" class="input-box" placeholder="https://script.google.com/macros/s/.../exec">
-          <button type="button" id="btn-copy-share-link" class="ctrl-btn-outline" title="Salin link auto-config untuk dibagikan ke panitia" style="flex-shrink: 0; padding: 0 12px; gap: 5px; font-size: 13px; white-space: nowrap;">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <input type="url" id="cfg-api-url" class="input-box"
+            placeholder="https://script.google.com/macros/s/.../exec">
+          <button type="button" id="btn-copy-share-link" class="ctrl-btn-outline"
+            title="Salin link auto-config untuk dibagikan ke panitia"
+            style="flex-shrink: 0; padding: 0 12px; gap: 5px; font-size: 13px; white-space: nowrap;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
               <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
               <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
             </svg>
@@ -426,11 +456,13 @@
           </button>
         </div>
         <small class="form-help-text">
-          Tips: Klik <strong>"Salin Link"</strong> untuk membagikan link siap pakai ke panitia (otomatis terhubung tanpa perlu ketik URL lagi).
+          Tips: Klik <strong>"Salin Link"</strong> untuk membagikan link siap pakai ke panitia (otomatis terhubung tanpa
+          perlu ketik URL lagi).
         </small>
       </div>
 
-      <div class="form-group" style="margin-top: 10px; padding: 10px 14px; background: var(--bg-subtle); border-radius: var(--radius-md); border: 1px solid var(--border-color); font-size: 11px; color: var(--text-muted); display: flex; flex-direction: column; gap: 6px;">
+      <div class="form-group"
+        style="margin-top: 10px; padding: 10px 14px; background: var(--bg-subtle); border-radius: var(--radius-md); border: 1px solid var(--border-color); font-size: 11px; color: var(--text-muted); display: flex; flex-direction: column; gap: 6px;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
           <span>Perangkat Scanner:</span>
           <strong id="cfg-device-info-preview" style="color: var(--text-main);">-</strong>
@@ -439,8 +471,10 @@
           <span>Audit Lokasi (GPS):</span>
           <div style="display: flex; align-items: center; gap: 6px;">
             <strong id="cfg-location-info-preview" style="color: var(--status-success);">-</strong>
-            <button type="button" id="btn-retrigger-loc" class="btn-refresh-sm" title="Minta ulang izin lokasi" style="color: var(--primary);">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <button type="button" id="btn-retrigger-loc" class="btn-refresh-sm" title="Minta ulang izin lokasi"
+              style="color: var(--primary);">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                stroke-linecap="round" stroke-linejoin="round">
                 <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
                 <circle cx="12" cy="10" r="3"></circle>
               </svg>
@@ -472,15 +506,19 @@
         <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 8px;">
           Konfirmasi pembatalan status presensi peserta berikut:
         </p>
-        <div style="background: var(--bg-subtle); padding: 12px 14px; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
-          <strong id="cancel-modal-attendee-name" style="color: var(--text-main); display: block; font-size: 15px; margin-bottom: 2px;">-</strong>
-          <div id="cancel-modal-details" style="font-size: 12px; color: var(--text-muted); font-family: monospace;">-</div>
+        <div
+          style="background: var(--bg-subtle); padding: 12px 14px; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+          <strong id="cancel-modal-attendee-name"
+            style="color: var(--text-main); display: block; font-size: 15px; margin-bottom: 2px;">-</strong>
+          <div id="cancel-modal-details" style="font-size: 12px; color: var(--text-muted); font-family: monospace;">-
+          </div>
         </div>
       </div>
 
       <div class="form-group">
         <label class="form-label" for="cancel-reason-input">Alasan Pembatalan (Opsional)</label>
-        <input type="text" id="cancel-reason-input" class="input-box" placeholder="Misal: Salah orang, salah sesi, tiket tertukar..." autocomplete="off">
+        <input type="text" id="cancel-reason-input" class="input-box"
+          placeholder="Misal: Salah orang, salah sesi, tiket tertukar..." autocomplete="off">
         <small class="form-help-text">
           Alasan akan dicatat pada sheet Log Kehadiran sebagai audit trail resmi.
         </small>
@@ -498,11 +536,13 @@
   </div>
 
   <!-- LOCATION PERMISSION REQUIRED MODAL (FULL-SCREEN BLOCKING) -->
-  <div id="location-prompt-modal" class="modal-backdrop location-backdrop" role="dialog" aria-modal="true" aria-labelledby="loc-modal-title">
+  <div id="location-prompt-modal" class="modal-backdrop location-backdrop" role="dialog" aria-modal="true"
+    aria-labelledby="loc-modal-title">
     <div class="location-modal-card">
       <div class="location-modal-header">
         <div class="location-icon-wrapper">
-          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
             <circle cx="12" cy="10" r="3"></circle>
           </svg>
@@ -513,7 +553,8 @@
       <div class="location-modal-body">
         <h3 id="loc-modal-title" class="location-title">Akses Lokasi Diperlukan</h3>
         <p class="location-desc">
-          Sistem menggunakan koordinat GPS panitia untuk mencatat titik presensi peserta pada Google Sheets sebagai audit trail resmi kehadiran.
+          Sistem menggunakan koordinat GPS panitia untuk mencatat titik presensi peserta pada Google Sheets sebagai
+          audit trail resmi kehadiran.
         </p>
 
         <div id="loc-status-box" class="location-info-box">
@@ -523,7 +564,8 @@
 
         <div class="location-btn-group">
           <button type="button" id="btn-allow-location" class="btn-primary btn-success">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round">
               <polygon points="3 11 22 2 13 21 11 13 3 11"></polygon>
             </svg>
             <span id="btn-allow-location-text">Izinkan Akses Lokasi</span>
@@ -554,4 +596,5 @@
   <script src="js/scanner.js"></script>
   <script src="js/app.js"></script>
 </body>
+
 </html>
