@@ -124,7 +124,7 @@ window.EventPass = window.EventPass || {};
       const count = Object.keys(ns.state.cachedAttendees).length;
       if (ns.DOM.cacheStatusText) {
         if (count > 0) {
-          ns.DOM.cacheStatusText.textContent = `${count} peserta siap offline`;
+          ns.DOM.cacheStatusText.textContent = `${count} peserta siap mode instan`;
         } else {
           ns.DOM.cacheStatusText.textContent = "Belum tersinkron";
         }
@@ -159,6 +159,11 @@ window.EventPass = window.EventPass || {};
       }
     },
 
+    formatLocalIsoDateTime(d = new Date()) {
+      const pad = n => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    },
+
     /**
      * Enqueue a new check-in to background sync queue
      */
@@ -172,7 +177,7 @@ window.EventPass = window.EventPass || {};
         gate: scanData.gate,
         mapsUrl: scanData.mapsUrl || "-",
         deviceInfo: scanData.deviceInfo || "-",
-        clientTime: scanData.clientTime || new Date().toLocaleTimeString(),
+        clientTime: (scanData.clientTime && scanData.clientTime.includes("-")) ? scanData.clientTime : this.formatLocalIsoDateTime(),
         isDuplicate: !!scanData.isDuplicate,
         queuedAt: Date.now()
       };
@@ -226,7 +231,7 @@ window.EventPass = window.EventPass || {};
                   // TIKET DIHAPUS DI SPREADSHEET (Rollback Alert)
                   ns.sounds.playError();
                   ns.UI.showToast(`⚠️ Tiket ${res.ticketId} Ditolak Server: Data telah dihapus dari Google Sheets!`);
-                  
+
                   // Update history item to indicate rejection
                   const hist = ns.state.history.find(h => h.ticketId === res.ticketId);
                   if (hist) {

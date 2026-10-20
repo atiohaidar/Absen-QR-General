@@ -685,7 +685,7 @@ window.EventPass = window.EventPass || {};
               gate: ns.state.gateName || "Pintu Masuk",
               mapsUrl: ns.state.location ? ns.state.location.mapsUrl : "-",
               deviceInfo: [navigator.platform, navigator.userAgent ? navigator.userAgent.substring(0, 50) : ""].filter(Boolean).join(" - "),
-              clientTime: new Date().toLocaleTimeString(),
+              clientTime: ns.Sync ? ns.Sync.formatLocalIsoDateTime() : new Date().toLocaleTimeString(),
               isDuplicate: true
             });
           }
@@ -753,7 +753,7 @@ window.EventPass = window.EventPass || {};
             gate: ns.state.gateName || "Pintu Masuk",
             mapsUrl: ns.state.location ? ns.state.location.mapsUrl : "-",
             deviceInfo: [navigator.platform, navigator.userAgent ? navigator.userAgent.substring(0, 50) : ""].filter(Boolean).join(" - "),
-            clientTime: checkTime
+            clientTime: ns.Sync ? ns.Sync.formatLocalIsoDateTime() : checkTime
           });
 
           return;

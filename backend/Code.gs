@@ -719,8 +719,12 @@
             const scannedBy = (scan.scannedBy || "Panitia").trim();
             const gate = (scan.gate || "Pintu Masuk").trim();
             const mapsUrl = (scan.mapsUrl || "-").trim();
-            const deviceInfo = (scan.deviceInfo || "-").trim();
-            const scanTime = scan.clientTime || nowStr;
+            let scanTime = (scan.clientTime || "").trim();
+            if (!scanTime) {
+              scanTime = nowStr;
+            } else if (!scanTime.includes("-")) {
+              scanTime = formatDateOnly(new Date()) + " " + scanTime;
+            }
 
             if (!sessionColMap.has(sessionId)) {
               sessionColMap.set(sessionId, getOrCreateSessionColumn(sheetPeserta, sessionId, sessionName));
