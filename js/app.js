@@ -233,6 +233,18 @@ window.EventPass = window.EventPass || {};
           if (ns.Sync) ns.Sync.syncAttendees(true);
         });
       }
+      if (DOM.cloudSyncDot) {
+        DOM.cloudSyncDot.style.cursor = "pointer";
+        DOM.cloudSyncDot.addEventListener("click", () => {
+          if (ns.Sync) ns.Sync.flushQueue(true);
+        });
+      }
+      if (DOM.syncQueueBadge) {
+        DOM.syncQueueBadge.style.cursor = "pointer";
+        DOM.syncQueueBadge.addEventListener("click", () => {
+          if (ns.Sync) ns.Sync.flushQueue(true);
+        });
+      }
 
       // 9. History Clear
       if (DOM.btnClearHistory) {

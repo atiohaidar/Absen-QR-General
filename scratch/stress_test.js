@@ -419,6 +419,44 @@ async function runStressTests() {
   ep.UI.closeResultModal();
   assert(modalLogs[modalLogs.length - 1].title.includes("SUDAH ABSEN"), "25. Subsequent scan of newly cached attendee recognized immediately as duplicate");
 
+  // ----------------------------------------------------------------------------
+  // TEST 6: Auto-Fallback when Backend returns 'Action "batchCheckIn" tidak dikenali.'
+  // ----------------------------------------------------------------------------
+  console.log("\n--- TEST 6: Auto-Fallback on Older Apps Script (Action tidak dikenali) ---");
+
+  // Re-enable batch mode to test auto-detection
+  ep.Sync.batchSupported = true;
+
+  // Mock server returning the EXACT error user experienced:
+  ep.API.batchCheckIn = async () => {
+    return { success: false, message: 'Action "batchCheckIn" tidak dikenali.' };
+  };
+
+  let fallbackCheckInsReceived = [];
+  ep.API.checkIn = async (tid) => {
+    fallbackCheckInsReceived.push(tid);
+    return {
+      success: true,
+      status: "CHECKED_IN",
+      message: `Presensi ${tid} berhasil dicatat!`,
+      attendee: { ticketId: tid, name: "Peserta Fallback" }
+    };
+  };
+
+  // Enqueue 3 items in the sync queue
+  ep.Sync.enqueue({ ticketId: "FB-001", sessionId: "SESI-01", sessionName: "Sesi Utama" });
+  ep.Sync.enqueue({ ticketId: "FB-002", sessionId: "SESI-01", sessionName: "Sesi Utama" });
+  ep.Sync.enqueue({ ticketId: "FB-003", sessionId: "SESI-01", sessionName: "Sesi Utama" });
+
+  assert(ep.state.syncQueue.length === 3, "26. 3 items enqueued for fallback test");
+
+  // Drain all fallback queues
+  await drainAllQueues();
+
+  assert(ep.Sync.batchSupported === false, "27. Detected older backend: batchSupported auto-flipped to FALSE");
+  assert(fallbackCheckInsReceived.length === 3, "28. Fallback: all 3 items sequentially processed via checkIn API", fallbackCheckInsReceived.join(", "));
+  assert(ep.state.syncQueue.length === 0, "29. Sync queue cleanly drained to 0 with zero stuck items");
+
   // Cleanup timers so Node process terminates cleanly
   if (ep.Sync.flushTimer) {
     clearInterval(ep.Sync.flushTimer);
@@ -430,7 +468,7 @@ async function runStressTests() {
   console.log("\n=================================================================");
   console.log(`🎯 TEST RESULTS: ${passedTests} / ${totalTests} TESTS PASSED`);
   if (passedTests === totalTests) {
-    console.log("🎉 ALL 25 TESTS PASSED! Instant Mode, TIC-TUGADG verification, Offline Queue, & Batch Sync are 100% rock solid.");
+    console.log("🎉 ALL 29 TESTS PASSED! Instant Mode, Offline Queue, & Batch Fallback are 100% rock solid.");
   } else {
     console.log("⚠️ SOME TESTS FAILED. Check log output above.");
   }

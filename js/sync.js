@@ -15,6 +15,7 @@ window.EventPass = window.EventPass || {};
 
   ns.Sync = {
     flushTimer: null,
+    batchSupported: true, // Default true; switches to false if backend returns "tidak dikenali"
 
     init() {
       // Update UI with initial queue status
@@ -128,7 +129,7 @@ window.EventPass = window.EventPass || {};
           ns.DOM.cloudSyncDot.title = `Offline (${queueLen} antrean tersimpan di HP)`;
         } else if (ns.state.isSyncingQueue || queueLen > 0) {
           ns.DOM.cloudSyncDot.classList.add("syncing");
-          ns.DOM.cloudSyncDot.title = `Menyinkronkan (${queueLen} antrean pending)`;
+          ns.DOM.cloudSyncDot.title = `Menyinkronkan (${queueLen} antrean pending - Klik untuk sync)`;
         } else {
           ns.DOM.cloudSyncDot.title = "Cloud Sync Aktif (Semua tersinkron)";
         }
@@ -138,6 +139,7 @@ window.EventPass = window.EventPass || {};
         if (queueLen > 0) {
           ns.DOM.syncQueueBadge.textContent = queueLen;
           ns.DOM.syncQueueBadge.style.display = "inline-flex";
+          ns.DOM.syncQueueBadge.title = `${queueLen} antrean belum tersinkron (Klik untuk sync)`;
         } else {
           ns.DOM.syncQueueBadge.style.display = "none";
         }
@@ -172,11 +174,14 @@ window.EventPass = window.EventPass || {};
     },
 
     /**
-     * Flush queue to Google Apps Script in batches
+     * Flush queue to Google Apps Script in batches (with auto-fallback to sequential check-in)
      */
-    async flushQueue() {
+    async flushQueue(isManual = false) {
       if (ns.state.isSyncingQueue || ns.state.syncQueue.length === 0 || !navigator.onLine) {
         this.updateSyncUI();
+        if (isManual && ns.state.syncQueue.length === 0) {
+          ns.UI.showToast("Semua data presensi sudah tersinkron ke cloud ✅");
+        }
         return;
       }
 
@@ -187,47 +192,93 @@ window.EventPass = window.EventPass || {};
       const batchIds = new Set(batch.map(item => item.queueId));
 
       try {
-        const response = await ns.API.batchCheckIn(batch);
+        let isBatchSuccess = false;
 
-        if (response && response.success) {
-          // Remove processed items from queue
-          ns.state.syncQueue = ns.state.syncQueue.filter(item => !batchIds.has(item.queueId));
-          localStorage.setItem("absen_sync_queue", JSON.stringify(ns.state.syncQueue));
+        if (this.batchSupported) {
+          const response = await ns.API.batchCheckIn(batch);
 
-          // Check if any item was rejected by server (e.g. deleted in sheets)
-          if (Array.isArray(response.results)) {
-            response.results.forEach(res => {
-              if (res.status === "NOT_FOUND") {
-                // TIKET DIHAPUS DI SPREADSHEET (Rollback Alert)
-                ns.sounds.playError();
-                ns.UI.showToast(`⚠️ Tiket ${res.ticketId} Ditolak Server: Data telah dihapus dari Google Sheets!`);
-                
-                // Update history item to indicate rejection
-                const hist = ns.state.history.find(h => h.ticketId === res.ticketId);
-                if (hist) {
-                  hist.status = "REJECTED_BY_SERVER";
-                  hist.note = "Dihapus dari Google Sheets";
-                  localStorage.setItem("absen_history", JSON.stringify(ns.state.history));
-                  ns.UI.renderHistory();
+          if (response && response.success) {
+            isBatchSuccess = true;
+            // Remove processed items from queue
+            ns.state.syncQueue = ns.state.syncQueue.filter(item => !batchIds.has(item.queueId));
+            localStorage.setItem("absen_sync_queue", JSON.stringify(ns.state.syncQueue));
+
+            // Check if any item was rejected by server (e.g. deleted in sheets)
+            if (Array.isArray(response.results)) {
+              response.results.forEach(res => {
+                if (res.status === "NOT_FOUND") {
+                  // TIKET DIHAPUS DI SPREADSHEET (Rollback Alert)
+                  ns.sounds.playError();
+                  ns.UI.showToast(`⚠️ Tiket ${res.ticketId} Ditolak Server: Data telah dihapus dari Google Sheets!`);
+                  
+                  // Update history item to indicate rejection
+                  const hist = ns.state.history.find(h => h.ticketId === res.ticketId);
+                  if (hist) {
+                    hist.status = "REJECTED_BY_SERVER";
+                    hist.note = "Dihapus dari Google Sheets";
+                    localStorage.setItem("absen_history", JSON.stringify(ns.state.history));
+                    ns.UI.renderHistory();
+                  }
+
+                  // Purge from local cache
+                  delete ns.state.cachedAttendees[res.ticketId.toUpperCase()];
+                  localStorage.setItem("absen_cached_attendees", JSON.stringify(ns.state.cachedAttendees));
+                  this.updateCacheCountUI();
                 }
+              });
+            }
 
-                // Purge from local cache
-                delete ns.state.cachedAttendees[res.ticketId.toUpperCase()];
-                localStorage.setItem("absen_cached_attendees", JSON.stringify(ns.state.cachedAttendees));
-                this.updateCacheCountUI();
+            if (isManual) {
+              ns.UI.showToast(`✅ Berhasil menyinkronkan ${batch.length} data ke spreadsheet.`);
+            }
+          } else if (response && !response.success && response.message && (response.message.includes("tidak dikenali") || response.message.includes("batchCheckIn"))) {
+            // ⚠️ Backend Apps Script belum dideploy dengan New Version!
+            console.warn("Backend Apps Script belum mengenali 'batchCheckIn'. Melakukan fallback otomatis ke sequential check-in.");
+            this.batchSupported = false;
+            ns.UI.showToast("🔄 Backend versi lama terdeteksi. Menyinkronkan antrean satu per satu...");
+          }
+        }
+
+        // =========================================================================
+        // SEQUENTIAL FALLBACK (Jika Apps Script belum update ke versi batch)
+        // =========================================================================
+        if (!isBatchSuccess && !this.batchSupported) {
+          for (const item of batch) {
+            try {
+              const singleRes = await ns.API.checkIn(item.ticketId);
+              if (singleRes && (singleRes.success || singleRes.status === "ALREADY_CHECKED_IN")) {
+                ns.state.syncQueue = ns.state.syncQueue.filter(q => q.queueId !== item.queueId);
+                localStorage.setItem("absen_sync_queue", JSON.stringify(ns.state.syncQueue));
+                this.updateSyncUI();
+              } else if (singleRes && singleRes.status === "NOT_FOUND") {
+                ns.state.syncQueue = ns.state.syncQueue.filter(q => q.queueId !== item.queueId);
+                localStorage.setItem("absen_sync_queue", JSON.stringify(ns.state.syncQueue));
+                this.updateSyncUI();
+                ns.sounds.playError();
+                ns.UI.showToast(`⚠️ Tiket ${item.ticketId} Ditolak: Tidak ada di Google Sheets.`);
               }
-            });
+            } catch (singleErr) {
+              console.warn("Single check-in fallback failed for", item.ticketId, singleErr);
+              break;
+            }
+          }
+
+          if (isManual && ns.state.syncQueue.length === 0) {
+            ns.UI.showToast("✅ Semua antrean berhasil disinkronkan ke database.");
           }
         }
       } catch (err) {
         console.warn("Background sync batch failed, will retry next cycle:", err);
+        if (isManual) {
+          ns.UI.showToast(`Gagal sinkron antrean: ${err.message}`);
+        }
       } finally {
         ns.state.isSyncingQueue = false;
         this.updateSyncUI();
 
         // If more items remain and online, schedule next batch
         if (ns.state.syncQueue.length > 0 && navigator.onLine) {
-          setTimeout(() => this.flushQueue(), 800);
+          setTimeout(() => this.flushQueue(), 1000);
         }
       }
     }
