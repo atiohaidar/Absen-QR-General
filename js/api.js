@@ -145,9 +145,14 @@ window.EventPass = window.EventPass || {};
       if (!Array.isArray(scans) || scans.length === 0) {
         return { success: true, processedCount: 0, results: [] };
       }
+      const mapsUrl = (ns.state.location && ns.state.location.mapsUrl) ? ns.state.location.mapsUrl : "-";
+      const deviceInfo = ns.state.deviceInfo || "-";
+
       return await postJsonWithRetry({
         action: 'batchCheckIn',
-        scans: scans
+        scans: scans,
+        deviceInfo: deviceInfo,
+        mapsUrl: mapsUrl
       }, 1);
     },
 

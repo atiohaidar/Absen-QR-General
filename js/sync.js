@@ -175,8 +175,8 @@ window.EventPass = window.EventPass || {};
         sessionName: scanData.sessionName,
         scannedBy: scanData.scannedBy,
         gate: scanData.gate,
-        mapsUrl: scanData.mapsUrl || "-",
-        deviceInfo: scanData.deviceInfo || "-",
+        mapsUrl: scanData.mapsUrl || (ns.state.location && ns.state.location.mapsUrl) || "-",
+        deviceInfo: scanData.deviceInfo || ns.state.deviceInfo || "-",
         clientTime: (scanData.clientTime && scanData.clientTime.includes("-")) ? scanData.clientTime : this.formatLocalIsoDateTime(),
         isDuplicate: !!scanData.isDuplicate,
         queuedAt: Date.now()

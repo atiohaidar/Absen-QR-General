@@ -684,7 +684,7 @@ window.EventPass = window.EventPass || {};
               scannedBy: ns.state.panitiaName || "Panitia",
               gate: ns.state.gateName || "Pintu Masuk",
               mapsUrl: ns.state.location ? ns.state.location.mapsUrl : "-",
-              deviceInfo: [navigator.platform, navigator.userAgent ? navigator.userAgent.substring(0, 50) : ""].filter(Boolean).join(" - "),
+              deviceInfo: ns.state.deviceInfo || "-",
               clientTime: ns.Sync ? ns.Sync.formatLocalIsoDateTime() : new Date().toLocaleTimeString(),
               isDuplicate: true
             });
@@ -752,7 +752,7 @@ window.EventPass = window.EventPass || {};
             scannedBy: ns.state.panitiaName || "Panitia",
             gate: ns.state.gateName || "Pintu Masuk",
             mapsUrl: ns.state.location ? ns.state.location.mapsUrl : "-",
-            deviceInfo: [navigator.platform, navigator.userAgent ? navigator.userAgent.substring(0, 50) : ""].filter(Boolean).join(" - "),
+            deviceInfo: ns.state.deviceInfo || "-",
             clientTime: ns.Sync ? ns.Sync.formatLocalIsoDateTime() : checkTime
           });
 

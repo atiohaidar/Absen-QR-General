@@ -718,7 +718,8 @@
             const sessionName = (scan.sessionName || sessionId).trim();
             const scannedBy = (scan.scannedBy || "Panitia").trim();
             const gate = (scan.gate || "Pintu Masuk").trim();
-            const mapsUrl = (scan.mapsUrl || "-").trim();
+            const mapsUrl = (scan.mapsUrl || mapsUrl || "-").trim();
+            const scanDevice = (scan.deviceInfo || deviceInfo || "-").trim();
             let scanTime = (scan.clientTime || "").trim();
             if (!scanTime) {
               scanTime = nowStr;
@@ -733,7 +734,7 @@
 
             if (!ticketMap.has(upperTicketId)) {
               // Tiket Tidak Ditemukan / Sudah Dihapus Admin di Sheets!
-              logRowsToAppend.push([scanTime, sessionId, sessionName, ticketId, "-", "TIDAK_VALID", scannedBy, gate, mapsUrl, deviceInfo, "ID tidak terdaftar / dihapus"]);
+              logRowsToAppend.push([scanTime, sessionId, sessionName, ticketId, "-", "TIDAK_VALID", scannedBy, gate, mapsUrl, scanDevice, "ID tidak terdaftar / dihapus"]);
               results.push({
                 ticketId: ticketId,
                 status: "NOT_FOUND",
@@ -750,7 +751,7 @@
             const existingStatus = String(sheetPeserta.getRange(foundRow, sessionColIdx).getValue() || "").trim();
 
             if (existingStatus.startsWith("HADIR")) {
-              logRowsToAppend.push([scanTime, sessionId, sessionName, ticketId, attendeeName, "DUPLIKAT", scannedBy, gate, mapsUrl, deviceInfo, `Sudah absen sebelumnya: ${existingStatus}`]);
+              logRowsToAppend.push([scanTime, sessionId, sessionName, ticketId, attendeeName, "DUPLIKAT", scannedBy, gate, mapsUrl, scanDevice, `Sudah absen sebelumnya: ${existingStatus}`]);
               results.push({
                 ticketId: ticketId,
                 status: "ALREADY_CHECKED_IN",
@@ -767,7 +768,7 @@
             } else {
               const statusValue = `HADIR - ${scanTime}`;
               sheetPeserta.getRange(foundRow, sessionColIdx).setValue(statusValue);
-              logRowsToAppend.push([scanTime, sessionId, sessionName, ticketId, attendeeName, "BERHASIL", scannedBy, gate, mapsUrl, deviceInfo, "Presensi tercatat"]);
+              logRowsToAppend.push([scanTime, sessionId, sessionName, ticketId, attendeeName, "BERHASIL", scannedBy, gate, mapsUrl, scanDevice, "Presensi tercatat"]);
               results.push({
                 ticketId: ticketId,
                 status: "CHECKED_IN",
