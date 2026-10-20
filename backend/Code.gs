@@ -1058,12 +1058,25 @@
   }
 
   /**
+   * Simpan URL Web App ke Script Properties agar selalu up-to-date saat deployment baru dibuat
+   */
+  function saveWebAppUrl(url) {
+    if (url && typeof url === "string") {
+      PropertiesService.getScriptProperties().setProperty("WEB_APP_URL", url.trim());
+      return true;
+    }
+    return false;
+  }
+
+  /**
   * Dialog pembuat link scanner panitia instan:
   * Panitia cukup buka link ini di HP mereka tanpa perlu setting apa-apa lagi!
   */
   function showPanitiaLinkModal() {
     const ui = SpreadsheetApp.getUi();
     
+    const props = PropertiesService.getScriptProperties();
+    let savedUrl = props.getProperty("WEB_APP_URL") || "";
     let detectedUrl = "";
     try {
       detectedUrl = ScriptApp.getService().getUrl() || "";
@@ -1071,11 +1084,13 @@
       detectedUrl = "";
     }
     
-    const hasDetected = Boolean(detectedUrl && detectedUrl.includes("/exec"));
+    // Gunakan savedUrl jika ada (dari update user), fallback ke detectedUrl
+    const effectiveUrl = savedUrl || detectedUrl;
+    const hasDetected = Boolean(effectiveUrl && effectiveUrl.includes("/exec"));
     let baseScanner = CONFIG.SCANNER_URL || "https://atiohaidar.github.io/Absen-QR-General/";
     if (baseScanner.charAt(baseScanner.length - 1) !== "/") baseScanner += "/";
     
-    const initialFinalLink = hasDetected ? (baseScanner + "?q=" + encodeURIComponent(detectedUrl)) : "";
+    const initialFinalLink = hasDetected ? (baseScanner + "?q=" + encodeURIComponent(effectiveUrl)) : "";
     const waInitialText = encodeURIComponent("Halo Rekan Panitia, silakan gunakan link berikut untuk membuka scanner presensi QR acara:\n\n" + initialFinalLink);
 
     const html = HtmlService.createHtmlOutput(`
@@ -1095,7 +1110,7 @@
           }
           .header {
             text-align: center;
-            margin-bottom: 14px;
+            margin-bottom: 12px;
           }
           .header h3 {
             margin: 0 0 4px 0;
@@ -1170,55 +1185,67 @@
             color: #ffffff;
           }
           .btn-open:hover { background: #1d4ed8; }
-          details {
-            font-size: 11px;
-            color: #64748b;
-            border-top: 1px solid #f1f5f9;
-            padding-top: 8px;
-          }
-          summary {
-            cursor: pointer;
-            font-weight: 500;
-            color: #64748b;
-            user-select: none;
-          }
-          .advanced-group {
-            margin-top: 8px;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-          }
-          .advanced-group input {
-            width: 100%;
-            padding: 5px 8px;
-            font-size: 11px;
-            border: 1px solid #cbd5e1;
-            border-radius: 4px;
-          }
-          .alert-box {
-            background: #fef2f2;
-            border: 1px solid #fecaca;
-            color: #991b1b;
+          .api-config-card {
+            background: #f1f5f9;
             padding: 10px 12px;
             border-radius: 6px;
-            font-size: 12px;
-            margin-bottom: 12px;
-            line-height: 1.4;
+            border: 1px solid #e2e8f0;
+          }
+          .api-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+          }
+          .api-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: #475569;
+          }
+          .api-status {
+            font-size: 11px;
+            color: #16a34a;
+            font-weight: 600;
+          }
+          .api-input-row {
+            display: flex;
+            gap: 6px;
+          }
+          .api-input {
+            flex: 1;
+            padding: 6px 8px;
+            font-size: 11px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            outline: none;
+            background: #ffffff;
+          }
+          .btn-save-api {
+            background: #2563eb;
+            color: #ffffff;
+            border: none;
+            padding: 0 12px;
+            font-size: 11px;
+            font-weight: 600;
+            border-radius: 4px;
+            cursor: pointer;
+            white-space: nowrap;
+          }
+          .btn-save-api:hover { background: #1d4ed8; }
+          .api-hint {
+            font-size: 10px;
+            color: #64748b;
+            margin-top: 5px;
+            line-height: 1.3;
           }
         </style>
       </head>
       <body>
         <div class="header">
           <h3>🔗 Link Scanner Panitia</h3>
-          <p>Link ini sudah otomatis terhubung ke sistem backend Google Sheets Anda.</p>
+          <p>Link ini siap dibagikan ke WhatsApp panitia untuk langsung scan.</p>
         </div>
-
-        ${!hasDetected ? `
-          <div class="alert-box">
-            <strong>⚠️ Web App Belum Di-deploy</strong><br>
-            Buka Apps Script, klik <em>Deploy → New deployment → Web app (Who has access: Anyone)</em>. Setelah itu buka kembali menu ini.
-          </div>
-        ` : ''}
 
         <div class="link-card">
           <label class="link-label">Link Scanner Siap Pakai (Auto-Connect):</label>
@@ -1237,27 +1264,26 @@
           </a>
         </div>
 
-        <details>
-          <summary>⚙️ Pengaturan Lanjutan (Ganti URL Manual)</summary>
-          <div class="advanced-group">
-            <div>
-              <label style="display:block; margin-bottom:2px;">Web App URL:</label>
-              <input type="url" id="webAppUrl" value="${detectedUrl}" oninput="updateLink()">
-            </div>
-            <div>
-              <label style="display:block; margin-bottom:2px;">Web Scanner Base URL:</label>
-              <input type="url" id="scannerBaseUrl" value="${baseScanner}" oninput="updateLink()">
-            </div>
+        <div class="api-config-card">
+          <div class="api-header">
+            <span class="api-title">Target Web App API:</span>
+            <span id="saveStatus" class="api-status"></span>
           </div>
-        </details>
+          <div class="api-input-row">
+            <input type="url" id="webAppUrl" value="${effectiveUrl}" placeholder="Paste URL Web App di sini" class="api-input" oninput="updateLink()">
+            <button type="button" onclick="saveUrl()" class="btn-save-api">💾 Simpan</button>
+          </div>
+          <div class="api-hint">
+            💡 Jika Anda membuat deployment baru di Apps Script, paste URL barunya di sini lalu klik <strong>Simpan</strong>.
+          </div>
+        </div>
 
         <script>
+          var baseScanner = "${baseScanner}";
+
           function updateLink() {
             var webApp = document.getElementById('webAppUrl').value.trim();
-            var base = document.getElementById('scannerBaseUrl').value.trim();
-            if (base.charAt(base.length - 1) !== '/') base += '/';
-            
-            var finalUrl = webApp ? (base + '?q=' + encodeURIComponent(webApp)) : '';
+            var finalUrl = webApp ? (baseScanner + '?q=' + encodeURIComponent(webApp)) : '';
             document.getElementById('finalLink').value = finalUrl;
             document.getElementById('btnOpen').href = finalUrl || '#';
             
@@ -1265,10 +1291,29 @@
             document.getElementById('btnWa').href = 'https://api.whatsapp.com/send?text=' + msg;
           }
 
+          function saveUrl() {
+            var url = document.getElementById('webAppUrl').value.trim();
+            if (!url) {
+              alert('Silakan masukkan Web App URL terlebih dahulu!');
+              return;
+            }
+            var status = document.getElementById('saveStatus');
+            status.innerText = 'Menyimpan...';
+            google.script.run
+              .withSuccessHandler(function() {
+                status.innerText = '✅ Tersimpan!';
+                setTimeout(function() { status.innerText = ''; }, 3000);
+              })
+              .withFailureHandler(function(err) {
+                status.innerText = '❌ Gagal: ' + err.message;
+              })
+              .saveWebAppUrl(url);
+          }
+
           function copyLink() {
             var copyInput = document.getElementById('finalLink');
             if (!copyInput.value) {
-              alert('Belum ada link yang tersedia. Silakan deploy web app terlebih dahulu.');
+              alert('Belum ada link yang tersedia. Silakan masukkan Web App URL lalu simpan.');
               return;
             }
             copyInput.select();
@@ -1283,7 +1328,7 @@
         </script>
       </body>
       </html>
-    `).setWidth(480).setHeight(280);
+    `).setWidth(490).setHeight(320);
 
     ui.showModalDialog(html, "Link Scanner Panitia");
   }
