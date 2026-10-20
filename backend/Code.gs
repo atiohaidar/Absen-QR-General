@@ -779,8 +779,7 @@
       .addItem('📥 3. Impor Peserta Lama dari Form Responses', 'syncExistingFormResponses')
       .addSeparator()
       .addItem('🔗 4. Buka / Bagikan Link Scanner Panitia', 'showPanitiaLinkModal')
-      .addItem('❄️ 5. Kunci 3 Kolom & Hitung Total Hadir', 'applyFreezeAndTotalHadir')
-      .addItem('📊 6. Periksa Status Sistem', 'showSystemStatus')
+      .addItem('📊 5. Periksa Status Sistem', 'showSystemStatus')
       .addToUi();
   }
 
