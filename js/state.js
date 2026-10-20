@@ -35,11 +35,53 @@ window.EventPass = window.EventPass || {};
       const isMobile = /mobi|android|touch/i.test(ua);
       const category = isMobile ? "Mobile" : "Desktop";
 
+      // Check legacy Android UA model (if not reduced to "K")
+      let legacyModel = "";
+      const modelMatch = ua.match(/Android[^;]+;\s*([^;)]+)\s*[;)]/i);
+      if (modelMatch && modelMatch[1]) {
+        const candidate = modelMatch[1].trim();
+        if (candidate && candidate.toUpperCase() !== "K" && !candidate.startsWith("Build")) {
+          legacyModel = candidate;
+        }
+      }
+
+      if (legacyModel) {
+        return `${os} (${legacyModel}) • ${browser}`;
+      }
+
       return `${os} • ${browser} (${category})`;
     } catch (e) {
       return "Web Browser";
     }
   }
+
+  /**
+   * Asynchronous Modern User-Agent Client Hints (UA-CH):
+   * Retrieves high-entropy device model from modern Chromium browsers
+   */
+  ns.enrichDeviceInfoWithModel = async function() {
+    try {
+      if (navigator.userAgentData && typeof navigator.userAgentData.getHighEntropyValues === "function") {
+        const hints = await navigator.userAgentData.getHighEntropyValues(["model", "platform", "platformVersion"]);
+        if (hints && hints.model && hints.model.trim()) {
+          const model = hints.model.trim();
+          const current = ns.state.deviceInfo || "";
+          if (!current.includes(model)) {
+            if (current.startsWith("Android")) {
+              ns.state.deviceInfo = current.replace("Android", `Android (${model})`);
+            } else {
+              ns.state.deviceInfo = `${model} • ${current}`;
+            }
+            if (ns.DOM && ns.DOM.previewDevice) {
+              ns.DOM.previewDevice.textContent = ns.state.deviceInfo;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      // Graceful fallback to default deviceInfo
+    }
+  };
 
   // Default Fallback Web App URL (Opsional: paste URL Apps Script di sini jika ingin auto-connect tanpa query param ?api=)
   const DEFAULT_APP_SCRIPT_URL = "";

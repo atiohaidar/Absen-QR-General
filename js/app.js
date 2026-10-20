@@ -22,6 +22,11 @@ window.EventPass = window.EventPass || {};
       ns.UI.renderSessionDropdown();
       ns.UI.renderHistory();
       
+      // Asynchronously enrich device model (e.g. Samsung SM-..., Pixel, Xiaomi) via Client Hints
+      if (typeof ns.enrichDeviceInfoWithModel === "function") {
+        ns.enrichDeviceInfoWithModel();
+      }
+
       this.bindEventListeners();
       ns.Scanner.startScanning();
 
