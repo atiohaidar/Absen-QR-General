@@ -146,6 +146,8 @@ eval(fs.readFileSync(path.join(basePath, "js/api.js"), "utf8"));
 eval(fs.readFileSync(path.join(basePath, "js/sync.js"), "utf8"));
 // Load js/ui.js
 eval(fs.readFileSync(path.join(basePath, "js/ui.js"), "utf8"));
+// Load js/scanner.js
+eval(fs.readFileSync(path.join(basePath, "js/scanner.js"), "utf8"));
 // Load js/app.js
 eval(fs.readFileSync(path.join(basePath, "js/app.js"), "utf8"));
 
@@ -503,6 +505,18 @@ async function runStressTests() {
     !ep.state.syncQueue.some(q => q.ticketId === "TIC-TUGADG"),
     "33. Cancel attendance purges matching pending items from sync queue"
   );
+  assert(
+    ep.state.history.some(h => h.ticketId === "TIC-TUGADG" && h.status === "CANCELLED"),
+    "33b. Cancel attendance correctly updates history status to CANCELLED"
+  );
+  assert(
+    ep.state.history.filter(h => h.ticketId === "TIC-TUGADG" && h.sessionId === "SESI-01").length === 1,
+    "33c. Cancel attendance consolidates duplicate history items for the same session"
+  );
+  assert(
+    ep.DOM.historyList.querySelectorAll(".btn-undo-sm").length === 0,
+    "33d. Cancelled attendee card has no active 'Batalkan' button in history"
+  );
 
   // ----------------------------------------------------------------------------
   // TEST 8: Standard Mode Verification (instantMode = false / Dimatikan)
@@ -554,8 +568,20 @@ async function runStressTests() {
   ep.UI.closeResultModal();
   assert(modalLogs[modalLogs.length - 1].title.includes("TIDAK TERDAFTAR") || modalLogs[modalLogs.length - 1].title.includes("INVALID") || modalLogs[modalLogs.length - 1].type === "error", "37. Standard Mode: Correctly displays error for invalid/deleted tickets");
 
-  // Reset instantMode to true
-  ep.state.instantMode = true;
+  // ----------------------------------------------------------------------------
+  // TEST 9: Image File / Gallery QR Scan (Fallback Kamera)
+  // ----------------------------------------------------------------------------
+  console.log("\n--- TEST 9: Gallery & Image Upload QR Scanning ---");
+  assert(typeof ep.Scanner.scanImageFile === "function", "38. Scanner exports scanImageFile method");
+
+  // Non-image file rejection
+  let nonImageToast = false;
+  ep.UI.showToast = (msg) => { if (msg.includes("bukan gambar")) nonImageToast = true; };
+  await ep.Scanner.scanImageFile({ type: "text/plain" });
+  assert(nonImageToast, "39. Rejects non-image file formats safely");
+
+  // Reset toast
+  ep.UI.showToast = (msg) => toastLogs.push(msg);
 
   // Cleanup timers so Node process terminates cleanly
   if (ep.Sync.flushTimer) {

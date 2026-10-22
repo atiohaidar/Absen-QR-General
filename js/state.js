@@ -157,6 +157,9 @@ window.EventPass = window.EventPass || {};
     verifyingText: document.getElementById("verifying-text"),
     btnFlipCam: document.getElementById("btn-flip-cam"),
     btnTorch: document.getElementById("btn-toggle-torch"),
+    btnScanImage: document.getElementById("btn-scan-image"),
+    inputQrFile: document.getElementById("input-qr-file"),
+    btnManualUploadQr: document.getElementById("btn-manual-upload-qr"),
 
     // Result Modal
     resultModal: document.getElementById("scan-result-modal"),

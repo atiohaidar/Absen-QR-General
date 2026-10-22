@@ -6,7 +6,7 @@
   <meta name="viewport"
     content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
   <meta name="theme-color" content="#ffffff">
-  <title>EventPass • Sistem Presensi & QR Code Scanner</title>
+  <title>Sistem Presensi & QR Code Scanner</title>
   <meta name="description"
     content="Sistem absensi dan verifikasi tiket QR Code presisi tinggi terintegrasi dengan Google Sheets.">
 
@@ -180,6 +180,16 @@
               </svg>
               <span>Senter</span>
             </button>
+            <button id="btn-scan-image" class="ctrl-btn" title="Pindai QR dari Galeri / Upload Foto">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <polyline points="21 15 16 10 5 21"></polyline>
+              </svg>
+              <span>Galeri</span>
+            </button>
+            <input type="file" id="input-qr-file" accept="image/*" style="display: none;">
           </div>
         </div>
 
@@ -215,6 +225,16 @@
             <input type="text" id="manual-ticket-id" class="input-box" placeholder="Contoh: TIC-9A82B"
               autocomplete="off" style="text-transform: uppercase;">
             <button id="btn-manual-checkin" class="btn-primary" style="width: auto; padding: 0 22px;">Check In</button>
+          </div>
+          <div style="margin-top: 8px; display: flex; align-items: center; justify-content: flex-end;">
+            <button type="button" id="btn-manual-upload-qr" class="btn-text-link" style="font-size: 12px; color: var(--primary); display: flex; align-items: center; gap: 5px; background: none; border: none; cursor: pointer; padding: 2px 4px; font-weight: 500;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <polyline points="21 15 16 10 5 21"></polyline>
+              </svg>
+              <span>Atau scan dari foto / screenshot galeri</span>
+            </button>
           </div>
         </div>
 
@@ -260,8 +280,9 @@
             </div>
           </div>
           <button type="button" id="btn-sync-now-history" class="btn-sync-now">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
             </svg>
             <span>Sync Sekarang</span>
           </button>
@@ -430,7 +451,7 @@
         <button id="btn-recheck-server" class="btn-secondary-outline" style="display: none;">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
             stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
           </svg>
           <span>Cek Status Terbaru ke Spreadsheet</span>
         </button>
@@ -458,10 +479,12 @@
 
 
       <!-- INSTANT SCAN TOGGLE & CACHE SYNC -->
-      <div class="form-group instant-mode-card" style="padding: 12px 14px; background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: var(--radius-md); margin-bottom: 16px;">
+      <div class="form-group instant-mode-card"
+        style="padding: 12px 14px; background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: var(--radius-md); margin-bottom: 16px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
           <div style="display: flex; align-items: center; gap: 7px;">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round">
               <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
             </svg>
             <strong style="font-size: 13px; color: var(--text-main);">Mode Scan Instan (0.05 Detik)</strong>
@@ -472,13 +495,18 @@
           </label>
         </div>
         <p style="font-size: 11.5px; color: var(--text-muted); line-height: 1.45; margin: 0 0 10px 0;">
-          Verifikasi instan via database lokal di HP &amp; sinkronisasi otomatis ke Google Sheets di background. Sangat direkomendasikan saat antrean padat!
+          Verifikasi instan via database lokal di HP &amp; sinkronisasi otomatis ke Google Sheets di background. Sangat
+          direkomendasikan saat antrean padat!
         </p>
-        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(16, 185, 129, 0.15); padding-top: 8px;">
-          <span id="cache-status-text" style="font-size: 11px; color: var(--text-muted);">0 peserta tersimpan di HP</span>
-          <button type="button" id="btn-sync-attendees" class="ctrl-btn-outline" style="font-size: 11px; padding: 4px 10px; gap: 4px; border-color: rgba(16, 185, 129, 0.4); color: #059669;">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+        <div
+          style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(16, 185, 129, 0.15); padding-top: 8px;">
+          <span id="cache-status-text" style="font-size: 11px; color: var(--text-muted);">0 peserta tersimpan di
+            HP</span>
+          <button type="button" id="btn-sync-attendees" class="ctrl-btn-outline"
+            style="font-size: 11px; padding: 4px 10px; gap: 4px; border-color: rgba(16, 185, 129, 0.4); color: #059669;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
             </svg>
             <span>Sync Database</span>
           </button>

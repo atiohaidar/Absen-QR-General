@@ -385,9 +385,110 @@ window.EventPass = window.EventPass || {};
     }
   }
 
+  /**
+   * Decode QR from an uploaded image file (Gallery / Screenshot / File Upload)
+   */
+  async function scanImageFile(file) {
+    if (!file || !file.type || !file.type.startsWith("image/")) {
+      ns.UI.showToast("File yang dipilih bukan gambar yang valid.");
+      return;
+    }
+
+    ns.UI.updateScannerStatus("Membaca Gambar...", "Menganalisis QR Code dari gambar yang diunggah...");
+    if (ns.DOM.scannerLoadingHud) {
+      ns.DOM.scannerLoadingHud.classList.add("show");
+      if (ns.DOM.hudTicketId) ns.DOM.hudTicketId.textContent = "Membaca QR...";
+    }
+
+    try {
+      const img = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const image = new Image();
+          image.onload = () => resolve(image);
+          image.onerror = () => reject(new Error("Format gambar tidak didukung"));
+          image.src = e.target.result;
+        };
+        reader.onerror = () => reject(new Error("Gagal membaca file dari perangkat"));
+        reader.readAsDataURL(file);
+      });
+
+      let qrText = null;
+
+      // 1. Coba deteksi via Native BarcodeDetector (hardware accelerated)
+      if (nativeBarcodeDetector) {
+        try {
+          const barcodes = await nativeBarcodeDetector.detect(img);
+          if (barcodes.length > 0 && barcodes[0].rawValue) {
+            qrText = barcodes[0].rawValue;
+          }
+        } catch (e) {
+          console.warn("Native BarcodeDetector image decode error:", e);
+        }
+      }
+
+      // 2. Fallback via jsQR
+      if (!qrText && typeof jsQR !== "undefined") {
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        
+        // Multi-scale check: Full size (max 1600px)
+        const maxDim = 1600;
+        let w = img.naturalWidth || img.width;
+        let h = img.naturalHeight || img.height;
+        if (w > maxDim || h > maxDim) {
+          const scale = Math.min(maxDim / w, maxDim / h);
+          w = Math.round(w * scale);
+          h = Math.round(h * scale);
+        }
+        canvas.width = w;
+        canvas.height = h;
+        ctx.drawImage(img, 0, 0, w, h);
+
+        const imgData = ctx.getImageData(0, 0, w, h);
+        const code = jsQR(imgData.data, w, h, { inversionAttempts: "attemptBoth" });
+        if (code && code.data) {
+          qrText = code.data;
+        } else if (w > 800 || h > 800) {
+          // Secondary attempt with downscale if the image had noise
+          const smallScale = 800 / Math.max(w, h);
+          const sW = Math.round(w * smallScale);
+          const sH = Math.round(h * smallScale);
+          canvas.width = sW;
+          canvas.height = sH;
+          ctx.drawImage(img, 0, 0, sW, sH);
+          const sImgData = ctx.getImageData(0, 0, sW, sH);
+          const sCode = jsQR(sImgData.data, sW, sH, { inversionAttempts: "attemptBoth" });
+          if (sCode && sCode.data) {
+            qrText = sCode.data;
+          }
+        }
+      }
+
+      if (qrText) {
+        ns.UI.updateScannerStatus("QR Ditemukan ⚡", "Memverifikasi data tiket...");
+        ns.UI.showToast("QR Code berhasil terbaca dari gambar! ⚡");
+        ns.App.handleScannedQr(qrText);
+      } else {
+        ns.UI.updateScannerStatus("QR Tidak Terdeteksi", "Arahkan kamera atau pilih gambar lain yang lebih jelas");
+        if (ns.sounds && ns.sounds.playWarning) ns.sounds.playWarning();
+        ns.UI.showToast("⚠️ QR Code tidak terdeteksi. Pastikan foto QR tegak, fokus, dan tidak terpotong.");
+      }
+    } catch (err) {
+      console.error("Scan image file error:", err);
+      ns.UI.updateScannerStatus("Gagal Membaca File", err.message);
+      ns.UI.showToast(`Gagal membaca file gambar: ${err.message}`);
+    } finally {
+      if (ns.DOM.scannerLoadingHud) {
+        ns.DOM.scannerLoadingHud.classList.remove("show");
+      }
+    }
+  }
+
   ns.Scanner = {
     startScanning,
     stopScanning,
+    scanImageFile,
     resetReticle() {
       qrTracker.activeScanTriggered = false;
       qrTracker.lastSeenTime = 0;

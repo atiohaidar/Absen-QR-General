@@ -109,12 +109,43 @@ window.EventPass = window.EventPass || {};
         });
       });
 
-      // 3. Camera Controls (Flip, Torch, Reconnect)
+      // 3. Camera Controls (Flip, Torch, Reconnect, Upload Image)
       if (DOM.btnFlipCam) {
         DOM.btnFlipCam.addEventListener("click", () => ns.Scanner.flipCamera());
       }
       if (DOM.btnTorch) {
         DOM.btnTorch.addEventListener("click", () => ns.Scanner.toggleTorch());
+      }
+      if (DOM.btnScanImage && DOM.inputQrFile) {
+        DOM.btnScanImage.addEventListener("click", () => DOM.inputQrFile.click());
+        DOM.inputQrFile.addEventListener("change", async (e) => {
+          const file = e.target.files && e.target.files[0];
+          if (file) {
+            await ns.Scanner.scanImageFile(file);
+            DOM.inputQrFile.value = "";
+          }
+        });
+      }
+      if (DOM.btnManualUploadQr && DOM.inputQrFile) {
+        DOM.btnManualUploadQr.addEventListener("click", () => DOM.inputQrFile.click());
+      }
+      const viewport = document.querySelector(".scanner-viewport-wrapper");
+      if (viewport) {
+        viewport.addEventListener("dragover", (e) => {
+          e.preventDefault();
+          viewport.classList.add("drag-over");
+        });
+        viewport.addEventListener("dragleave", () => {
+          viewport.classList.remove("drag-over");
+        });
+        viewport.addEventListener("drop", async (e) => {
+          e.preventDefault();
+          viewport.classList.remove("drag-over");
+          const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+          if (file && file.type && file.type.startsWith("image/")) {
+            await ns.Scanner.scanImageFile(file);
+          }
+        });
       }
       const statusBox = document.querySelector(".scanner-status-box");
       if (statusBox) {
@@ -1022,25 +1053,55 @@ window.EventPass = window.EventPass || {};
             setTimeout(() => ns.UI.closeResultModal(), 2000);
           }
 
-          const upperId = (ticketId || "").toUpperCase();
+          const upperId = (ticketId || "").toUpperCase().trim();
           if (ns.state.cachedAttendees && ns.state.cachedAttendees[upperId] && ns.state.cachedAttendees[upperId].checkedInSessions) {
             delete ns.state.cachedAttendees[upperId].checkedInSessions[sessionId];
             localStorage.setItem("absen_cached_attendees", JSON.stringify(ns.state.cachedAttendees));
           }
           if (ns.state.syncQueue) {
             ns.state.syncQueue = ns.state.syncQueue.filter(
-              item => !(String(item.ticketId || "").toUpperCase() === upperId && item.sessionId === sessionId)
+              item => !(String(item.ticketId || "").toUpperCase().trim() === upperId && item.sessionId === sessionId)
             );
             localStorage.setItem("absen_sync_queue", JSON.stringify(ns.state.syncQueue));
             if (ns.Sync) ns.Sync.updateSyncUI();
           }
 
-          const targetHistory = ns.state.history.find(h => h.ticketId === ticketId && h.sessionId === sessionId);
-          if (targetHistory) {
-            targetHistory.status = "CANCELLED";
-            localStorage.setItem("absen_history", JSON.stringify(ns.state.history));
-            ns.UI.renderHistory();
+          let foundInHistory = false;
+          ns.state.history.forEach(h => {
+            if (String(h.ticketId || "").toUpperCase().trim() === upperId && h.sessionId === sessionId) {
+              h.status = "CANCELLED";
+              foundInHistory = true;
+            }
+          });
+
+          // Konsolidasi entri ganda pada tiket & sesi yang sama agar tidak ada kartu redundant di riwayat
+          const seenHistKey = new Set();
+          ns.state.history = ns.state.history.filter(h => {
+            const key = `${String(h.ticketId || "").toUpperCase().trim()}_${h.sessionId}`;
+            if (key === `${upperId}_${sessionId}`) {
+              if (seenHistKey.has(key)) return false;
+              seenHistKey.add(key);
+              h.status = "CANCELLED";
+              return true;
+            }
+            return true;
+          });
+
+          if (!foundInHistory) {
+            const attendeeName = (ns.state.cachedAttendees && ns.state.cachedAttendees[upperId] ? ns.state.cachedAttendees[upperId].name : "") || "Peserta";
+            ns.state.history.unshift({
+              ticketId: ticketId,
+              sessionId: sessionId,
+              sessionName: sessionName,
+              name: attendeeName,
+              status: "CANCELLED",
+              time: new Date().toLocaleTimeString()
+            });
+            if (ns.state.history.length > 50) ns.state.history.pop();
           }
+
+          localStorage.setItem("absen_history", JSON.stringify(ns.state.history));
+          ns.UI.renderHistory();
         } else {
           ns.UI.showToast(`Gagal membatalkan: ${result.message}`);
         }

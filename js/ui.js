@@ -298,6 +298,59 @@ window.EventPass = window.EventPass || {};
       }
 
       if (!ns.DOM.historyList) return;
+
+      // 1. Sanitize & normalize riwayat (auto-heal status usang & buang kartu duplikat berlebih)
+      let historyNeedsSave = false;
+      const cancelledKeys = new Set();
+      (ns.state.history || []).forEach(h => {
+        if (h && h.status === "CANCELLED" && h.ticketId && h.sessionId) {
+          cancelledKeys.add(`${String(h.ticketId).toUpperCase().trim()}_${h.sessionId}`);
+        }
+      });
+
+      (ns.state.history || []).forEach(h => {
+        if (!h || !h.ticketId || !h.sessionId) return;
+        const uId = String(h.ticketId).toUpperCase().trim();
+        const key = `${uId}_${h.sessionId}`;
+        const cached = ns.state.cachedAttendees ? ns.state.cachedAttendees[uId] : null;
+        const isPending = ns.state.syncQueue && ns.state.syncQueue.some(
+          q => String(q.ticketId || "").toUpperCase().trim() === uId && q.sessionId === h.sessionId
+        );
+        const isCheckedInCache = cached && cached.checkedInSessions && cached.checkedInSessions[h.sessionId];
+
+        if (h.status === "SUCCESS") {
+          // Jika tiket terdeteksi pernah dibatalkan, atau data di cache sudah dicabut dan tidak ada di antrean
+          if (cancelledKeys.has(key) || (cached && !isCheckedInCache && !isPending)) {
+            h.status = "CANCELLED";
+            cancelledKeys.add(key);
+            historyNeedsSave = true;
+          }
+        }
+      });
+
+      // Konsolidasi: hilangkan kartu ganda untuk tiket & sesi yang sama jika statusnya CANCELLED
+      const seenCancelled = new Set();
+      const sanitizedHistory = [];
+      for (const h of (ns.state.history || [])) {
+        if (h && h.ticketId && h.sessionId) {
+          const key = `${String(h.ticketId).toUpperCase().trim()}_${h.sessionId}`;
+          if (cancelledKeys.has(key)) {
+            if (seenCancelled.has(key)) {
+              historyNeedsSave = true;
+              continue; // Buang duplikat redundant
+            }
+            seenCancelled.add(key);
+            h.status = "CANCELLED";
+          }
+        }
+        sanitizedHistory.push(h);
+      }
+
+      if (historyNeedsSave) {
+        ns.state.history = sanitizedHistory;
+        localStorage.setItem("absen_history", JSON.stringify(ns.state.history));
+      }
+
       if (ns.state.history.length === 0) {
         ns.DOM.historyList.innerHTML = `<div style="text-align: center; color: var(--text-dim); padding: 24px;">Belum ada riwayat pemindaian pada sesi ini.</div>`;
         return;
@@ -309,9 +362,12 @@ window.EventPass = window.EventPass || {};
         div.className = "history-item";
 
         // Cek apakah tiket ini masih ada di antrean sync lokal HP
+        const uId = String(item.ticketId || "").toUpperCase().trim();
         const isPendingInQueue = ns.state.syncQueue && ns.state.syncQueue.some(
-          q => String(q.ticketId || "").toUpperCase() === String(item.ticketId || "").toUpperCase() && q.sessionId === item.sessionId
+          q => String(q.ticketId || "").toUpperCase().trim() === uId && q.sessionId === item.sessionId
         );
+        const cached = ns.state.cachedAttendees ? ns.state.cachedAttendees[uId] : null;
+        const isCheckedInNow = (cached && cached.checkedInSessions && cached.checkedInSessions[item.sessionId]) || isPendingInQueue;
 
         let badgeClass = "badge-success";
         let badgeLabel = "Hadir";
@@ -322,7 +378,8 @@ window.EventPass = window.EventPass || {};
         if (item.status === "SUCCESS") {
           badgeClass = "badge-success";
           badgeLabel = "Hadir";
-          showUndo = true;
+          // Tombol Batalkan hanya muncul jika tiket ini benar-benar masih terdaftar hadir
+          showUndo = Boolean(isCheckedInNow);
 
           if (isPendingInQueue) {
             syncTagHtml = `
@@ -348,41 +405,74 @@ window.EventPass = window.EventPass || {};
               </div>
             `;
           }
+        } else if (item.status === "CANCELLED") {
+          badgeClass = "badge-cancelled";
+          badgeLabel = "Dibatalkan";
+          showUndo = false;
+          syncTagHtml = `
+            <span class="badge badge-synced" title="Pembatalan telah tersinkron dan tercatat di spreadsheet">
+              ☁️ Tersinkron
+            </span>
+          `;
+          syncSubtextHtml = `
+            <div style="font-size: 11px; color: #64748b; margin-top: 3px; display: flex; align-items: center; gap: 4px;">
+              <span>↩️ <strong>Dibatalkan</strong> • Status presensi dinonaktifkan</span>
+            </div>
+          `;
+        } else if (item.status === "DUPLICATE") {
+          badgeClass = "badge-warning";
+          badgeLabel = "Duplikat";
+          showUndo = false;
+          if (isPendingInQueue) {
+            syncTagHtml = `
+              <span class="badge badge-pending-sync" title="Log duplikat dalam antrean sync">
+                ⏳ Antrean HP
+              </span>
+            `;
+            syncSubtextHtml = `
+              <div style="font-size: 11px; color: #b45309; margin-top: 3px; display: flex; align-items: center; gap: 4px;">
+                <span class="sync-mini-dot"></span>
+                <span>⚠️ <strong>Duplikat</strong> • Menunggu sync log audit</span>
+              </div>
+            `;
+          } else {
+            syncTagHtml = `
+              <span class="badge badge-synced" title="Tercatat di Google Sheets sebagai duplikat">
+                ☁️ Tersinkron
+              </span>
+            `;
+            syncSubtextHtml = `
+              <div style="font-size: 11px; color: #d97706; margin-top: 3px; display: flex; align-items: center; gap: 4px;">
+                <span>⚠️ <strong>Sudah Pernah Absen</strong> • Tercatat di Log Sheet</span>
+              </div>
+            `;
+          }
         } else if (item.status === "REJECTED_BY_SERVER") {
           badgeClass = "badge-error";
           badgeLabel = "Ditolak";
+          showUndo = false;
           syncTagHtml = `
             <span class="badge badge-rejected" title="Tiket tidak ditemukan / dihapus admin di database">
               ⚠️ Ditolak Sheet
             </span>
           `;
           syncSubtextHtml = `
-            <div style="font-size: 11px; color: #dc2626; margin-top: 3px;">
-              ⚠️ <strong>Ditolak Database</strong>: Data tiket dihapus admin di spreadsheet
-            </div>
-          `;
-        } else if (item.status === "CANCELLED") {
-          badgeClass = "badge-error";
-          badgeLabel = "Dibatalkan";
-          syncTagHtml = `
-            <span class="badge" style="background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1; font-size: 11px;">
-              ↩️ Dibatalkan
-            </span>
-          `;
-        } else if (item.status === "DUPLICATE") {
-          badgeClass = "badge-warning";
-          badgeLabel = "Duplikat";
-          syncSubtextHtml = `
-            <div style="font-size: 11px; color: #d97706; margin-top: 3px;">
-              ⚠️ Sudah pernah absen di sesi ini
+            <div style="font-size: 11px; color: #dc2626; margin-top: 3px; display: flex; align-items: center; gap: 4px;">
+              <span>⚠️ <strong>Ditolak Database</strong>: Data tiket dihapus admin di spreadsheet</span>
             </div>
           `;
         } else {
           badgeClass = "badge-error";
-          badgeLabel = "Gagal";
+          badgeLabel = item.status === "INVALID" ? "Tidak Valid" : "Gagal";
+          showUndo = false;
+          syncTagHtml = `
+            <span class="badge badge-rejected">
+              ❌ Gagal
+            </span>
+          `;
           syncSubtextHtml = `
-            <div style="font-size: 11px; color: #dc2626; margin-top: 3px;">
-              ❌ Gagal diproses: ${ns.escapeHtml(item.name || "Error")}
+            <div style="font-size: 11px; color: #dc2626; margin-top: 3px; display: flex; align-items: center; gap: 4px;">
+              <span>❌ <strong>${item.status === "INVALID" ? "Tiket Tidak Terdaftar" : "Gagal Diproses"}</strong>: ${ns.escapeHtml(item.name || "Error")}</span>
             </div>
           `;
         }

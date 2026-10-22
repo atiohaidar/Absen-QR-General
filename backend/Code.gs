@@ -21,7 +21,7 @@
   const CONFIG = {
     EVENT_NAME: "Event Tech Series 2026",
     QR_SUBFOLDER_NAME: "QR Code Peserta",
-    TICKET_PREFIX: "TIC-",
+    TICKET_PREFIX: "TIO-",
     SCANNER_URL: "https://atiohaidar.github.io/Absen-QR-General/",
     
     SHEETS: {

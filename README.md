@@ -145,11 +145,14 @@ https://<scanner-url>/?q=https://script.google.com/macros/s/.../exec&panitia=Bud
 2. **Scan QR Code Peserta:**
    * Arahkan kamera ke QR tiket peserta.
    * Layar menampilkan kartu konfirmasi data peserta & suara chime sukses.
-3. **Membatalkan Kehadiran (Jika Salah Orang):**
+3. **Scan dari Foto / Screenshot Galeri (Fallback Kamera Rusak / QR di WA):**
+   * Jika kamera HP kendala, silau, atau peserta menunjukkan screenshot QR di WhatsApp/layar retak, panitia cukup klik tombol **Galeri 🖼️** di layar scanner (atau drag & drop gambar).
+   * Sistem otomatis mengekstrak QR code dari foto dengan akselerasi hardware BarcodeDetector + jsQR multi-scale fallback dan langsung mencatat presensi seketika.
+4. **Membatalkan Kehadiran (Jika Salah Orang):**
    * **Dari Pop-up Hasil Scan:** Klik tombol merah **"Batalkan Kehadiran (Salah Orang)"**.
    * **Dari Tab Riwayat:** Klik tombol **"Batalkan"** pada nama peserta yang bersangkutan.
    * Data kehadiran di sheet `Data Peserta` otomatis dihapus kembali, dan catatan pembatalan dicatat di `Log Kehadiran`.
-4. **Registrasi Cepat OTS (Bagi yang Tidak Punya HP / HP Mati):**
+5. **Registrasi Cepat OTS (Bagi yang Tidak Punya HP / HP Mati):**
    * Buka tab **Daftar OTS**.
    * Masukkan **Nama Lengkap** *(Wajib)*, No. WhatsApp/Email *(Opsional)*, dan Catatan *(Opsional)*.
    * Klik **Daftarkan & Langsung Check-In**.
