@@ -406,6 +406,16 @@ window.EventPass = window.EventPass || {};
       if (DOM.cloudSyncDot) {
         DOM.cloudSyncDot.style.cursor = "pointer";
         DOM.cloudSyncDot.addEventListener("click", () => {
+          if (!ns.state.apiUrl || !ns.state.apiUrl.trim()) {
+            ns.UI.openSettingsModal();
+            ns.UI.showToast("Silakan atur URL Google Apps Script terlebih dahulu.");
+            return;
+          }
+          if (ns.state.isApiConnected === false) {
+            ns.UI.showToast("Mengecek kembali koneksi ke Google Apps Script...");
+            ns.App.syncSessions(true);
+            return;
+          }
           if (ns.Sync) ns.Sync.flushQueue(true);
         });
       }
@@ -1393,15 +1403,24 @@ window.EventPass = window.EventPass || {};
           ns.state.sessions = data.sessions;
           localStorage.setItem("absen_cached_sessions", JSON.stringify(data.sessions));
           ns.UI.renderSessionDropdown();
+          ns.state.isApiConnected = true;
+          ns.state.apiErrorMessage = "";
+          if (ns.Sync) ns.Sync.updateSyncUI();
           if (isManual) ns.UI.showToast("Daftar sesi berhasil diperbarui.");
-        } else if (isManual) {
-          ns.UI.showToast("Belum ada sesi aktif di Master Sesi.");
+        } else if (data && data.success) {
+          ns.state.isApiConnected = true;
+          ns.state.apiErrorMessage = "";
+          if (ns.Sync) ns.Sync.updateSyncUI();
+          if (isManual) ns.UI.showToast("Belum ada sesi aktif di Master Sesi.");
         }
       } catch (err) {
         console.warn("Gagal mengambil sesi:", err);
         const isConnErr = err.isConnectionError ||
           err.isFetchError ||
-          (err.message && (err.message.toLowerCase().includes("failed to fetch") || err.message.includes("CORS")));
+          (err.message && (err.message.toLowerCase().includes("failed to fetch") || err.message.includes("CORS") || err.message.includes("404")));
+        ns.state.isApiConnected = false;
+        ns.state.apiErrorMessage = isConnErr ? "Gagal terhubung (404/CORS)" : err.message;
+        if (ns.Sync) ns.Sync.updateSyncUI();
         if (isManual) {
           if (isConnErr) {
             ns.UI.showToast("Gagal terhubung (404/CORS). Periksa URL Apps Script di Pengaturan.");
@@ -1429,12 +1448,18 @@ window.EventPass = window.EventPass || {};
       try {
         const data = await ns.API.testConnection(url);
         if (data && (data.success || data.status === "ONLINE")) {
-          ns.UI.showToast("Koneksi Berhasil! API Online.");
+          ns.state.isApiConnected = true;
+          ns.state.apiErrorMessage = "";
+          if (ns.Sync) ns.Sync.updateSyncUI();
+          ns.UI.showToast("✅ Koneksi Berhasil! API Online.");
         } else {
           ns.UI.showToast("Respons diterima namun format berbeda.");
         }
       } catch (e) {
-        ns.UI.showToast(`Gagal: ${e.message}`);
+        ns.state.isApiConnected = false;
+        ns.state.apiErrorMessage = e.message;
+        if (ns.Sync) ns.Sync.updateSyncUI();
+        ns.UI.showToast(`❌ Gagal: ${e.message}`);
       } finally {
         ns.DOM.btnTestConnection.textContent = "Test Koneksi";
       }
@@ -1456,11 +1481,17 @@ window.EventPass = window.EventPass || {};
 
       ns.state.panitiaName = pName;
       ns.state.gateName = gName;
+      const urlChanged = (ns.state.apiUrl !== aUrl);
       ns.state.apiUrl = aUrl;
 
       localStorage.setItem("absen_panitia_name", pName);
       localStorage.setItem("absen_gate_name", gName);
       localStorage.setItem("absen_api_url", aUrl);
+
+      if (urlChanged) {
+        ns.state.isApiConnected = null;
+        ns.state.apiErrorMessage = "";
+      }
 
       // Sinkronkan ke form modal Operator Identity
       if (ns.DOM.inputOpName) ns.DOM.inputOpName.value = pName;
@@ -1470,6 +1501,10 @@ window.EventPass = window.EventPass || {};
       ns.UI.closeSettingsModal();
       ns.UI.showToast("Pengaturan berhasil disimpan.");
 
+      if (ns.Sync) {
+        ns.Sync.updateSyncUI();
+        if (aUrl) ns.Sync.syncAttendees(false);
+      }
       if (aUrl) this.syncSessions(true);
     },
 

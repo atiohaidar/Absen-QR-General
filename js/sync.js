@@ -97,6 +97,9 @@ window.EventPass = window.EventPass || {};
           ns.state.lastSyncTime = new Date().toLocaleTimeString();
           localStorage.setItem("absen_last_sync_time", ns.state.lastSyncTime);
 
+          ns.state.isApiConnected = true;
+          ns.state.apiErrorMessage = "";
+          this.updateSyncUI();
           this.updateCacheCountUI();
           if (isManual) {
             ns.UI.showToast(`✅ Database peserta diperbarui (${data.count} peserta).`);
@@ -104,6 +107,14 @@ window.EventPass = window.EventPass || {};
         }
       } catch (err) {
         console.warn("Sync attendees error:", err);
+        const isConnErr = err.isConnectionError ||
+          err.isFetchError ||
+          (err.message && (err.message.toLowerCase().includes("failed to fetch") || err.message.includes("CORS") || err.message.includes("404")));
+        if (isConnErr) {
+          ns.state.isApiConnected = false;
+          ns.state.apiErrorMessage = "Gagal terhubung (404/CORS)";
+          this.updateSyncUI();
+        }
         if (isManual) {
           ns.UI.showToast(`Gagal sync database: ${err.message}`);
         }
@@ -134,17 +145,26 @@ window.EventPass = window.EventPass || {};
     updateSyncUI() {
       const queueLen = ns.state.syncQueue.length;
       const isOnline = navigator.onLine;
+      const hasApiUrl = Boolean(ns.state.apiUrl && ns.state.apiUrl.trim());
+      const isApiError = (ns.state.isApiConnected === false);
 
       if (ns.DOM.cloudSyncDot) {
         ns.DOM.cloudSyncDot.className = "status-dot";
-        if (!isOnline) {
+        if (!hasApiUrl) {
+          ns.DOM.cloudSyncDot.classList.add("unconfigured");
+          ns.DOM.cloudSyncDot.title = "URL Google Apps Script belum diatur (Klik untuk buka pengaturan)";
+        } else if (!isOnline) {
           ns.DOM.cloudSyncDot.classList.add("offline");
-          ns.DOM.cloudSyncDot.title = `Offline (${queueLen} antrean tersimpan di HP)`;
+          ns.DOM.cloudSyncDot.title = `Offline: Internet terputus (${queueLen} antrean tersimpan di HP)`;
+        } else if (isApiError) {
+          ns.DOM.cloudSyncDot.classList.add("offline");
+          const reason = ns.state.apiErrorMessage || "Gagal terhubung (404/CORS)";
+          ns.DOM.cloudSyncDot.title = `Koneksi Google Apps Script Gagal: ${reason} (Klik untuk buka pengaturan)`;
         } else if (ns.state.isSyncingQueue || queueLen > 0) {
           ns.DOM.cloudSyncDot.classList.add("syncing");
           ns.DOM.cloudSyncDot.title = `Menyinkronkan (${queueLen} antrean pending - Klik untuk sync)`;
         } else {
-          ns.DOM.cloudSyncDot.title = "Cloud Sync Aktif (Semua tersinkron)";
+          ns.DOM.cloudSyncDot.title = "Cloud Sync Aktif & Terhubung ke Google Sheets";
         }
       }
 

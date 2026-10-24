@@ -94,12 +94,20 @@ window.EventPass = window.EventPass || {};
           continue;
         }
 
+        ns.state.isApiConnected = true;
+        ns.state.apiErrorMessage = "";
+        if (ns.Sync) ns.Sync.updateSyncUI();
         return data;
       } catch (err) {
         attempt++;
         if (attempt <= retries) {
           await new Promise(r => setTimeout(r, 450));
           continue;
+        }
+        if (err.isConnectionError || err.isFetchError || err.isConfigError || (err.message && (err.message.includes("404") || err.message.includes("CORS") || err.message.includes("Failed to fetch")))) {
+          ns.state.isApiConnected = false;
+          ns.state.apiErrorMessage = err.message;
+          if (ns.Sync) ns.Sync.updateSyncUI();
         }
         throw err;
       }
@@ -117,7 +125,11 @@ window.EventPass = window.EventPass || {};
       // Coba lewat GET terlebih dahulu, fallback ke POST
       try {
         const response = await fetchWithTimeout(`${apiUrl}?action=getSessions`, {}, 8000);
-        return await parseResponseJson(response);
+        const data = await parseResponseJson(response);
+        ns.state.isApiConnected = true;
+        ns.state.apiErrorMessage = "";
+        if (ns.Sync) ns.Sync.updateSyncUI();
+        return data;
       } catch (getErr) {
         return await postJsonWithRetry({ action: 'getSessions' }, 0);
       }
@@ -132,7 +144,11 @@ window.EventPass = window.EventPass || {};
 
       try {
         const response = await fetchWithTimeout(`${apiUrl}?action=getAttendees`, {}, 9000);
-        return await parseResponseJson(response);
+        const data = await parseResponseJson(response);
+        ns.state.isApiConnected = true;
+        ns.state.apiErrorMessage = "";
+        if (ns.Sync) ns.Sync.updateSyncUI();
+        return data;
       } catch (getErr) {
         return await postJsonWithRetry({ action: 'getAttendees' }, 0);
       }
@@ -248,8 +264,19 @@ window.EventPass = window.EventPass || {};
       }
       try {
         const response = await fetchWithTimeout(url, {}, 8000);
-        return await parseResponseJson(response);
+        const resJson = await parseResponseJson(response);
+        if (url === ns.state.apiUrl) {
+          ns.state.isApiConnected = true;
+          ns.state.apiErrorMessage = "";
+          if (ns.Sync) ns.Sync.updateSyncUI();
+        }
+        return resJson;
       } catch (err) {
+        if (url === ns.state.apiUrl) {
+          ns.state.isApiConnected = false;
+          ns.state.apiErrorMessage = err.message;
+          if (ns.Sync) ns.Sync.updateSyncUI();
+        }
         if (err.isFetchError || (err.message && err.message.toLowerCase().includes('failed to fetch'))) {
           throw new Error('Gagal terhubung (404 / CORS). Pastikan URL Web App benar dan opsi "Who has access" diatur ke "Anyone".');
         }

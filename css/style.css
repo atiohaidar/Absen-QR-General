@@ -1477,6 +1477,11 @@ body {
   box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.25) !important;
 }
 
+.status-dot.unconfigured {
+  background: #94a3b8 !important;
+  box-shadow: 0 0 0 2px rgba(148, 163, 184, 0.35) !important;
+}
+
 @keyframes pulse-sync {
   0% { transform: scale(0.95); opacity: 0.8; }
   50% { transform: scale(1.15); opacity: 1; }

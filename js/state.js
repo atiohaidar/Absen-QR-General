@@ -99,6 +99,8 @@ window.EventPass = window.EventPass || {};
     panitiaName: localStorage.getItem("absen_panitia_name") || "",
     gateName: localStorage.getItem("absen_gate_name") || "",
     apiUrl: localStorage.getItem("absen_api_url") || DEFAULT_APP_SCRIPT_URL || "",
+    isApiConnected: null, // null = belum diverifikasi, true = terhubung, false = gagal koneksi (404/CORS)
+    apiErrorMessage: "",
 
     // Sessions Management
     sessions: JSON.parse(localStorage.getItem("absen_cached_sessions") || "[]"),

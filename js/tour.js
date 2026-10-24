@@ -172,7 +172,7 @@ window.EventPass = window.EventPass || {};
           tab: 'scan',
           popover: {
             title: 'Status Sinkronisasi Cloud',
-            description: 'Indikator hijau menandakan data terhubung ke Google Sheets. Jika sinyal drop, scanner tetap bekerja offline dan otomatis tersinkron saat internet pulih.',
+            description: 'Indikator status: Hijau (terhubung ke Google Sheets), Abu-abu (URL belum diatur), Kuning (sedang sync antrean), dan Merah (offline). Klik titik ini untuk membuka pengaturan atau sinkronisasi manual.',
             side: 'bottom',
             align: 'start'
           }
