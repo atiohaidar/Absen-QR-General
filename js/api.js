@@ -175,19 +175,22 @@ window.EventPass = window.EventPass || {};
     /**
      * Verify ticket check-in for active session
      */
-    async checkIn(ticketId) {
+    async checkIn(ticketId, extra = {}) {
       const mapsUrl = (ns.state.location && ns.state.location.mapsUrl) ? ns.state.location.mapsUrl : "-";
       const deviceInfo = ns.state.deviceInfo || "-";
 
       const payload = {
         action: 'checkIn',
         ticketId: ticketId.trim(),
-        sessionId: ns.state.currentSessionId,
-        sessionName: ns.state.currentSessionName,
+        sessionId: extra.sessionId || ns.state.currentSessionId,
+        sessionName: extra.sessionName || ns.state.currentSessionName,
         scannedBy: ns.state.panitiaName,
         gate: ns.state.gateName || "Pintu Masuk",
         mapsUrl: mapsUrl,
-        deviceInfo: deviceInfo
+        deviceInfo: deviceInfo,
+        scanMode: extra.scanMode || ns.state.currentScanMode || "IN",
+        isAnomaly: !!extra.isAnomaly,
+        anomalyReason: extra.anomalyReason || ""
       };
 
       return await postJsonWithRetry(payload, 1);

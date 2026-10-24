@@ -51,8 +51,8 @@ window.EventPass = window.EventPass || {};
       if (!ns.DOM.sessionDropdownContainer || !ns.DOM.sessionMenu) return;
 
       const list = ns.state.sessions.length > 0 ? ns.state.sessions : [
-        { id: "SESI-01", name: "Pertemuan 1 - Pembukaan", label: "Pertemuan 1 - Pembukaan" },
-        { id: "SESI-02", name: "Pertemuan 2 - Workshop", label: "Pertemuan 2 - Workshop" }
+        { id: "SESI-01", name: "Pertemuan 1 - Pembukaan", label: "Pertemuan 1 - Pembukaan", type: "SINGLE" },
+        { id: "SESI-02", name: "Pertemuan 2 - Workshop", label: "Pertemuan 2 - Workshop", type: "CHECK_IN_OUT" }
       ];
 
       // Sinkronkan sesi yang aktif atau fallback ke sesi pertama
@@ -81,9 +81,11 @@ window.EventPass = window.EventPass || {};
         itemBtn.setAttribute("role", "option");
         itemBtn.setAttribute("aria-selected", isActive ? "true" : "false");
 
+        const typeBadge = sesi.type === "CHECK_IN_OUT" ? `<span style="font-size: 10px; background: #e0e7ff; color: #4338ca; padding: 1px 6px; border-radius: 4px; font-weight: 700; margin-left: 6px;">IN/OUT</span>` : "";
+
         itemBtn.innerHTML = `
           <div class="dropdown-item-info">
-            <span class="dropdown-item-title">${ns.escapeHtml(sesi.name)}</span>
+            <span class="dropdown-item-title">${ns.escapeHtml(sesi.name)}${typeBadge}</span>
             <span class="dropdown-item-date">${ns.escapeHtml(sesi.date || sesi.id)}</span>
           </div>
           <svg class="dropdown-item-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -102,11 +104,47 @@ window.EventPass = window.EventPass || {};
           ns.UI.closeSessionDropdown();
 
           ns.UI.showToast(`Sesi aktif: ${sesi.name}`);
-          ns.UI.updateScannerStatus("Siap Memindai", `Sesi: ${sesi.name}`);
         });
 
         ns.DOM.sessionMenu.appendChild(itemBtn);
       });
+
+      this.updateScanModeUI();
+    },
+
+    /**
+     * Update Scan Mode UI (Check-In vs Check-Out) toggle visibility and active state
+     */
+    updateScanModeUI() {
+      const current = (ns.state.sessions || []).find(s => s.id === ns.state.currentSessionId);
+      const isInOut = (current && current.type === "CHECK_IN_OUT");
+
+      if (ns.DOM.scanModeContainer) {
+        ns.DOM.scanModeContainer.style.display = isInOut ? "block" : "none";
+      }
+
+      const mode = ns.state.currentScanMode || "IN";
+      if (ns.DOM.btnModeIn) {
+        const isActive = (mode === "IN");
+        ns.DOM.btnModeIn.classList.toggle("active", isActive);
+        ns.DOM.btnModeIn.setAttribute("aria-checked", isActive ? "true" : "false");
+      }
+      if (ns.DOM.btnModeOut) {
+        const isActive = (mode === "OUT");
+        ns.DOM.btnModeOut.classList.toggle("active", isActive);
+        ns.DOM.btnModeOut.setAttribute("aria-checked", isActive ? "true" : "false");
+      }
+
+      // Update status message if not currently processing
+      if (!ns.state.isProcessing) {
+        if (isInOut && mode === "OUT") {
+          this.updateScannerStatus("Siap Memindai (Check-Out)", `Sesi: ${current?.name || ""} • Verifikasi Keluar`);
+        } else if (isInOut && mode === "IN") {
+          this.updateScannerStatus("Siap Memindai (Check-In)", `Sesi: ${current?.name || ""} • Verifikasi Masuk`);
+        } else {
+          this.updateScannerStatus("Siap Memindai", `Sesi: ${current?.name || ns.state.currentSessionName}`);
+        }
+      }
     },
 
     toggleSessionDropdown() {
@@ -142,6 +180,9 @@ window.EventPass = window.EventPass || {};
       ns.DOM.detailName.textContent = data.name;
       ns.DOM.detailTicketId.textContent = data.ticketId;
       ns.DOM.detailEmail.textContent = data.email;
+      if (ns.DOM.detailTimeLabel) {
+        ns.DOM.detailTimeLabel.textContent = data.timeLabel || (data.scanMode === "OUT" ? "Waktu Keluar" : "Waktu Masuk");
+      }
       ns.DOM.detailTime.textContent = data.time;
       ns.DOM.detailOfficer.textContent = data.officer;
 
@@ -318,6 +359,31 @@ window.EventPass = window.EventPass || {};
       if (ns.DOM.cancelModal) {
         ns.DOM.cancelModal.classList.remove("show");
       }
+    },
+
+    openAnomalyModal(options = {}) {
+      if (!ns.DOM.anomalyModal) return;
+      if (ns.DOM.anomalyAttendeeName) ns.DOM.anomalyAttendeeName.textContent = options.name || "Peserta";
+      if (ns.DOM.anomalyTicketId) ns.DOM.anomalyTicketId.textContent = options.ticketId || "-";
+      if (ns.DOM.anomalyReasonSelect) ns.DOM.anomalyReasonSelect.selectedIndex = 0;
+
+      this._anomalyCallbacks = {
+        onConfirm: options.onConfirm,
+        onCancel: options.onCancel
+      };
+
+      ns.DOM.anomalyModal.classList.add("show");
+      ns.DOM.anomalyModal.style.display = "flex";
+    },
+
+    closeAnomalyModal(triggerCancel = false) {
+      if (!ns.DOM.anomalyModal) return;
+      ns.DOM.anomalyModal.classList.remove("show");
+      ns.DOM.anomalyModal.style.display = "none";
+      if (triggerCancel && this._anomalyCallbacks && typeof this._anomalyCallbacks.onCancel === "function") {
+        this._anomalyCallbacks.onCancel();
+      }
+      this._anomalyCallbacks = null;
     },
 
     recordHistory(entry) {

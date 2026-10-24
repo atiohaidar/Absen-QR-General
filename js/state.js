@@ -106,6 +106,7 @@ window.EventPass = window.EventPass || {};
     sessions: JSON.parse(localStorage.getItem("absen_cached_sessions") || "[]"),
     currentSessionId: localStorage.getItem("absen_current_session_id") || "SESI-01",
     currentSessionName: localStorage.getItem("absen_current_session_name") || "Pertemuan 1",
+    currentScanMode: localStorage.getItem("absen_scan_mode") || "IN", // "IN" (Masuk) or "OUT" (Keluar)
 
     // Device & Location Audit
     deviceInfo: detectCleanDeviceInfo(),
@@ -147,6 +148,9 @@ window.EventPass = window.EventPass || {};
     sessionLabel: document.getElementById("session-select-label"),
     sessionMenu: document.getElementById("session-dropdown-menu"),
     btnRefreshSessions: document.getElementById("btn-refresh-sessions"),
+    scanModeContainer: document.getElementById("scan-mode-container"),
+    btnModeIn: document.getElementById("btn-mode-in"),
+    btnModeOut: document.getElementById("btn-mode-out"),
     tabButtons: document.querySelectorAll(".tab-btn"),
     tabPanes: document.querySelectorAll(".tab-pane"),
     
@@ -173,6 +177,7 @@ window.EventPass = window.EventPass || {};
     detailName: document.getElementById("detail-name"),
     detailTicketId: document.getElementById("detail-ticket-id"),
     detailEmail: document.getElementById("detail-email"),
+    detailTimeLabel: document.getElementById("detail-time-label"),
     detailTime: document.getElementById("detail-time"),
     detailOfficer: document.getElementById("detail-officer"),
     resultConfigGuide: document.getElementById("result-config-guide"),
@@ -189,6 +194,15 @@ window.EventPass = window.EventPass || {};
     btnCloseCancelModal: document.getElementById("btn-close-cancel-modal"),
     btnDismissCancel: document.getElementById("btn-dismiss-cancel"),
     btnExecuteCancel: document.getElementById("btn-execute-cancel"),
+
+    // Anomaly Check-Out Modal (Checkout Tanpa Checkin)
+    anomalyModal: document.getElementById("anomaly-confirm-modal"),
+    btnCloseAnomalyModal: document.getElementById("btn-close-anomaly-modal"),
+    btnCancelAnomaly: document.getElementById("btn-cancel-anomaly"),
+    btnForceCheckout: document.getElementById("btn-force-checkout"),
+    anomalyAttendeeName: document.getElementById("anomaly-attendee-name"),
+    anomalyTicketId: document.getElementById("anomaly-ticket-id"),
+    anomalyReasonSelect: document.getElementById("anomaly-reason-select"),
 
     // Operator Identity Modal (Wajib Isi Nama)
     operatorModal: document.getElementById("operator-modal"),

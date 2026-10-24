@@ -65,12 +65,25 @@ const CONFIG = {
     // 1. Sheet Master Sesi
     const sheetSesi = getOrCreateSheet(CONFIG.SHEETS.MASTER_SESI);
     if (sheetSesi.getLastRow() === 0) {
-      sheetSesi.appendRow(["ID Sesi", "Nama Sesi", "Tanggal Pelaksanaan", "Status"]);
-      sheetSesi.getRange(1, 1, 1, 4).setFontWeight("bold").setBackground("#e2e8f0");
+      sheetSesi.appendRow(["ID Sesi", "Nama Sesi", "Tanggal Pelaksanaan", "Status", "Tipe Presensi"]);
+      sheetSesi.getRange(1, 1, 1, 5).setFontWeight("bold").setBackground("#e2e8f0");
       // Tambahkan 3 contoh sesi awal
-      sheetSesi.appendRow(["SESI-01", "Pertemuan 1 - Pembukaan & Onboarding", formatDateOnly(new Date()), "AKTIF"]);
-      sheetSesi.appendRow(["SESI-02", "Pertemuan 2 - Workshop Inti", formatDateOnly(new Date(Date.now() + 86400000)), "AKTIF"]);
-      sheetSesi.appendRow(["SESI-03", "Pertemuan 3 - Evaluasi & Penutupan", formatDateOnly(new Date(Date.now() + 172800000)), "AKTIF"]);
+      sheetSesi.appendRow(["SESI-01", "Pertemuan 1 - Pembukaan & Onboarding", formatDateOnly(new Date()), "AKTIF", "SINGLE"]);
+      sheetSesi.appendRow(["SESI-02", "Pertemuan 2 - Workshop Inti", formatDateOnly(new Date(Date.now() + 86400000)), "AKTIF", "CHECK_IN_OUT"]);
+      sheetSesi.appendRow(["SESI-03", "Pertemuan 3 - Evaluasi & Penutupan", formatDateOnly(new Date(Date.now() + 172800000)), "AKTIF", "SINGLE"]);
+    } else {
+      // Auto-migration: Tambahkan kolom Tipe Presensi jika belum ada
+      const lastCol = sheetSesi.getLastColumn();
+      if (lastCol > 0) {
+        const currentHeaders = sheetSesi.getRange(1, 1, 1, lastCol).getValues()[0];
+        const hasTypeCol = currentHeaders.some(h => {
+          const s = String(h).toLowerCase();
+          return s.includes("tipe") || s.includes("mode");
+        });
+        if (!hasTypeCol) {
+          sheetSesi.getRange(1, lastCol + 1).setValue("Tipe Presensi").setFontWeight("bold").setBackground("#e2e8f0");
+        }
+      }
     }
 
     // 2. Sheet Data Peserta
@@ -533,6 +546,10 @@ const CONFIG = {
       const name = String(row[1] || "").trim();
       const date = row[2] ? formatDateOnly(new Date(row[2])) : "";
       const status = String(row[3] || "AKTIF").trim().toUpperCase();
+      const rawType = String(row[4] || "SINGLE").trim().toUpperCase();
+      const type = (rawType.includes("OUT") || rawType.includes("CHECK_IN_OUT") || rawType.includes("IN_OUT")) 
+        ? "CHECK_IN_OUT" 
+        : "SINGLE";
 
       if (id && status === "AKTIF") {
         sessions.push({
@@ -540,6 +557,7 @@ const CONFIG = {
           name: name,
           date: date,
           status: status,
+          type: type,
           label: `${name} (${date || id})`
         });
       }
@@ -574,8 +592,8 @@ const CONFIG = {
       const sessionsMap = {};
       sessionCols.forEach(sc => {
         const val = String(pesertaData[r][sc.colIdx] || "").trim();
-        if (val.startsWith("HADIR")) {
-          sessionsMap[sc.sessionId] = val.replace("HADIR - ", "").trim() || "HADIR";
+        if (val.startsWith("HADIR") || val.startsWith("CHECKOUT")) {
+          sessionsMap[sc.sessionId] = val.replace(/^(HADIR|CHECKOUT)\s*-\s*/, "").trim() || val;
         }
       });
 
@@ -782,35 +800,68 @@ const CONFIG = {
           const sessionColIdx = getOrCreateSessionColumn(sheetPeserta, sessionId, sessionName);
           const existingStatus = String(sheetPeserta.getRange(foundRow, sessionColIdx).getValue() || "").trim();
 
+          const scanMode = (payload.scanMode || (sessionId.endsWith("_OUT") ? "OUT" : "IN")).toUpperCase();
+          const isAnomaly = !!payload.isAnomaly;
+          const anomalyReason = (payload.anomalyReason || "").trim();
+
           // Skenario 2: Tiket Sudah Pernah Di-scan di Sesi Ini (Double Scan)
-          if (existingStatus.startsWith("HADIR")) {
-            sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, attendeeName, "DUPLIKAT", scannedBy, gate, mapsUrl, deviceInfo, `Sudah absen sebelumnya: ${existingStatus}`]);
+          const isAlreadyIn = existingStatus.startsWith("HADIR");
+          const isAlreadyOut = existingStatus.startsWith("CHECKOUT");
+
+          if ((scanMode === "OUT" && isAlreadyOut) || (scanMode !== "OUT" && isAlreadyIn)) {
+            const dupType = (scanMode === "OUT") ? "DUPLIKAT_CHECKOUT" : "DUPLIKAT";
+            const dupMsg = (scanMode === "OUT") 
+              ? `TIKET SUDAH CHECK-OUT untuk sesi "${sessionName}"!`
+              : `TIKET SUDAH DIGUNAKAN untuk sesi "${sessionName}"!`;
+
+            sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, attendeeName, dupType, scannedBy, gate, mapsUrl, deviceInfo, `Sudah absen sebelumnya: ${existingStatus}`]);
             return createJsonResponse({
               success: false,
-              status: "ALREADY_CHECKED_IN",
-              message: `TIKET SUDAH DIGUNAKAN untuk sesi "${sessionName}"!`,
+              status: (scanMode === "OUT") ? "ALREADY_CHECKED_OUT" : "ALREADY_CHECKED_IN",
+              message: dupMsg,
               attendee: {
                 ticketId: ticketId,
                 name: attendeeName,
                 email: attendeeEmail,
                 sessionName: sessionName,
-                firstCheckInTime: existingStatus.replace("HADIR - ", "").trim() || "Sebelumnya",
+                firstCheckInTime: existingStatus.replace(/^(HADIR|CHECKOUT)\s*-\s*/, "").trim() || "Sebelumnya",
                 scannedBy: scannedBy
               }
             });
           }
 
-          // Skenario 3: Check-In Berhasil!
-          const statusValue = `HADIR - ${nowStr}`;
+          // Skenario 3: Presensi Berhasil (Check-In atau Check-Out)!
+          let statusValue = "";
+          let logStatus = "";
+          let logDesc = "";
+          let resStatus = "";
+          let resMsg = "";
+
+          if (scanMode === "OUT") {
+            statusValue = isAnomaly ? `CHECKOUT (ANOMALI${anomalyReason ? ': ' + anomalyReason : ''}) - ${nowStr}` : `CHECKOUT - ${nowStr}`;
+            logStatus = isAnomaly ? "CHECKOUT_ANOMALI" : "CHECKOUT";
+            logDesc = isAnomaly ? `Checkout: ${anomalyReason || "Tanpa Check-in"}` : "Presensi kepulangan tercatat";
+            resStatus = "CHECKED_OUT";
+            resMsg = isAnomaly ? `Check-out berhasil dicatat (Anomali: ${anomalyReason || "Tanpa Check-In"})!` : `Check-out berhasil dicatat untuk ${sessionName}!`;
+          } else {
+            statusValue = `HADIR - ${nowStr}`;
+            logStatus = "BERHASIL";
+            logDesc = "Presensi tercatat";
+            resStatus = "CHECKED_IN";
+            resMsg = `Presensi berhasil dicatat untuk ${sessionName}!`;
+          }
+
           sheetPeserta.getRange(foundRow, sessionColIdx).setValue(statusValue);
           
           // Catat di sheet Log Kehadiran dengan Link Google Maps & Device Info
-          sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, attendeeName, "BERHASIL", scannedBy, gate, mapsUrl, deviceInfo, "Presensi tercatat"]);
+          sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, attendeeName, logStatus, scannedBy, gate, mapsUrl, deviceInfo, logDesc]);
 
           return createJsonResponse({
             success: true,
-            status: "CHECKED_IN",
-            message: `Presensi berhasil dicatat untuk ${sessionName}!`,
+            status: resStatus,
+            isAnomaly: isAnomaly,
+            scanMode: scanMode,
+            message: resMsg,
             attendee: {
               ticketId: ticketId,
               name: attendeeName,
@@ -864,6 +915,10 @@ const CONFIG = {
             const gate = (scan.gate || "Pintu Masuk").trim();
             const mapsUrl = (scan.mapsUrl || mapsUrl || "-").trim();
             const scanDevice = (scan.deviceInfo || deviceInfo || "-").trim();
+            const scanMode = (scan.scanMode || (sessionId.endsWith("_OUT") ? "OUT" : "IN")).toUpperCase();
+            const isAnomaly = !!scan.isAnomaly;
+            const anomalyReason = (scan.anomalyReason || "").trim();
+
             let scanTime = (scan.clientTime || "").trim();
             if (!scanTime) {
               scanTime = nowStr;
@@ -893,30 +948,54 @@ const CONFIG = {
             const attendeeEmail = attendeeInfo.email;
 
             const existingStatus = String(sheetPeserta.getRange(foundRow, sessionColIdx).getValue() || "").trim();
+            const isAlreadyIn = existingStatus.startsWith("HADIR");
+            const isAlreadyOut = existingStatus.startsWith("CHECKOUT");
 
-            if (existingStatus.startsWith("HADIR")) {
-              logRowsToAppend.push([scanTime, sessionId, sessionName, ticketId, attendeeName, "DUPLIKAT", scannedBy, gate, mapsUrl, scanDevice, `Sudah absen sebelumnya: ${existingStatus}`]);
+            if ((scanMode === "OUT" && isAlreadyOut) || (scanMode !== "OUT" && isAlreadyIn)) {
+              const dupType = (scanMode === "OUT") ? "DUPLIKAT_CHECKOUT" : "DUPLIKAT";
+              logRowsToAppend.push([scanTime, sessionId, sessionName, ticketId, attendeeName, dupType, scannedBy, gate, mapsUrl, scanDevice, `Sudah absen sebelumnya: ${existingStatus}`]);
               results.push({
                 ticketId: ticketId,
-                status: "ALREADY_CHECKED_IN",
-                message: `Tiket sudah terdata hadir di sesi ${sessionName}`,
+                status: (scanMode === "OUT") ? "ALREADY_CHECKED_OUT" : "ALREADY_CHECKED_IN",
+                message: (scanMode === "OUT") ? `Tiket sudah check-out di sesi ${sessionName}` : `Tiket sudah terdata hadir di sesi ${sessionName}`,
                 attendee: {
                   ticketId: ticketId,
                   name: attendeeName,
                   email: attendeeEmail,
                   sessionName: sessionName,
-                  firstCheckInTime: existingStatus.replace("HADIR - ", "").trim() || "Sebelumnya",
+                  firstCheckInTime: existingStatus.replace(/^(HADIR|CHECKOUT)\s*-\s*/, "").trim() || "Sebelumnya",
                   scannedBy: scannedBy
                 }
               });
             } else {
-              const statusValue = `HADIR - ${scanTime}`;
+              let statusValue = "";
+              let logStatus = "";
+              let logDesc = "";
+              let resStatus = "";
+              let resMsg = "";
+
+              if (scanMode === "OUT") {
+                statusValue = isAnomaly ? `CHECKOUT (ANOMALI${anomalyReason ? ': ' + anomalyReason : ''}) - ${scanTime}` : `CHECKOUT - ${scanTime}`;
+                logStatus = isAnomaly ? "CHECKOUT_ANOMALI" : "CHECKOUT";
+                logDesc = isAnomaly ? `Checkout: ${anomalyReason || "Tanpa Check-in"}` : "Presensi kepulangan tercatat";
+                resStatus = "CHECKED_OUT";
+                resMsg = `Check-out berhasil dicatat untuk ${sessionName}!`;
+              } else {
+                statusValue = `HADIR - ${scanTime}`;
+                logStatus = "BERHASIL";
+                logDesc = "Presensi tercatat";
+                resStatus = "CHECKED_IN";
+                resMsg = `Presensi berhasil dicatat untuk ${sessionName}!`;
+              }
+
               sheetPeserta.getRange(foundRow, sessionColIdx).setValue(statusValue);
-              logRowsToAppend.push([scanTime, sessionId, sessionName, ticketId, attendeeName, "BERHASIL", scannedBy, gate, mapsUrl, scanDevice, "Presensi tercatat"]);
+              logRowsToAppend.push([scanTime, sessionId, sessionName, ticketId, attendeeName, logStatus, scannedBy, gate, mapsUrl, scanDevice, logDesc]);
               results.push({
                 ticketId: ticketId,
-                status: "CHECKED_IN",
-                message: `Presensi berhasil dicatat untuk ${sessionName}!`,
+                status: resStatus,
+                isAnomaly: isAnomaly,
+                scanMode: scanMode,
+                message: resMsg,
                 attendee: {
                   ticketId: ticketId,
                   name: attendeeName,
