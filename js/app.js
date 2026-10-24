@@ -7,7 +7,7 @@
 
 window.EventPass = window.EventPass || {};
 
-(function(ns) {
+(function (ns) {
   'use strict';
 
   ns.App = {
@@ -21,7 +21,7 @@ window.EventPass = window.EventPass || {};
       ns.UI.renderOperatorHeader();
       ns.UI.renderSessionDropdown();
       ns.UI.renderHistory();
-      
+
       // Asynchronously enrich device model (e.g. Samsung SM-..., Pixel, Xiaomi) via Client Hints
       if (typeof ns.enrichDeviceInfoWithModel === "function") {
         ns.enrichDeviceInfoWithModel();
@@ -41,14 +41,20 @@ window.EventPass = window.EventPass || {};
       // Sync active sessions from Google Sheets
       if (ns.state.apiUrl) {
         this.syncSessions(false);
-      } else {
-        setTimeout(() => {
-          if (!ns.DOM.locationModal || !ns.DOM.locationModal.classList.contains("show")) {
+      }
+
+      // Check operator identity on startup
+      setTimeout(() => {
+        const isLocModalShowing = ns.DOM.locationModal && ns.DOM.locationModal.classList.contains("show");
+        if (!isLocModalShowing) {
+          if (!ns.state.panitiaName) {
+            ns.UI.openOperatorModal({ force: true });
+          } else if (!ns.state.apiUrl) {
             ns.UI.openSettingsModal();
             ns.UI.showToast("Silakan masukkan Apps Script API URL terlebih dahulu.");
           }
-        }, 700);
-      }
+        }
+      }, 700);
     },
 
     /**
@@ -78,6 +84,9 @@ window.EventPass = window.EventPass || {};
           ns.UI.closeSessionDropdown();
           ns.UI.closeCancelModal();
           ns.UI.closeSettingsModal();
+          if (ns.state.panitiaName && ns.state.panitiaName.trim()) {
+            ns.UI.closeOperatorModal();
+          }
         }
       });
 
@@ -184,10 +193,10 @@ window.EventPass = window.EventPass || {};
         DOM.btnRecheckServer.addEventListener("click", async () => {
           if (!ns.state.lastScanned || !ns.state.lastScanned.ticketId) return;
           const { ticketId, sessionId, sessionName } = ns.state.lastScanned;
-          
+
           DOM.btnRecheckServer.disabled = true;
           DOM.btnRecheckServer.innerHTML = `<div class="spinner" style="width:12px;height:12px;border-width:1.5px;margin-right:6px;display:inline-block;vertical-align:middle;"></div> <span>Mengecek ke spreadsheet...</span>`;
-          
+
           try {
             const res = await ns.API.checkIn(ticketId);
             if (res && res.success) {
@@ -279,6 +288,7 @@ window.EventPass = window.EventPass || {};
       // 6. Manual Check-In & Search
       if (DOM.btnManualCheckin) {
         DOM.btnManualCheckin.addEventListener("click", () => {
+          if (!this.requirePanitiaName()) return;
           const id = DOM.inputManualId.value.trim();
           if (!id) {
             ns.UI.showToast("Masukkan ID Tiket terlebih dahulu!");
@@ -299,6 +309,49 @@ window.EventPass = window.EventPass || {};
       // 7. On-The-Spot (OTS) Registration Form
       if (DOM.btnSubmitOts) {
         DOM.btnSubmitOts.addEventListener("click", () => this.handleOtsSubmit());
+      }
+
+      // 7.5. Operator Identity Modal (Wajib Isi Nama)
+      if (DOM.operatorBadgeBtn) {
+        DOM.operatorBadgeBtn.addEventListener("click", () => {
+          ns.UI.openOperatorModal({ force: !ns.state.panitiaName });
+        });
+      }
+      if (DOM.btnSaveOperator) {
+        DOM.btnSaveOperator.addEventListener("click", () => this.handleSaveOperator());
+      }
+      if (DOM.btnCloseOperator) {
+        DOM.btnCloseOperator.addEventListener("click", () => ns.UI.closeOperatorModal());
+      }
+      if (DOM.operatorModal) {
+        DOM.operatorModal.addEventListener("click", (e) => {
+          if (e.target === DOM.operatorModal) {
+            // Hanya izinkan tutup modal jika nama petugas sudah terisi
+            if (ns.state.panitiaName && ns.state.panitiaName.trim()) {
+              ns.UI.closeOperatorModal();
+            }
+          }
+        });
+      }
+      if (DOM.inputOpName) {
+        DOM.inputOpName.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            this.handleSaveOperator();
+          }
+        });
+        DOM.inputOpName.addEventListener("input", () => {
+          DOM.inputOpName.classList.remove("error-highlight");
+          if (DOM.opNameError) DOM.opNameError.style.display = "none";
+        });
+      }
+      if (DOM.inputOpGate) {
+        DOM.inputOpGate.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            this.handleSaveOperator();
+          }
+        });
       }
 
       // 8. Settings Modal
@@ -428,6 +481,12 @@ window.EventPass = window.EventPass || {};
               }
               ns.UI.closeLocationModal();
               ns.UI.showToast("Akses lokasi berhasil diaktifkan.");
+
+              if (!ns.state.panitiaName) {
+                setTimeout(() => ns.UI.openOperatorModal({ force: true }), 400);
+              } else if (!ns.state.apiUrl) {
+                setTimeout(() => ns.UI.openSettingsModal(), 400);
+              }
             }
           };
           return;
@@ -484,7 +543,9 @@ window.EventPass = window.EventPass || {};
           ns.UI.closeLocationModal();
           ns.UI.showToast("Izin lokasi berhasil diaktifkan.");
 
-          if (!ns.state.apiUrl) {
+          if (!ns.state.panitiaName) {
+            setTimeout(() => ns.UI.openOperatorModal({ force: true }), 400);
+          } else if (!ns.state.apiUrl) {
             setTimeout(() => ns.UI.openSettingsModal(), 400);
           }
         },
@@ -526,7 +587,9 @@ window.EventPass = window.EventPass || {};
       ns.UI.closeLocationModal();
       ns.UI.showToast("Melanjutkan presensi tanpa koordinat GPS.");
 
-      if (!ns.state.apiUrl) {
+      if (!ns.state.panitiaName) {
+        setTimeout(() => ns.UI.openOperatorModal({ force: true }), 400);
+      } else if (!ns.state.apiUrl) {
         setTimeout(() => ns.UI.openSettingsModal(), 400);
       }
     },
@@ -544,12 +607,12 @@ window.EventPass = window.EventPass || {};
           hashParams = new URLSearchParams(window.location.hash.replace(/^#\/?/, ""));
         }
 
-        const apiParam = searchParams.get("q") || 
-                         searchParams.get("api") || 
-                         searchParams.get("apiUrl") || 
-                         searchParams.get("url") || 
-                         searchParams.get("backend") || 
-                         (hashParams && (hashParams.get("q") || hashParams.get("api")));
+        const apiParam = searchParams.get("q") ||
+          searchParams.get("api") ||
+          searchParams.get("apiUrl") ||
+          searchParams.get("url") ||
+          searchParams.get("backend") ||
+          (hashParams && (hashParams.get("q") || hashParams.get("api")));
 
         const gateParam = searchParams.get("gate") || (hashParams && hashParams.get("gate"));
         const panitiaParam = searchParams.get("panitia") || searchParams.get("operator") || (hashParams && hashParams.get("panitia"));
@@ -626,6 +689,8 @@ window.EventPass = window.EventPass || {};
       if (ns.state.isProcessing) return;
       const ticketId = rawText.trim();
       if (!ticketId) return;
+
+      if (!this.requirePanitiaName(ticketId)) return;
       this.processCheckIn(ticketId);
     },
 
@@ -637,6 +702,8 @@ window.EventPass = window.EventPass || {};
 
       const rawTicketId = String(ticketId || "").trim();
       if (!rawTicketId) return;
+
+      if (!this.requirePanitiaName(rawTicketId, sourceButton)) return;
 
       const upperTicketId = rawTicketId.toUpperCase();
       const currentSessionId = ns.state.currentSessionId || "SESI-01";
@@ -712,7 +779,7 @@ window.EventPass = window.EventPass || {};
               ticketId: rawTicketId,
               sessionId: currentSessionId,
               sessionName: currentSessionName,
-              scannedBy: ns.state.panitiaName || "Panitia",
+              scannedBy: ns.state.panitiaName,
               gate: ns.state.gateName || "Pintu Masuk",
               mapsUrl: ns.state.location ? ns.state.location.mapsUrl : "-",
               deviceInfo: ns.state.deviceInfo || "-",
@@ -743,7 +810,7 @@ window.EventPass = window.EventPass || {};
           cachedAttendee.checkedInSessions[currentSessionId] = checkTime;
           try {
             localStorage.setItem("absen_cached_attendees", JSON.stringify(ns.state.cachedAttendees));
-          } catch (e) {}
+          } catch (e) { }
 
           ns.state.lastScanned = {
             ticketId: rawTicketId,
@@ -780,7 +847,7 @@ window.EventPass = window.EventPass || {};
             ticketId: rawTicketId,
             sessionId: currentSessionId,
             sessionName: currentSessionName,
-            scannedBy: ns.state.panitiaName || "Panitia",
+            scannedBy: ns.state.panitiaName,
             gate: ns.state.gateName || "Pintu Masuk",
             mapsUrl: ns.state.location ? ns.state.location.mapsUrl : "-",
             deviceInfo: ns.state.deviceInfo || "-",
@@ -833,20 +900,20 @@ window.EventPass = window.EventPass || {};
         console.error("Check-in error:", err);
         ns.sounds.playError();
 
-        const isConnErr = err.isConnectionError || 
-                          err.isFetchError || 
-                          err.isConfigError ||
-                          (err.message && (
-                            err.message.toLowerCase().includes("failed to fetch") || 
-                            err.message.includes("CORS") || 
-                            err.message.includes("HTML") || 
-                            err.message.includes("404")
-                          ));
+        const isConnErr = err.isConnectionError ||
+          err.isFetchError ||
+          err.isConfigError ||
+          (err.message && (
+            err.message.toLowerCase().includes("failed to fetch") ||
+            err.message.includes("CORS") ||
+            err.message.includes("HTML") ||
+            err.message.includes("404")
+          ));
 
         ns.UI.showResultModal({
           type: "error",
           title: isConnErr ? "Koneksi Apps Script Gagal" : "Koneksi Gagal",
-          subtitle: isConnErr 
+          subtitle: isConnErr
             ? "URL Web App mungkin salah, kadaluarsa (404), atau belum diatur ke 'Anyone'."
             : (err.message || "Gagal terhubung ke Google Apps Script."),
           name: "-",
@@ -948,7 +1015,7 @@ window.EventPass = window.EventPass || {};
         };
         try {
           localStorage.setItem("absen_cached_attendees", JSON.stringify(ns.state.cachedAttendees));
-        } catch (e) {}
+        } catch (e) { }
         if (ns.Sync) ns.Sync.updateCacheCountUI();
 
       } else if (res.status === "ALREADY_CHECKED_IN") {
@@ -993,7 +1060,7 @@ window.EventPass = window.EventPass || {};
         };
         try {
           localStorage.setItem("absen_cached_attendees", JSON.stringify(ns.state.cachedAttendees));
-        } catch (e) {}
+        } catch (e) { }
         if (ns.Sync) ns.Sync.updateCacheCountUI();
 
       } else {
@@ -1031,6 +1098,8 @@ window.EventPass = window.EventPass || {};
      * Cancel attendance check-in
      */
     async handleCancelAttendance(ticketId, sessionId, sessionName, reason = "Dibatalkan oleh panitia") {
+      if (!this.requirePanitiaName()) return;
+
       if (ns.DOM.globalLoadingBar) ns.DOM.globalLoadingBar.classList.add("active");
       if (ns.DOM.btnCancelCheckin) {
         ns.DOM.btnCancelCheckin.disabled = true;
@@ -1107,9 +1176,9 @@ window.EventPass = window.EventPass || {};
         }
       } catch (err) {
         console.error("Cancel check-in error:", err);
-        const isConnErr = err.isConnectionError || 
-                          err.isFetchError || 
-                          (err.message && (err.message.toLowerCase().includes("failed to fetch") || err.message.includes("CORS")));
+        const isConnErr = err.isConnectionError ||
+          err.isFetchError ||
+          (err.message && (err.message.toLowerCase().includes("failed to fetch") || err.message.includes("CORS")));
         if (isConnErr) {
           ns.UI.showToast("Gagal membatalkan (404/CORS). Periksa URL Apps Script di Pengaturan.");
         } else {
@@ -1154,14 +1223,14 @@ window.EventPass = window.EventPass || {};
         ns.UI.renderSearchResults(data.results, query);
       } catch (err) {
         console.error("Search error:", err);
-        const isConnErr = err.isConnectionError || 
-                          err.isFetchError || 
-                          err.isConfigError ||
-                          (err.message && (
-                            err.message.toLowerCase().includes("failed to fetch") || 
-                            err.message.includes("CORS") || 
-                            err.message.includes("404")
-                          ));
+        const isConnErr = err.isConnectionError ||
+          err.isFetchError ||
+          err.isConfigError ||
+          (err.message && (
+            err.message.toLowerCase().includes("failed to fetch") ||
+            err.message.includes("CORS") ||
+            err.message.includes("404")
+          ));
 
         if (isConnErr) {
           ns.DOM.searchResultsList.innerHTML = `
@@ -1193,6 +1262,8 @@ window.EventPass = window.EventPass || {};
      * Handle OTS (On-the-spot) form submit
      */
     async handleOtsSubmit() {
+      if (!this.requirePanitiaName()) return;
+
       const name = ns.DOM.inputOtsName.value.trim();
       const contact = ns.DOM.inputOtsContact.value.trim();
       const notes = ns.DOM.inputOtsNotes.value.trim();
@@ -1265,7 +1336,7 @@ window.EventPass = window.EventPass || {};
           };
           try {
             localStorage.setItem("absen_cached_attendees", JSON.stringify(ns.state.cachedAttendees));
-          } catch (e) {}
+          } catch (e) { }
           if (ns.Sync) ns.Sync.updateCacheCountUI();
 
         } else {
@@ -1275,9 +1346,9 @@ window.EventPass = window.EventPass || {};
       } catch (err) {
         console.error("OTS error:", err);
         ns.sounds.playError();
-        const isConnErr = err.isConnectionError || 
-                          err.isFetchError || 
-                          (err.message && (err.message.toLowerCase().includes("failed to fetch") || err.message.includes("CORS")));
+        const isConnErr = err.isConnectionError ||
+          err.isFetchError ||
+          (err.message && (err.message.toLowerCase().includes("failed to fetch") || err.message.includes("CORS")));
         if (isConnErr) {
           ns.UI.showToast("Gagal mendaftar (404/CORS). URL Apps Script mungkin salah atau belum Anyone.");
         } else {
@@ -1321,9 +1392,9 @@ window.EventPass = window.EventPass || {};
         }
       } catch (err) {
         console.warn("Gagal mengambil sesi:", err);
-        const isConnErr = err.isConnectionError || 
-                          err.isFetchError || 
-                          (err.message && (err.message.toLowerCase().includes("failed to fetch") || err.message.includes("CORS")));
+        const isConnErr = err.isConnectionError ||
+          err.isFetchError ||
+          (err.message && (err.message.toLowerCase().includes("failed to fetch") || err.message.includes("CORS")));
         if (isManual) {
           if (isConnErr) {
             ns.UI.showToast("Gagal terhubung (404/CORS). Periksa URL Apps Script di Pengaturan.");
@@ -1370,6 +1441,12 @@ window.EventPass = window.EventPass || {};
       const gName = ns.DOM.inputGateName.value.trim();
       const aUrl = ns.DOM.inputApiUrl.value.trim();
 
+      if (!pName) {
+        ns.UI.showToast("⚠️ Nama petugas / panitia wajib diisi!");
+        if (ns.DOM.inputPanitiaName) ns.DOM.inputPanitiaName.focus();
+        return;
+      }
+
       ns.state.panitiaName = pName;
       ns.state.gateName = gName;
       ns.state.apiUrl = aUrl;
@@ -1378,11 +1455,86 @@ window.EventPass = window.EventPass || {};
       localStorage.setItem("absen_gate_name", gName);
       localStorage.setItem("absen_api_url", aUrl);
 
+      // Sinkronkan ke form modal Operator Identity
+      if (ns.DOM.inputOpName) ns.DOM.inputOpName.value = pName;
+      if (ns.DOM.inputOpGate) ns.DOM.inputOpGate.value = gName;
+
       ns.UI.renderOperatorHeader();
       ns.UI.closeSettingsModal();
       ns.UI.showToast("Pengaturan berhasil disimpan.");
 
       if (aUrl) this.syncSessions(true);
+    },
+
+    /**
+     * Guard: Memastikan nama petugas terisi sebelum memproses presensi
+     */
+    requirePanitiaName(pendingTicketId = null, sourceButton = null) {
+      if (ns.state.panitiaName && ns.state.panitiaName.trim()) {
+        return true;
+      }
+
+      if (pendingTicketId) {
+        ns.state.pendingScan = { ticketId: pendingTicketId, sourceButton };
+      }
+
+      if (ns.sounds && typeof ns.sounds.playWarning === "function") {
+        ns.sounds.playWarning();
+      }
+      if (navigator.vibrate) {
+        navigator.vibrate([150, 80, 150]);
+      }
+
+      ns.UI.showToast("⚠️ Mohon isi Nama Petugas / Panitia terlebih dahulu!");
+      ns.UI.openOperatorModal({ force: true });
+      return false;
+    },
+
+    /**
+     * Simpan nama & gate dari modal Operator Identity
+     */
+    handleSaveOperator() {
+      const pName = (ns.DOM.inputOpName ? ns.DOM.inputOpName.value.trim() : "");
+      const gName = (ns.DOM.inputOpGate ? ns.DOM.inputOpGate.value.trim() : "");
+
+      if (!pName) {
+        if (ns.DOM.opNameError) ns.DOM.opNameError.style.display = "block";
+        if (ns.DOM.inputOpName) {
+          ns.DOM.inputOpName.classList.add("error-highlight");
+          ns.DOM.inputOpName.focus();
+        }
+        if (ns.sounds && typeof ns.sounds.playWarning === "function") {
+          ns.sounds.playWarning();
+        }
+        ns.UI.showToast("⚠️ Nama petugas wajib diisi!");
+        return;
+      }
+
+      ns.state.panitiaName = pName;
+      ns.state.gateName = gName;
+      localStorage.setItem("absen_panitia_name", pName);
+      localStorage.setItem("absen_gate_name", gName);
+
+      // Sinkronkan ke modal Settings
+      if (ns.DOM.inputPanitiaName) ns.DOM.inputPanitiaName.value = pName;
+      if (ns.DOM.inputGateName) ns.DOM.inputGateName.value = gName;
+
+      ns.UI.renderOperatorHeader();
+      ns.UI.closeOperatorModal();
+
+      if (ns.sounds && typeof ns.sounds.playSuccess === "function") {
+        ns.sounds.playSuccess();
+      }
+      ns.UI.showToast(`Letsgooo, ${pName}!`);
+
+      // Lanjutkan eksekusi tiket yang tadi sempat tertunda jika ada
+      if (ns.state.pendingScan) {
+        const { ticketId, sourceButton } = ns.state.pendingScan;
+        ns.state.pendingScan = null;
+        setTimeout(() => {
+          this.processCheckIn(ticketId, sourceButton);
+        }, 300);
+      }
     }
   };
 

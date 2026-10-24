@@ -26,12 +26,20 @@ window.EventPass = window.EventPass || {};
 
     renderOperatorHeader() {
       if (ns.DOM.operatorBadge) {
-        if (!ns.state.panitiaName && !ns.state.gateName) {
-          ns.DOM.operatorBadge.textContent = "Atur Petugas & Gate";
-        } else if (ns.state.panitiaName && ns.state.gateName) {
-          ns.DOM.operatorBadge.textContent = `${ns.state.panitiaName} • ${ns.state.gateName}`;
+        if (!ns.state.panitiaName) {
+          ns.DOM.operatorBadge.textContent = "⚠️ Isi Nama Petugas";
+          if (ns.DOM.operatorBadgeBtn) {
+            ns.DOM.operatorBadgeBtn.classList.add("needs-setup");
+          }
         } else {
-          ns.DOM.operatorBadge.textContent = ns.state.panitiaName || ns.state.gateName;
+          if (ns.DOM.operatorBadgeBtn) {
+            ns.DOM.operatorBadgeBtn.classList.remove("needs-setup");
+          }
+          if (ns.state.gateName) {
+            ns.DOM.operatorBadge.textContent = `${ns.state.panitiaName} • ${ns.state.gateName}`;
+          } else {
+            ns.DOM.operatorBadge.textContent = ns.state.panitiaName;
+          }
         }
       }
       if (ns.DOM.statTotal) {
@@ -167,6 +175,45 @@ window.EventPass = window.EventPass || {};
       ns.DOM.resultModal.classList.remove("show");
       ns.state.isProcessing = false;
       ns.Scanner.resetReticle();
+    },
+
+    openOperatorModal(options = {}) {
+      if (!ns.DOM.operatorModal) return;
+      
+      const isForced = Boolean(options.force) || (!ns.state.panitiaName || !ns.state.panitiaName.trim());
+      
+      if (ns.DOM.inputOpName) {
+        ns.DOM.inputOpName.value = ns.state.panitiaName || "";
+        ns.DOM.inputOpName.classList.remove("error-highlight");
+      }
+      if (ns.DOM.inputOpGate) {
+        ns.DOM.inputOpGate.value = ns.state.gateName || "";
+      }
+      if (ns.DOM.opNameError) {
+        ns.DOM.opNameError.style.display = "none";
+      }
+
+      // If forced, do not show close button to prevent bypassing
+      if (ns.DOM.btnCloseOperator) {
+        ns.DOM.btnCloseOperator.style.display = isForced ? "none" : "flex";
+      }
+
+      ns.DOM.operatorModal.setAttribute("data-forced", isForced ? "true" : "false");
+      ns.DOM.operatorModal.classList.add("show");
+
+      setTimeout(() => {
+        if (ns.DOM.inputOpName) {
+          ns.DOM.inputOpName.focus();
+          if (ns.DOM.inputOpName.value) ns.DOM.inputOpName.select();
+        }
+      }, 150);
+    },
+
+    closeOperatorModal() {
+      if (!ns.DOM.operatorModal) return;
+      ns.DOM.operatorModal.classList.remove("show");
+      if (ns.DOM.inputOpName) ns.DOM.inputOpName.classList.remove("error-highlight");
+      if (ns.DOM.opNameError) ns.DOM.opNameError.style.display = "none";
     },
 
     openSettingsModal() {

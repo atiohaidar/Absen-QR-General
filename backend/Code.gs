@@ -18,11 +18,16 @@
   * ==============================================================================
   */
 
-  const CONFIG = {
-    EVENT_NAME: "Event Tech Series 2026",
+const CONFIG = {
+    EVENT_NAME: "Peserta Gerakan Subuh Berjamaah",
     QR_SUBFOLDER_NAME: "QR Code Peserta",
-    TICKET_PREFIX: "TIO-",
+    TICKET_PREFIX: "MSU-GSB",
     SCANNER_URL: "https://atiohaidar.github.io/Absen-QR-General/",
+    
+    // Tampilan Caption QR Code (QuickChart)
+    QR_FONT_FAMILY: "Roboto",
+    QR_FONT_SIZE: 18,
+    QR_FONT_COLOR: "1e293b",
     
     SHEETS: {
       RAW_FORM: "Form Responses 1",
@@ -95,7 +100,7 @@
           const totalRows = sheetPeserta.getLastRow();
           if (totalRows > 1) {
             for (let r = 2; r <= totalRows; r++) {
-              sheetPeserta.getRange(r, 3).setFormula(`=IF(A${r}="","", COUNTIF(D${r}:ZZ${r}, "HADIR*"))`);
+              sheetPeserta.getRange(r, 3).setFormula(`=IF(A${r}=""; ""; COUNTIF(D${r}:ZZ${r}; "HADIR*"))`);
             }
           }
         }
@@ -212,6 +217,23 @@
     return CONFIG.TICKET_PREFIX + res;
   }
 
+  /**
+   * Helper: Generate URL QR Code QuickChart dengan caption Nama Acara & font Roboto modern
+   */
+  function buildQrCodeUrl(ticketId) {
+    const captionText = CONFIG.EVENT_NAME || ticketId;
+    const fontFamily = CONFIG.QR_FONT_FAMILY || "Roboto";
+    const fontSize = CONFIG.QR_FONT_SIZE || 18;
+    const fontColor = CONFIG.QR_FONT_COLOR || "1e293b";
+
+    return "https://quickchart.io/qr?text=" + encodeURIComponent(ticketId) +
+      "&size=450&margin=2" +
+      "&caption=" + encodeURIComponent(captionText) +
+      "&captionFontFamily=" + encodeURIComponent(fontFamily) +
+      "&captionFontSize=" + fontSize +
+      "&captionFontColor=" + fontColor;
+  }
+
   function formatDateOnly(d) {
     return Utilities.formatDate(d, Session.getScriptTimeZone(), "yyyy-MM-dd");
   }
@@ -219,6 +241,128 @@
   function formatFullDateTime(d) {
     return Utilities.formatDate(d, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
   }
+
+  /**
+   * SMART HYBRID DRIVE SHARING (AUTO-FALLBACK):
+   * 1. Cek sisa kuota email harian (MailApp.getRemainingDailyQuota()).
+   * 2. Jika kuota > 10: Berikan akses viewer DENGAN notifikasi email resmi Google Drive (sendNotificationEmail: true).
+   * 3. Jika kuota <= 10 ATAU jika notifikasi gagal/limit: Otomatis FALLBACK ke SILENT SHARE (sendNotificationEmail: false)
+   *    agar pendaftaran peserta tetap sukses masuk ke Google Drive tanpa error.
+   */
+  function grantDriveViewerSmart(fileId, email) {
+    if (!email || !fileId || fileId === "-") return false;
+    const cleanEmail = email.trim();
+
+    // Cek ketersediaan kuota email
+    let remainingQuota = 0;
+    try {
+      remainingQuota = MailApp.getRemainingDailyQuota();
+    } catch (e) {
+      remainingQuota = 0;
+    }
+
+    // Beri batas pengaman: jika sisa kuota > 10, kita coba kirim email notifikasi
+    const shouldTryNotify = (remainingQuota > 10);
+
+    // 1. Coba Drive API v3
+    if (typeof Drive !== "undefined" && Drive.Permissions && typeof Drive.Permissions.create === "function") {
+      if (shouldTryNotify) {
+        try {
+          Drive.Permissions.create(
+            {
+              role: "reader",
+              type: "user",
+              emailAddress: cleanEmail
+            },
+            fileId,
+            {
+              sendNotificationEmail: true
+            }
+          );
+          Logger.log(`✅ [Drive API v3] Shared WITH email notification to: ${cleanEmail} (Sisa Kuota: ${remainingQuota})`);
+          return { success: true, notified: true };
+        } catch (notifyErr) {
+          Logger.log(`⚠️ Gagal kirim notif email (${notifyErr.message}), auto-fallback ke Silent Share.`);
+        }
+      }
+
+      // Fallback ke Silent Share (sendNotificationEmail: false)
+      try {
+        Drive.Permissions.create(
+          {
+            role: "reader",
+            type: "user",
+            emailAddress: cleanEmail
+          },
+          fileId,
+          {
+            sendNotificationEmail: false
+          }
+        );
+        Logger.log(`✅ [Drive API v3] Shared SILENT (no email) to: ${cleanEmail}`);
+        return { success: true, notified: false };
+      } catch (silentErr) {
+        const msg = silentErr.message || "";
+        if (msg.toLowerCase().includes("already") || msg.toLowerCase().includes("exists")) {
+          return { success: true, notified: false };
+        }
+        throw silentErr;
+      }
+    }
+
+    // 2. Coba Drive API v2
+    if (typeof Drive !== "undefined" && Drive.Permissions && typeof Drive.Permissions.insert === "function") {
+      if (shouldTryNotify) {
+        try {
+          Drive.Permissions.insert(
+            {
+              role: "reader",
+              type: "user",
+              value: cleanEmail
+            },
+            fileId,
+            {
+              sendNotificationEmails: true
+            }
+          );
+          Logger.log(`✅ [Drive API v2] Shared WITH email notification to: ${cleanEmail}`);
+          return { success: true, notified: true };
+        } catch (notifyErr2) {
+          Logger.log(`⚠️ Drive v2 notif gagal (${notifyErr2.message}), fallback ke silent.`);
+        }
+      }
+
+      try {
+        Drive.Permissions.insert(
+          {
+            role: "reader",
+            type: "user",
+            value: cleanEmail
+          },
+          fileId,
+          {
+            sendNotificationEmails: false
+          }
+        );
+        Logger.log(`✅ [Drive API v2] Shared SILENT to: ${cleanEmail}`);
+        return { success: true, notified: false };
+      } catch (silentErr2) {
+        const msg = silentErr2.message || "";
+        if (msg.toLowerCase().includes("already") || msg.toLowerCase().includes("exists")) {
+          return { success: true, notified: false };
+        }
+        throw silentErr2;
+      }
+    }
+
+    // 3. Fallback standard DriveApp
+    DriveApp.getFileById(fileId).addViewer(cleanEmail);
+    Logger.log(`✅ [DriveApp fallback] Viewer granted to: ${cleanEmail}`);
+    return { success: true, notified: false };
+  }
+
+  // Alias agar kompatibel ke seluruh pemanggilan kode
+  const grantDriveViewerSilent = grantDriveViewerSmart;
 
   /**
   * ==============================================================================
@@ -294,7 +438,7 @@
       let fileUrl = "-";
 
       try {
-        const qrUrl = "https://quickchart.io/qr?text=" + encodeURIComponent(ticketId) + "&size=450&margin=2";
+        const qrUrl = buildQrCodeUrl(ticketId);
         const qrResponse = UrlFetchApp.fetch(qrUrl, { muteHttpExceptions: true });
         if (qrResponse.getResponseCode() === 200) {
           const sanitizedName = name.replace(/[^a-zA-Z0-9_-]/g, "_");
@@ -306,9 +450,9 @@
           fileId = driveFile.getId();
           fileUrl = driveFile.getUrl();
 
-          // 5. SESUAI CONSTRAINT: Share akses file ke peserta tanpa kuota email!
+          // 5. SESUAI CONSTRAINT: Share akses file ke peserta secara SILENT tanpa kirim email notifikasi!
           try {
-            DriveApp.getFileById(fileId).addViewer(email);
+            grantDriveViewerSilent(fileId, email);
             Logger.log("✅ Drive file viewer granted to: " + email);
           } catch (shareErr) {
             Logger.log("⚠️ Drive viewer error: " + shareErr.message);
@@ -320,7 +464,7 @@
 
       // 6. Masukkan data ke sheet "Data Peserta" dengan lock singkat
       const nextRow = sheetPeserta.getLastRow() + 1;
-      const formulaTotal = `=IF(A${nextRow}="","", COUNTIF(D${nextRow}:ZZ${nextRow}, "HADIR*"))`;
+      const formulaTotal = `=IF(A${nextRow}=""; ""; COUNTIF(D${nextRow}:ZZ${nextRow}; "HADIR*"))`;
       const attendeeRowData = [
         ticketId,
         name,
@@ -880,7 +1024,7 @@
           let fileId = "-";
           let fileUrl = "-";
           try {
-            const qrUrl = "https://quickchart.io/qr?text=" + encodeURIComponent(ticketId) + "&size=450&margin=2";
+            const qrUrl = buildQrCodeUrl(ticketId);
             const qrResponse = UrlFetchApp.fetch(qrUrl, { muteHttpExceptions: true });
             if (qrResponse.getResponseCode() === 200) {
               const sanitizedName = name.replace(/[^a-zA-Z0-9_-]/g, "_");
@@ -891,10 +1035,10 @@
               fileId = driveFile.getId();
               fileUrl = driveFile.getUrl();
 
-              // Jika kontak merupakan email, berikan viewer access
+              // Jika kontak merupakan email, berikan viewer access secara silent
               if (contact && contact.includes("@")) {
                 try {
-                  DriveApp.getFileById(fileId).addViewer(contact);
+                  grantDriveViewerSilent(fileId, contact);
                 } catch (e) {
                   Logger.log("Viewer share error: " + e.message);
                 }
@@ -907,7 +1051,7 @@
           // 3. Masukkan ke sheet Data Peserta
           const effectiveContact = contact || "OTS (Tanpa HP)";
           const nextOtsRow = sheetPeserta.getLastRow() + 1;
-          const otsFormulaTotal = `=IF(A${nextOtsRow}="","", COUNTIF(D${nextOtsRow}:ZZ${nextOtsRow}, "HADIR*"))`;
+          const otsFormulaTotal = `=IF(A${nextOtsRow}=""; ""; COUNTIF(D${nextOtsRow}:ZZ${nextOtsRow}; "HADIR*"))`;
           const newRow = [
             ticketId,
             name,
@@ -993,6 +1137,8 @@
       .addSeparator()
       .addItem('🔗 4. Buka / Bagikan Link Scanner Panitia', 'showPanitiaLinkModal')
       .addItem('📊 5. Periksa Status Sistem', 'showSystemStatus')
+      .addSeparator()
+      .addItem('🔄 6. Cek & Kirim Ulang Akses Drive Peserta', 'checkAndRetryDriveSharing')
       .addToUi();
   }
 
@@ -1216,7 +1362,7 @@
         let fileUrl = "-";
 
         try {
-          const qrUrl = "https://quickchart.io/qr?text=" + encodeURIComponent(ticketId) + "&size=450&margin=2";
+          const qrUrl = buildQrCodeUrl(ticketId);
           const qrResponse = UrlFetchApp.fetch(qrUrl, { muteHttpExceptions: true });
           if (qrResponse.getResponseCode() === 200) {
             const sanitizedName = name.replace(/[^a-zA-Z0-9_-]/g, "_");
@@ -1226,7 +1372,7 @@
             fileUrl = driveFile.getUrl();
 
             try {
-              DriveApp.getFileById(fileId).addViewer(email);
+              grantDriveViewerSilent(fileId, email);
             } catch (e) {}
           }
         } catch (e) {
@@ -1234,7 +1380,7 @@
         }
 
         const nextSyncRow = sheetPeserta.getLastRow() + 1;
-        const syncFormulaTotal = `=IF(A${nextSyncRow}="","", COUNTIF(D${nextSyncRow}:ZZ${nextSyncRow}, "HADIR*"))`;
+        const syncFormulaTotal = `=IF(A${nextSyncRow}=""; ""; COUNTIF(D${nextSyncRow}:ZZ${nextSyncRow}; "HADIR*"))`;
 
         sheetPeserta.appendRow([
           ticketId,
@@ -1587,4 +1733,166 @@
 
     ui.alert("Status Sistem", report, ui.ButtonSet.OK);
   }
+
+  /**
+   * Helper: Ekstrak ID file Google Drive dari ID langsung atau link URL
+   */
+  function extractDriveFileId(val) {
+    if (!val || typeof val !== "string") return "";
+    const str = val.trim();
+    if (str === "-" || str === "") return "";
+    if (!str.includes("/") && !str.includes(".")) return str;
+    const match = str.match(/\/d\/([a-zA-Z0-9_-]+)/) || str.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+    return match ? match[1] : str;
+  }
+
+  /**
+   * Cek & Kirim Ulang Akses Viewer Google Drive Peserta
+   * - Tanpa perlu menambah kolom baru (tidak merusak struktur sheet / matrix sesi)
+   * - Mendukung input baris mulai (Start Row) & jumlah baris (Batch Count)
+   * - Memberikan jeda waktu (sleep) agar tidak terkena burst limit
+   * - Menambahkan Cell Note kecil di kolom Email untuk kemudahan audit
+   */
+  function checkAndRetryDriveSharing() {
+    const ui = SpreadsheetApp.getUi();
+    const ss = getSpreadsheet();
+    const sheetPeserta = ss.getSheetByName(CONFIG.SHEETS.DATA_PESERTA);
+
+    if (!sheetPeserta) {
+      ui.alert("Sheet Tidak Ditemukan", `Sheet '${CONFIG.SHEETS.DATA_PESERTA}' belum tersedia.`, ui.ButtonSet.OK);
+      return;
+    }
+
+    const lastRow = sheetPeserta.getLastRow();
+    if (lastRow < 2) {
+      ui.alert("Data Kosong", "Belum ada data peserta di sheet 'Data Peserta'.", ui.ButtonSet.OK);
+      return;
+    }
+
+    // Default baris mulai: ambil baris sel aktif jika valid, atau default ke 2
+    let defaultStartRow = 2;
+    try {
+      const activeRow = sheetPeserta.getActiveCell().getRow();
+      if (activeRow >= 2 && activeRow <= lastRow) {
+        defaultStartRow = activeRow;
+      }
+    } catch (e) {}
+
+    // Prompt 1: Baris Mulai
+    const promptStart = ui.prompt(
+      "Mulai dari Baris Berapa?",
+      `Masukkan nomor baris awal yang ingin diperiksa:\n(Tersedia baris 2 sampai ${lastRow})`,
+      ui.ButtonSet.OK_CANCEL
+    );
+
+    if (promptStart.getSelectedButton() !== ui.Button.OK) return;
+    let startRow = parseInt(promptStart.getResponseText().trim(), 10);
+    if (isNaN(startRow) || startRow < 2 || startRow > lastRow) {
+      startRow = defaultStartRow;
+    }
+
+    // Prompt 2: Jumlah Baris (Batch Size)
+    const promptBatch = ui.prompt(
+      "Jumlah Baris yang Diproses?",
+      `Masukkan berapa baris yang ingin dicek/dikirim:\n(Saran: 15 - 30 baris per batch agar aman dari limit Google Drive)`,
+      ui.ButtonSet.OK_CANCEL
+    );
+
+    if (promptBatch.getSelectedButton() !== ui.Button.OK) return;
+    let batchCount = parseInt(promptBatch.getResponseText().trim(), 10);
+    if (isNaN(batchCount) || batchCount <= 0) {
+      batchCount = 20;
+    }
+
+    const endRow = Math.min(lastRow, startRow + batchCount - 1);
+    const numRows = endRow - startRow + 1;
+
+    // Ambil data rentang [startRow .. endRow], minimal 6 kolom (A:F)
+    const rangeData = sheetPeserta.getRange(startRow, 1, numRows, 6).getValues();
+
+    let alreadyCount = 0;
+    let newlySharedCount = 0;
+    let skippedCount = 0;
+    let failedCount = 0;
+    let hitLimit = false;
+    let lastProcessedRow = startRow;
+
+    for (let i = 0; i < rangeData.length; i++) {
+      const currentRow = startRow + i;
+      lastProcessedRow = currentRow;
+      const row = rangeData[i];
+
+      const ticketId = String(row[0] || "").trim();
+      const name = String(row[1] || "").trim();
+      const email = String(row[3] || "").trim();
+      const rawFileId = String(row[4] || "").trim();
+      const rawFileUrl = String(row[5] || "").trim();
+
+      const fileId = extractDriveFileId(rawFileId) || extractDriveFileId(rawFileUrl);
+
+      // Jika email atau fileId tidak valid, lewati
+      if (!email || !email.includes("@") || !fileId || fileId === "-") {
+        skippedCount++;
+        continue;
+      }
+
+      try {
+        const driveFile = DriveApp.getFileById(fileId);
+        const viewers = driveFile.getViewers().map(u => u.getEmail().toLowerCase());
+        const hasAccess = viewers.includes(email.toLowerCase());
+
+        const emailCell = sheetPeserta.getRange(currentRow, 4);
+
+        if (hasAccess) {
+          alreadyCount++;
+          emailCell.setNote("✅ Akses Drive: Sudah Aktif");
+        } else {
+          // Coba berikan akses viewer secara smart (dengan notif email jika ada kuota, atau silent jika mepet)
+          try {
+            const shareResult = grantDriveViewerSmart(fileId, email);
+            newlySharedCount++;
+            const noteText = (shareResult && shareResult.notified)
+              ? "✅ Akses Drive: Dibagikan + Notif Email (" + new Date().toLocaleDateString("id-ID") + ")"
+              : "✅ Akses Drive: Dibagikan (Silent / Drive Only) (" + new Date().toLocaleDateString("id-ID") + ")";
+            emailCell.setNote(noteText);
+            Logger.log(`[Batch Share] Baris ${currentRow} (${name} - ${email}): Berhasil di-share.`);
+
+            // Jeda 1.2 detik agar tidak kena burst rate limit Google Drive
+            Utilities.sleep(1200);
+          } catch (shareErr) {
+            failedCount++;
+            const errMsg = shareErr.message || "";
+            emailCell.setNote("⚠️ Akses Drive Gagal: " + errMsg);
+
+            if (errMsg.toLowerCase().includes("limit") || errMsg.toLowerCase().includes("exceeded")) {
+              hitLimit = true;
+              Logger.log(`[Batch Share] STOP di baris ${currentRow} karena limit Drive: ${errMsg}`);
+              break; // Hentikan loop agar tidak menambah error spam
+            }
+          }
+        }
+      } catch (fileErr) {
+        failedCount++;
+        Logger.log(`[Batch Share] Error baca file Drive baris ${currentRow}: ${fileErr.message}`);
+      }
+    }
+
+    // Tampilkan rangkuman hasil
+    const summary = [
+      "📊 HASIL PENGECEKAN AKSES DRIVE",
+      "------------------------------------------",
+      `• Rentang Baris: ${startRow} s/d ${lastProcessedRow} (dari total ${lastRow})`,
+      `• Sudah Punya Akses Sebelumnya: ${alreadyCount} peserta`,
+      `• Baru Saja Berhasil Dibagikan: ${newlySharedCount} peserta`,
+      `• Dilewati (Email/File Kosong): ${skippedCount} peserta`,
+      `• Gagal / Tertahan: ${failedCount} peserta`,
+      "------------------------------------------",
+      hitLimit
+        ? `⚠️ PERHATIAN: Kuota Google Drive harian/burst limit tercapai di baris ${lastProcessedRow}.\nSilakan lanjutkan kembali nanti mulai dari baris ${lastProcessedRow}.`
+        : "✅ Selesai! Tidak ada kendala kuota pada rentang ini."
+    ].join("\n");
+
+    ui.alert("Laporan Akses Drive", summary, ui.ButtonSet.OK);
+  }
+
 

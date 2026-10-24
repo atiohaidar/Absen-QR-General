@@ -132,6 +132,39 @@ body {
   background: var(--bg-hover);
 }
 
+.nav-operator-btn.needs-setup {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.45);
+  color: #b45309;
+  animation: setupPulse 2.2s infinite ease-in-out;
+}
+
+.nav-operator-btn.needs-setup svg {
+  color: #d97706;
+}
+
+@keyframes setupPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.15);
+  }
+}
+
+.input-box.error-highlight {
+  border-color: var(--status-error) !important;
+  background-color: var(--status-error-bg) !important;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15) !important;
+  animation: inputShake 0.3s ease-in-out;
+}
+
+@keyframes inputShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
 .status-dot {
   width: 7px;
   height: 7px;

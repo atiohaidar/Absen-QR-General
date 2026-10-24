@@ -137,6 +137,7 @@ window.EventPass = window.EventPass || {};
     hudTicketId: document.getElementById("hud-ticket-id"),
 
     // Operator & Session
+    operatorBadgeBtn: document.getElementById("operator-badge-btn"),
     operatorBadge: document.getElementById("operator-badge-text"),
     statTotal: document.getElementById("stat-total"),
     sessionDropdownContainer: document.getElementById("custom-session-dropdown"),
@@ -186,6 +187,14 @@ window.EventPass = window.EventPass || {};
     btnCloseCancelModal: document.getElementById("btn-close-cancel-modal"),
     btnDismissCancel: document.getElementById("btn-dismiss-cancel"),
     btnExecuteCancel: document.getElementById("btn-execute-cancel"),
+
+    // Operator Identity Modal (Wajib Isi Nama)
+    operatorModal: document.getElementById("operator-modal"),
+    inputOpName: document.getElementById("op-panitia-name"),
+    inputOpGate: document.getElementById("op-gate-name"),
+    opNameError: document.getElementById("op-name-error"),
+    btnSaveOperator: document.getElementById("btn-save-operator"),
+    btnCloseOperator: document.getElementById("btn-close-operator"),
 
     // Settings Modal
     btnOpenSettings: document.getElementById("btn-open-settings"),
