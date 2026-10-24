@@ -196,7 +196,8 @@ window.EventPass = window.EventPass || {};
     btnSaveOperator: document.getElementById("btn-save-operator"),
     btnCloseOperator: document.getElementById("btn-close-operator"),
 
-    // Settings Modal
+    // Settings & Tour
+    btnStartTour: document.getElementById("btn-start-tour"),
     btnOpenSettings: document.getElementById("btn-open-settings"),
     settingsModal: document.getElementById("settings-modal"),
     btnCloseSettings: document.getElementById("btn-close-settings"),

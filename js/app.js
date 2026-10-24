@@ -354,7 +354,14 @@ window.EventPass = window.EventPass || {};
         });
       }
 
-      // 8. Settings Modal
+      // 8. Driver.js Tour & Settings Modal
+      if (DOM.btnStartTour) {
+        DOM.btnStartTour.addEventListener("click", () => {
+          if (ns.Tour && typeof ns.Tour.start === "function") {
+            ns.Tour.start();
+          }
+        });
+      }
       if (DOM.btnOpenSettings) {
         DOM.btnOpenSettings.addEventListener("click", () => ns.UI.openSettingsModal());
       }
@@ -1485,7 +1492,7 @@ window.EventPass = window.EventPass || {};
         navigator.vibrate([150, 80, 150]);
       }
 
-      ns.UI.showToast("⚠️ Mohon isi Nama Petugas / Panitia terlebih dahulu!");
+      ns.UI.showToast("Mohon isi Nama Panitia terlebih dahulu!");
       ns.UI.openOperatorModal({ force: true });
       return false;
     },
