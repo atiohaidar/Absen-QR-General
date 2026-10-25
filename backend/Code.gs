@@ -1145,14 +1145,15 @@ const CONFIG = {
         }
 
         const pesertaData = sheetPeserta.getDataRange().getValues();
+        const { ticketCol, nameCol, emailCol } = getPesertaFieldIndices(sheetPeserta);
         const sessionColIdx = findSessionColumn(sheetPeserta, sessionId, sessionName);
         const results = [];
 
         for (let r = 1; r < pesertaData.length; r++) {
           const row = pesertaData[r];
-          const tId = String(row[0] || "");
-          const tName = String(row[1] || "");
-          const tEmail = String(row[2] || "");
+          const tId = String(row[ticketCol] || "");
+          const tName = String(row[nameCol] || "");
+          const tEmail = String(row[emailCol] || "");
           const currentSessionStatus = (sessionColIdx > 0) ? String(row[sessionColIdx - 1] || "") : "";
 
           if (tId.toLowerCase().includes(query) || tName.toLowerCase().includes(query) || tEmail.toLowerCase().includes(query)) {

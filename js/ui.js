@@ -707,18 +707,34 @@ window.EventPass = window.EventPass || {};
 
           const cached = ns.state.cachedAttendees ? ns.state.cachedAttendees[uId] : null;
 
-          // Cek apakah sudah pernah check-in atau check-out
-          const hasIn = Boolean(
-            (item.status === "HADIR") ||
-            (cached && cached.checkedInSessions && (cached.checkedInSessions[inSessId] || cached.checkedInSessions[currentSessId])) ||
-            (ns.state.syncQueue && ns.state.syncQueue.some(q => String(q.ticketId).toUpperCase() === uId && (q.sessionId === inSessId || q.sessionId === currentSessId) && !q.isDuplicate))
+          // Cek antrean offline lokal yang belum ter-flush ke server
+          const isPendingInQueue = Boolean(
+            ns.state.syncQueue && ns.state.syncQueue.some(
+              q => String(q.ticketId).toUpperCase() === uId && (q.sessionId === inSessId || q.sessionId === currentSessId) && !q.isDuplicate
+            )
+          );
+          const isPendingOutQueue = Boolean(
+            ns.state.syncQueue && ns.state.syncQueue.some(
+              q => String(q.ticketId).toUpperCase() === uId && q.sessionId === outSessId && !q.isDuplicate
+            )
           );
 
-          const hasOut = Boolean(
-            (item.status === "CHECKOUT") ||
-            (cached && cached.checkedInSessions && cached.checkedInSessions[outSessId]) ||
-            (ns.state.syncQueue && ns.state.syncQueue.some(q => String(q.ticketId).toUpperCase() === uId && q.sessionId === outSessId && !q.isDuplicate))
-          );
+          // Sumber kebenaran live dari spreadsheet: item.status
+          // Jika sheet live mengatakan BELUM_HADIR dan tidak ada antrean offline, jangan tertipu cache basi!
+          const hasIn = (item.status === "HADIR") || isPendingInQueue;
+          const hasOut = (item.status === "CHECKOUT") || isPendingOutQueue;
+
+          // Sinkronkan cache lokal dengan data aktual dari live server jika ada ketidaksesuaian
+          if (cached && cached.checkedInSessions) {
+            if (!hasIn && !isPendingInQueue) {
+              delete cached.checkedInSessions[inSessId];
+              delete cached.checkedInSessions[currentSessId];
+            }
+            if (!hasOut && !isPendingOutQueue) {
+              delete cached.checkedInSessions[outSessId];
+            }
+            localStorage.setItem("absen_cached_attendees", JSON.stringify(ns.state.cachedAttendees));
+          }
 
           let statusBadge = "";
           let actionBtnHtml = "";
