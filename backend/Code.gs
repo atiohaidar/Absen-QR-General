@@ -224,6 +224,11 @@ const CONFIG = {
    * Mengumpulkan step logs selama eksekusi di memory, lalu menuliskan tepat 1 baris
    * ke tab 'Log Eksekusi' saat flush() dipanggil (di blok finally).
    */
+  /**
+   * Global pointer ke ExecutionLogger yang sedang aktif di context thread ini
+   */
+  let currentActiveLogger = null;
+
   class ExecutionLogger {
     constructor(context, meta) {
       this.id = "EXE-" + Utilities.formatDate(new Date(), "GMT+7", "yyMMdd-HHmmss") + "-" + Math.floor(Math.random() * 900 + 100);
@@ -233,6 +238,7 @@ const CONFIG = {
       this.logs = [];
       this.status = "SUCCESS";
       this.summary = "";
+      currentActiveLogger = this;
       this.log("START", `Starting [${this.id}] Context: ${this.context}`);
     }
 
@@ -311,9 +317,39 @@ const CONFIG = {
         pruneOldLogsIfNeeded(sheet, 1000);
       } catch (flushErr) {
         Logger.log("[ExecutionLogger flush error]: " + flushErr.message);
+      } finally {
+        if (currentActiveLogger === this) {
+          currentActiveLogger = null;
+        }
       }
     }
   }
+
+  /**
+   * Global Universal Logger helper (Function-hoisted agar aman dipanggil dari mana saja):
+   * Mengirim log ke ExecutionLogger aktif jika ada transaksi yang berjalan (doPost, doGet, onFormSubmit, dll.),
+   * sehingga otomatis terakumulasi dan tertulis di sheet 'Log Eksekusi'.
+   * Jika tidak ada ExecutionLogger aktif, fallback ke Logger.log bawaan Apps Script.
+   */
+  function sysLog(level, msg, data) {
+    if (currentActiveLogger) {
+      if (level === "info") currentActiveLogger.info(msg, data);
+      else if (level === "warn") currentActiveLogger.warn(msg, data);
+      else if (level === "error") currentActiveLogger.error(msg, data);
+      else if (level === "success") currentActiveLogger.success(msg, data);
+      else currentActiveLogger.log(level, msg, data);
+    } else {
+      try {
+        Logger.log(`[${String(level || "LOG").toUpperCase()}] ${msg}` + (data ? " " + JSON.stringify(data) : ""));
+      } catch (e) {
+        Logger.log(`[${String(level || "LOG").toUpperCase()}] ${msg}`);
+      }
+    }
+  }
+  sysLog.info = function(msg, data) { sysLog("info", msg, data); };
+  sysLog.warn = function(msg, data) { sysLog("warn", msg, data); };
+  sysLog.error = function(msg, data) { sysLog("error", msg, data); };
+  sysLog.success = function(msg, data) { sysLog("success", msg, data); };
 
   /**
   * Helper: Ambil index kolom dinamis di sheet Data Peserta
@@ -359,12 +395,12 @@ const CONFIG = {
           isParentPublic = true;
         }
       } catch (accessErr) {
-        Logger.log("Notice checking parent access: " + accessErr.message);
+        sysLog.info("Notice checking parent access: " + accessErr.message);
       }
 
       // Jika parent folder publik, isolasi folder QR ke My Drive Root agar peserta tidak bisa jelajahi parent
       if (isParentPublic) {
-        Logger.log("⚠️ Parent folder bersifat PUBLIK. Untuk privasi peserta, folder QR dialihkan ke Root My Drive.");
+        sysLog.warn("⚠️ Parent folder bersifat PUBLIK. Untuk privasi peserta, folder QR dialihkan ke Root My Drive.");
         parentFolder = DriveApp.getRootFolder();
       }
 
@@ -374,19 +410,19 @@ const CONFIG = {
         targetFolder = existing.next();
       } else {
         targetFolder = parentFolder.createFolder(CONFIG.QR_SUBFOLDER_NAME);
-        Logger.log("📁 Folder baru dibuat: " + CONFIG.QR_SUBFOLDER_NAME);
+        sysLog.success("📁 Folder baru dibuat: " + CONFIG.QR_SUBFOLDER_NAME);
       }
 
       // Kunci akses folder agar selalu PRIVATE (Restricted / Dibatasi)
       try {
         targetFolder.setSharing(DriveApp.Access.PRIVATE, DriveApp.Permission.NONE);
       } catch (shareErr) {
-        Logger.log("Folder setSharing notice: " + shareErr.message);
+        sysLog.info("Folder setSharing notice: " + shareErr.message);
       }
 
       return targetFolder;
     } catch (err) {
-      Logger.log("Folder error: " + err.message + ", fallback ke root");
+      sysLog.warn("Folder error: " + err.message + ", fallback ke root");
       return DriveApp.getRootFolder();
     }
   }
@@ -462,10 +498,10 @@ const CONFIG = {
               sendNotificationEmail: true
             }
           );
-          Logger.log(`✅ [Drive API v3] Shared WITH email notification to: ${cleanEmail} (Sisa Kuota: ${remainingQuota})`);
+          sysLog.success(`[Drive API v3] Shared WITH email notification to: ${cleanEmail} (Sisa Kuota: ${remainingQuota})`);
           return { success: true, notified: true };
         } catch (notifyErr) {
-          Logger.log(`⚠️ Gagal kirim notif email (${notifyErr.message}), auto-fallback ke Silent Share.`);
+          sysLog.warn(`Gagal kirim notif email (${notifyErr.message}), auto-fallback ke Silent Share.`);
         }
       }
 
@@ -482,7 +518,7 @@ const CONFIG = {
             sendNotificationEmail: false
           }
         );
-        Logger.log(`✅ [Drive API v3] Shared SILENT (no email) to: ${cleanEmail}`);
+        sysLog.success(`[Drive API v3] Shared SILENT (no email) to: ${cleanEmail}`);
         return { success: true, notified: false };
       } catch (silentErr) {
         const msg = silentErr.message || "";
@@ -508,10 +544,10 @@ const CONFIG = {
               sendNotificationEmails: true
             }
           );
-          Logger.log(`✅ [Drive API v2] Shared WITH email notification to: ${cleanEmail}`);
+          sysLog.success(`[Drive API v2] Shared WITH email notification to: ${cleanEmail}`);
           return { success: true, notified: true };
         } catch (notifyErr2) {
-          Logger.log(`⚠️ Drive v2 notif gagal (${notifyErr2.message}), fallback ke silent.`);
+          sysLog.warn(`Drive v2 notif gagal (${notifyErr2.message}), fallback ke silent.`);
         }
       }
 
@@ -527,7 +563,7 @@ const CONFIG = {
             sendNotificationEmails: false
           }
         );
-        Logger.log(`✅ [Drive API v2] Shared SILENT to: ${cleanEmail}`);
+        sysLog.success(`[Drive API v2] Shared SILENT to: ${cleanEmail}`);
         return { success: true, notified: false };
       } catch (silentErr2) {
         const msg = silentErr2.message || "";
@@ -540,7 +576,7 @@ const CONFIG = {
 
     // 3. Fallback standard DriveApp
     DriveApp.getFileById(fileId).addViewer(cleanEmail);
-    Logger.log(`✅ [DriveApp fallback] Viewer granted to: ${cleanEmail}`);
+    sysLog.success(`[DriveApp fallback] Viewer granted to: ${cleanEmail}`);
     return { success: true, notified: false };
   }
 
@@ -769,7 +805,7 @@ const CONFIG = {
         }
       }
     } catch (e) {
-      Logger.log("getRoutineSessionIds notice: " + e.message);
+      sysLog.info("getRoutineSessionIds notice: " + e.message);
     }
     _routineSessionsCache = set;
     return set;
@@ -927,7 +963,7 @@ const CONFIG = {
         validations = sheetPeserta.getRange(2, 1, 1, lastCol).getDataValidations()[0];
       }
     } catch (e) {
-      Logger.log("Validation read notice: " + e.message);
+      sysLog.info("Validation read notice: " + e.message);
     }
 
     headers.forEach((h, idx) => {
@@ -956,7 +992,7 @@ const CONFIG = {
               options = rule.getCriteriaValues()[0] || [];
             }
           } catch (err) {
-            Logger.log("Validation parse error: " + err.message);
+            sysLog.info("Validation parse error: " + err.message);
           }
         }
 
@@ -1792,12 +1828,12 @@ const CONFIG = {
                 try {
                   grantDriveViewerSilent(fileId, contact);
                 } catch (e) {
-                  Logger.log("Viewer share error: " + e.message);
+                  sysLog.warn("Viewer share error: " + e.message);
                 }
               }
             }
           } catch (err) {
-            Logger.log("QR Drive save error: " + err.message);
+            sysLog.warn("QR Drive save error: " + err.message);
           }
 
           // 3. Masukkan ke sheet Data Peserta secara dinamis sesuai kolom sheet
@@ -1920,8 +1956,20 @@ const CONFIG = {
   * Utility test manual di editor Apps Script
   */
   function testInitSheets() {
-    ensureAllSheetsSetup();
-    Logger.log("Semua sheet berhasil diinisialisasi!");
+    let adminUser = "-";
+    try { adminUser = Session.getActiveUser().getEmail() || "Admin"; } catch (e) {}
+    const logger = new ExecutionLogger("testInitSheets", { user: adminUser, action: "testInitSheets" });
+    try {
+      logger.info("Initializing all sheets and system configurations");
+      ensureAllSheetsSetup();
+      logger.setSummary("Init Sheets Sukses");
+      logger.success("Semua sheet berhasil diinisialisasi!");
+    } catch (err) {
+      logger.error("testInitSheets error: " + err.message);
+      logger.setSummary("Init Gagal: " + err.message);
+    } finally {
+      logger.flush();
+    }
   }
 
   /**
@@ -1933,7 +1981,7 @@ const CONFIG = {
     try {
       ensureAllSheetsSetup(); // Otomatis freeze 3 kolom & sisipkan Total Hadir saat spreadsheet dibuka
     } catch (e) {
-      Logger.log("onOpen ensure notice: " + e.message);
+      sysLog.info("onOpen ensure notice: " + e.message);
     }
 
     SpreadsheetApp.getUi()
@@ -2124,7 +2172,12 @@ const CONFIG = {
     ensureAllSheetsSetup();
     const ss = getSpreadsheet();
 
+    let adminUser = "-";
+    try { adminUser = Session.getActiveUser().getEmail() || "Admin"; } catch (e) {}
+    const logger = new ExecutionLogger("syncExistingFormResponses", { user: adminUser, action: "syncExistingFormResponses" });
+
     try {
+      logger.info("Starting sync of existing form responses");
       // 1. Cari tab form responses
       const sheetRaw = ss.getSheetByName(CONFIG.SHEETS.RAW_FORM) ||
                       ss.getSheetByName(CONFIG.SHEETS.RAW_FORM_ID) ||
@@ -2135,6 +2188,8 @@ const CONFIG = {
                       ss.getSheets()[0];
 
       if (!sheetRaw || sheetRaw.getLastRow() <= 1) {
+        logger.info("No responses found in raw form sheet");
+        logger.setSummary("Data Respon Kosong");
         ui.alert("Data Respon Kosong", "Belum ada respon formulir yang ditemukan di tab: " + (sheetRaw ? sheetRaw.getName() : "Form Responses"), ui.ButtonSet.OK);
         return;
       }
@@ -2152,6 +2207,8 @@ const CONFIG = {
       });
 
       if (nameIdx === -1 || emailIdx === -1) {
+        logger.warn("Could not find Name or Email column in form responses");
+        logger.setSummary("Kolom Tidak Ditemukan");
         ui.alert("Kolom Tidak Ditemukan", "Tidak dapat menemukan kolom 'Nama Lengkap' atau 'Email' di tab: " + sheetRaw.getName(), ui.ButtonSet.OK);
         return;
       }
@@ -2206,7 +2263,7 @@ const CONFIG = {
             } catch (e) {}
           }
         } catch (e) {
-          Logger.log("QR warning: " + e.message);
+          sysLog.warn("QR warning: " + e.message);
         }
 
         const nextSyncRow = sheetPeserta.getLastRow() + 1;
@@ -2262,6 +2319,9 @@ const CONFIG = {
         importedCount++;
       }
 
+      logger.setSummary(`Impor Form: ${importedCount} baru, ${skippedCount} dilewati`);
+      logger.success(`Form import completed: ${importedCount} new attendees added, ${skippedCount} skipped`);
+
       ui.alert(
         "Impor Data Selesai!",
         `✅ Berhasil mengimpor & membuat QR untuk: ${importedCount} peserta baru.\n⏭️ Dilewati (karena sudah terdaftar): ${skippedCount} peserta.`,
@@ -2269,7 +2329,11 @@ const CONFIG = {
       );
 
     } catch (err) {
+      logger.error("syncExistingFormResponses error: " + err.message);
+      logger.setSummary("Gagal Impor Form: " + err.message);
       ui.alert("Gagal Impor Data", "Terjadi kesalahan: " + err.message, ui.ButtonSet.OK);
+    } finally {
+      logger.flush();
     }
   }
 
@@ -2287,80 +2351,101 @@ const CONFIG = {
    */
   function fixShiftedParticipantRows() {
     const ui = SpreadsheetApp.getUi();
-    const sheetPeserta = getOrCreateSheet(CONFIG.SHEETS.DATA_PESERTA);
-    const lastRow = sheetPeserta.getLastRow();
-    const lastCol = sheetPeserta.getLastColumn();
+    let adminUser = "-";
+    try { adminUser = Session.getActiveUser().getEmail() || "Admin"; } catch (e) {}
+    const logger = new ExecutionLogger("fixShiftedRows", { user: adminUser, action: "fixShiftedParticipantRows" });
 
-    if (lastRow <= 1 || lastCol === 0) {
-      ui.alert("Tidak Ada Data", "Sheet Data Peserta masih kosong.", ui.ButtonSet.OK);
-      return;
-    }
+    try {
+      logger.info("Starting auto-fix for shifted participant rows");
+      const sheetPeserta = getOrCreateSheet(CONFIG.SHEETS.DATA_PESERTA);
+      const lastRow = sheetPeserta.getLastRow();
+      const lastCol = sheetPeserta.getLastColumn();
 
-    const headers = sheetPeserta.getRange(1, 1, 1, lastCol).getValues()[0];
-    const emailColIdx = headers.findIndex(h => String(h).toLowerCase().includes("email"));
-    const fileIdColIdx = headers.findIndex(h => String(h).toLowerCase().includes("drive file id") || String(h).toLowerCase() === "file id");
-    const fileUrlColIdx = headers.findIndex(h => String(h).toLowerCase().includes("drive file url") || String(h).toLowerCase() === "file url");
-    const regTimeColIdx = headers.findIndex(h => String(h).toLowerCase().includes("waktu daftar") || String(h).toLowerCase().includes("timestamp"));
+      if (lastRow <= 1 || lastCol === 0) {
+        logger.info("Sheet Data Peserta is empty, nothing to fix");
+        logger.setSummary("Data Kosong");
+        ui.alert("Tidak Ada Data", "Sheet Data Peserta masih kosong.", ui.ButtonSet.OK);
+        return;
+      }
 
-    if (emailColIdx === -1 || fileIdColIdx === -1) {
-      ui.alert("Gagal", "Kolom 'Email' atau 'Drive File ID' tidak ditemukan di header.", ui.ButtonSet.OK);
-      return;
-    }
+      const headers = sheetPeserta.getRange(1, 1, 1, lastCol).getValues()[0];
+      const emailColIdx = headers.findIndex(h => String(h).toLowerCase().includes("email"));
+      const fileIdColIdx = headers.findIndex(h => String(h).toLowerCase().includes("drive file id") || String(h).toLowerCase() === "file id");
+      const fileUrlColIdx = headers.findIndex(h => String(h).toLowerCase().includes("drive file url") || String(h).toLowerCase() === "file url");
+      const regTimeColIdx = headers.findIndex(h => String(h).toLowerCase().includes("waktu daftar") || String(h).toLowerCase().includes("timestamp"));
 
-    const dataRange = sheetPeserta.getRange(2, 1, lastRow - 1, lastCol);
-    const values = dataRange.getValues();
-    let fixedCount = 0;
+      if (emailColIdx === -1 || fileIdColIdx === -1) {
+        logger.warn("Required header 'Email' or 'Drive File ID' not found");
+        logger.setSummary("Gagal: Header Tidak Lengkap");
+        ui.alert("Gagal", "Kolom 'Email' atau 'Drive File ID' tidak ditemukan di header.", ui.ButtonSet.OK);
+        return;
+      }
 
-    for (let r = 0; r < values.length; r++) {
-      const row = values[r];
-      const actualEmail = String(row[emailColIdx] || "").trim();
+      const dataRange = sheetPeserta.getRange(2, 1, lastRow - 1, lastCol);
+      const values = dataRange.getValues();
+      let fixedCount = 0;
 
-      // Deteksi apakah kolom email saat ini bukan berisi email (misal berisi link drive atau timestamp)
-      // DAN cari apakah email tersasar di kolom sebelumnya (misal kolom D atau E)
-      if (!actualEmail.includes("@")) {
-        let misplacedEmailIdx = -1;
-        let misplacedEmailVal = "";
+      for (let r = 0; r < values.length; r++) {
+        const row = values[r];
+        const actualEmail = String(row[emailColIdx] || "").trim();
 
-        for (let c = 2; c < lastCol; c++) {
-          const cellVal = String(row[c] || "").trim();
-          if (cellVal.includes("@") && cellVal.includes(".")) {
-            misplacedEmailIdx = c;
-            misplacedEmailVal = cellVal;
-            break;
+        // Deteksi apakah kolom email saat ini bukan berisi email (misal berisi link drive atau timestamp)
+        // DAN cari apakah email tersasar di kolom sebelumnya (misal kolom D atau E)
+        if (!actualEmail.includes("@")) {
+          let misplacedEmailIdx = -1;
+          let misplacedEmailVal = "";
+
+          for (let c = 2; c < lastCol; c++) {
+            const cellVal = String(row[c] || "").trim();
+            if (cellVal.includes("@") && cellVal.includes(".")) {
+              misplacedEmailIdx = c;
+              misplacedEmailVal = cellVal;
+              break;
+            }
+          }
+
+          if (misplacedEmailIdx !== -1 && misplacedEmailIdx !== emailColIdx) {
+            const misplacedFileId = String(row[misplacedEmailIdx + 1] || "").trim();
+            const misplacedFileUrl = String(row[misplacedEmailIdx + 2] || "").trim();
+            const misplacedRegTime = String(row[misplacedEmailIdx + 3] || "").trim();
+
+            // Pindahkan ke kolom yang benar
+            row[emailColIdx] = misplacedEmailVal;
+            if (fileIdColIdx !== -1 && misplacedFileId) row[fileIdColIdx] = misplacedFileId;
+            if (fileUrlColIdx !== -1 && misplacedFileUrl) row[fileUrlColIdx] = misplacedFileUrl;
+            if (regTimeColIdx !== -1 && misplacedRegTime) row[regTimeColIdx] = misplacedRegTime;
+
+            // Kosongkan kolom yang tadinya salah terisi jika posisinya sebelum kolom email
+            if (misplacedEmailIdx < emailColIdx) row[misplacedEmailIdx] = "";
+            if (misplacedEmailIdx + 1 < emailColIdx) row[misplacedEmailIdx + 1] = "";
+            if (misplacedEmailIdx + 2 < emailColIdx) row[misplacedEmailIdx + 2] = "";
+            if (misplacedEmailIdx + 3 < emailColIdx) row[misplacedEmailIdx + 3] = "";
+
+            // Pastikan formula Total Hadir di kolom C
+            const rowNum = r + 2;
+            row[2] = `=IF(A${rowNum}=""; ""; COUNTIF(D${rowNum}:ZZ${rowNum}; "HADIR*"))`;
+
+            fixedCount++;
           }
         }
-
-        if (misplacedEmailIdx !== -1 && misplacedEmailIdx !== emailColIdx) {
-          const misplacedFileId = String(row[misplacedEmailIdx + 1] || "").trim();
-          const misplacedFileUrl = String(row[misplacedEmailIdx + 2] || "").trim();
-          const misplacedRegTime = String(row[misplacedEmailIdx + 3] || "").trim();
-
-          // Pindahkan ke kolom yang benar
-          row[emailColIdx] = misplacedEmailVal;
-          if (fileIdColIdx !== -1 && misplacedFileId) row[fileIdColIdx] = misplacedFileId;
-          if (fileUrlColIdx !== -1 && misplacedFileUrl) row[fileUrlColIdx] = misplacedFileUrl;
-          if (regTimeColIdx !== -1 && misplacedRegTime) row[regTimeColIdx] = misplacedRegTime;
-
-          // Kosongkan kolom yang tadinya salah terisi jika posisinya sebelum kolom email
-          if (misplacedEmailIdx < emailColIdx) row[misplacedEmailIdx] = "";
-          if (misplacedEmailIdx + 1 < emailColIdx) row[misplacedEmailIdx + 1] = "";
-          if (misplacedEmailIdx + 2 < emailColIdx) row[misplacedEmailIdx + 2] = "";
-          if (misplacedEmailIdx + 3 < emailColIdx) row[misplacedEmailIdx + 3] = "";
-
-          // Pastikan formula Total Hadir di kolom C
-          const rowNum = r + 2;
-          row[2] = `=IF(A${rowNum}=""; ""; COUNTIF(D${rowNum}:ZZ${rowNum}; "HADIR*"))`;
-
-          fixedCount++;
-        }
       }
-    }
 
-    if (fixedCount > 0) {
-      dataRange.setValues(values);
-      ui.alert("Berhasil Merapikan Data!", `✅ Sebanyak ${fixedCount} baris data peserta yang bergeser berhasil dirapikan kembali ke kolom aslinya.`, ui.ButtonSet.OK);
-    } else {
-      ui.alert("Data Sudah Rapi", "Seluruh baris peserta sudah berada di kolom yang sesuai.", ui.ButtonSet.OK);
+      if (fixedCount > 0) {
+        dataRange.setValues(values);
+        logger.setSummary(`Dirapikan: ${fixedCount} baris`);
+        logger.success(`Successfully fixed ${fixedCount} shifted participant rows`);
+        ui.alert("Berhasil Merapikan Data!", `✅ Sebanyak ${fixedCount} baris data peserta yang bergeser berhasil dirapikan kembali ke kolom aslinya.`, ui.ButtonSet.OK);
+      } else {
+        logger.setSummary("Data Sudah Rapi");
+        logger.info("All rows already aligned with headers");
+        ui.alert("Data Sudah Rapi", "Seluruh baris peserta sudah berada di kolom yang sesuai.", ui.ButtonSet.OK);
+      }
+    } catch (err) {
+      logger.error("fixShiftedParticipantRows error: " + err.message);
+      logger.setSummary("Gagal: " + err.message);
+      ui.alert("Gagal", "Terjadi kesalahan: " + err.message, ui.ButtonSet.OK);
+    } finally {
+      logger.flush();
     }
   }
 
@@ -2904,7 +2989,7 @@ const CONFIG = {
         cfg.ENABLED = true;
       }
     } catch (e) {
-      Logger.log("getExternalSyncConfig notice: " + e.message);
+      sysLog.info("getExternalSyncConfig notice: " + e.message);
     }
     return cfg;
   }
@@ -2937,7 +3022,7 @@ const CONFIG = {
     const rawId = cfg.SPREADSHEET_ID || "";
     const targetSpreadsheetId = extractSpreadsheetId(rawId);
     if (!targetSpreadsheetId) {
-      Logger.log("[EXTERNAL SYNC] Diaktifkan tapi SPREADSHEET_ID masih kosong.");
+      sysLog.warn("[EXTERNAL SYNC] Diaktifkan tapi SPREADSHEET_ID masih kosong.");
       return;
     }
 
@@ -3083,10 +3168,10 @@ const CONFIG = {
       if (rowsToAppend.length > 0) {
         const startRow = targetSheet.getLastRow() + 1;
         targetSheet.getRange(startRow, 1, rowsToAppend.length, targetHeaders.length).setValues(rowsToAppend);
-        Logger.log(`[EXTERNAL SYNC] Berhasil mengirim ${rowsToAppend.length} baris log ke '${targetSheetName}'`);
+        sysLog.success(`[EXTERNAL SYNC] Berhasil mengirim ${rowsToAppend.length} baris log ke '${targetSheetName}'`);
       }
     } catch (err) {
-      Logger.log(`[EXTERNAL SYNC ERROR] Gagal sync ke spreadsheet eksternal: ${err.message}`);
+      sysLog.error(`[EXTERNAL SYNC ERROR] Gagal sync ke spreadsheet eksternal: ${err.message}`);
     }
   }
 
@@ -3109,9 +3194,16 @@ const CONFIG = {
       return;
     }
 
+    let adminUser = "-";
+    try { adminUser = Session.getActiveUser().getEmail() || "Admin"; } catch (e) {}
+    const logger = new ExecutionLogger("testExternalSync", { user: adminUser, action: "testExternalSpreadsheetSync" });
+
     try {
+      logger.info(`Testing connection to target spreadsheet ID: ${spreadsheetId}`);
       const targetSs = SpreadsheetApp.openById(spreadsheetId);
       const targetTitle = targetSs.getName();
+      logger.info(`Successfully opened spreadsheet: "${targetTitle}"`);
+
       const sheetPeserta = getOrCreateSheet(CONFIG.SHEETS.DATA_PESERTA);
       const pHeaders = sheetPeserta.getRange(1, 1, 1, Math.max(1, sheetPeserta.getLastColumn())).getValues()[0];
 
@@ -3134,6 +3226,9 @@ const CONFIG = {
         notes: "Baris uji coba integrasi log realtime dengan profil lengkap"
       }, sampleRow, pHeaders);
 
+      logger.setSummary(`Koneksi Sukses: "${targetTitle}"`);
+      logger.success("Test row successfully dispatched to external spreadsheet");
+
       ui.alert(
         "✅ Koneksi Berhasil!",
         `Berhasil terhubung ke spreadsheet:\n"${targetTitle}"\n\n` +
@@ -3141,12 +3236,16 @@ const CONFIG = {
         ui.ButtonSet.OK
       );
     } catch (err) {
+      logger.error("testExternalSpreadsheetSync error: " + err.message);
+      logger.setSummary("Koneksi Gagal: " + err.message);
       ui.alert(
         "❌ Gagal Terhubung",
         `Gagal mengakses spreadsheet target (${spreadsheetId}):\n\n${err.message}\n\n` +
         "Pastikan:\n1. ID atau Link URL spreadsheet sudah benar.\n2. Akun Google Anda memiliki akses Edit ke spreadsheet target tersebut.",
         ui.ButtonSet.OK
       );
+    } finally {
+      logger.flush();
     }
   }
 
