@@ -104,6 +104,9 @@ window.EventPass = window.EventPass || {};
           localStorage.setItem("absen_scan_mode", "IN");
           ns.UI.updateScanModeUI();
           ns.UI.showToast("Mode aktif: Check-In (Masuk) 🟢");
+          if (DOM.inputManualSearch && DOM.inputManualSearch.value.trim()) {
+            this.performSearch();
+          }
         });
       }
       if (DOM.btnModeOut) {
@@ -111,7 +114,10 @@ window.EventPass = window.EventPass || {};
           ns.state.currentScanMode = "OUT";
           localStorage.setItem("absen_scan_mode", "OUT");
           ns.UI.updateScanModeUI();
-          ns.UI.showToast("Mode aktif: Check-Out (Keluar) 🔴");
+          ns.UI.showToast("Mode aktif: Check-Out (Keluar) 🟠");
+          if (DOM.inputManualSearch && DOM.inputManualSearch.value.trim()) {
+            this.performSearch();
+          }
         });
       }
 
@@ -1067,6 +1073,10 @@ window.EventPass = window.EventPass || {};
         isAnomaly: !!isAnomaly,
         anomalyReason: anomalyReason || ""
       });
+
+      ns.UI.removeSearchResultItem(rawTicketId);
+      if (ns.DOM.inputManualId) ns.DOM.inputManualId.value = "";
+      this.finishProcessing();
     },
 
     finishProcessing(sourceButton = null) {
@@ -1084,7 +1094,8 @@ window.EventPass = window.EventPass || {};
       if (sourceButton) {
         sourceButton.disabled = false;
         sourceButton.classList.remove("btn-loading");
-        sourceButton.innerHTML = `Check In`;
+        const isOut = (ns.state.currentScanMode === "OUT");
+        sourceButton.innerHTML = isOut ? `Check Out` : `Check In`;
       }
 
       if (ns.DOM.verifyingBox) ns.DOM.verifyingBox.style.display = "none";
@@ -1159,6 +1170,9 @@ window.EventPass = window.EventPass || {};
           localStorage.setItem("absen_cached_attendees", JSON.stringify(ns.state.cachedAttendees));
         } catch (e) { }
         if (ns.Sync) ns.Sync.updateCacheCountUI();
+
+        ns.UI.removeSearchResultItem(scannedTicketId);
+        if (ns.DOM.inputManualId) ns.DOM.inputManualId.value = "";
 
       } else if (res.status === "ALREADY_CHECKED_IN" || res.status === "ALREADY_CHECKED_OUT") {
         ns.sounds.playWarning();

@@ -232,6 +232,7 @@ window.EventPass = window.EventPass || {};
     previewLocation: document.getElementById("cfg-location-info-preview"),
 
     // Manual Tab
+    manualSectionTitle: document.getElementById("manual-section-title"),
     inputManualId: document.getElementById("manual-ticket-id"),
     btnManualCheckin: document.getElementById("btn-manual-checkin"),
     inputManualSearch: document.getElementById("manual-search-query"),

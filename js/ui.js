@@ -6,7 +6,7 @@
 
 window.EventPass = window.EventPass || {};
 
-(function(ns) {
+(function (ns) {
   'use strict';
 
   ns.UI = {
@@ -135,6 +135,22 @@ window.EventPass = window.EventPass || {};
         ns.DOM.btnModeOut.setAttribute("aria-checked", isActive ? "true" : "false");
       }
 
+      // Update Manual Tab labels & button
+      if (ns.DOM.btnManualCheckin) {
+        if (isInOut && mode === "OUT") {
+          ns.DOM.btnManualCheckin.textContent = "Check Out";
+          ns.DOM.btnManualCheckin.style.background = "#d97706";
+          ns.DOM.btnManualCheckin.style.borderColor = "#b45309";
+        } else {
+          ns.DOM.btnManualCheckin.textContent = "Check In";
+          ns.DOM.btnManualCheckin.style.background = "";
+          ns.DOM.btnManualCheckin.style.borderColor = "";
+        }
+      }
+      if (ns.DOM.manualSectionTitle) {
+        ns.DOM.manualSectionTitle.textContent = (isInOut && mode === "OUT") ? "Manual Check-Out" : "Manual Check-In";
+      }
+
       // Update status message if not currently processing
       if (!ns.state.isProcessing) {
         if (isInOut && mode === "OUT") {
@@ -166,7 +182,7 @@ window.EventPass = window.EventPass || {};
 
     showResultModal(data) {
       ns.DOM.resultBanner.className = `result-banner ${data.type}`;
-      
+
       if (data.type === "success") {
         ns.DOM.resultIcon.innerHTML = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
       } else if (data.type === "warning") {
@@ -220,9 +236,9 @@ window.EventPass = window.EventPass || {};
 
     openOperatorModal(options = {}) {
       if (!ns.DOM.operatorModal) return;
-      
+
       const isForced = Boolean(options.force) || (!ns.state.panitiaName || !ns.state.panitiaName.trim());
-      
+
       if (ns.DOM.inputOpName) {
         ns.DOM.inputOpName.value = ns.state.panitiaName || "";
         ns.DOM.inputOpName.classList.remove("error-highlight");
@@ -626,19 +642,98 @@ window.EventPass = window.EventPass || {};
       });
     },
 
+    /**
+     * Smoothly animate and remove a checked-in attendee card from search results
+     */
+    removeSearchResultItem(ticketId) {
+      if (!ns.DOM.searchResultsList) return;
+      const cleanId = String(ticketId || "").trim();
+      const upperId = cleanId.toUpperCase();
+      const itemEl = ns.DOM.searchResultsList.querySelector(`[data-ticket="${cleanId}"]`) || 
+                     ns.DOM.searchResultsList.querySelector(`[data-ticket="${upperId}"]`) ||
+                     document.getElementById(`search-item-${cleanId}`) ||
+                     document.getElementById(`search-item-${upperId}`);
+      if (itemEl) {
+        itemEl.classList.add("item-completed");
+        setTimeout(() => {
+          if (itemEl.parentNode) itemEl.remove();
+          const remainingItems = ns.DOM.searchResultsList.querySelectorAll(".search-result-item");
+          if (remainingItems.length === 0) {
+            ns.DOM.searchResultsList.innerHTML = `
+              <div class="search-empty-state" style="text-align: center; color: var(--primary); padding: 16px; background: rgba(30, 86, 49, 0.06); border-radius: var(--radius-md); font-size: 13px; font-weight: 500; border: 1px dashed rgba(30, 86, 49, 0.25);">
+                ✓ Presensi berhasil dicatat. Layar siap untuk pencarian berikutnya.
+              </div>
+            `;
+            if (ns.DOM.inputManualSearch) {
+              ns.DOM.inputManualSearch.value = "";
+              ns.DOM.inputManualSearch.focus();
+            }
+          }
+        }, 350);
+      }
+    },
+
     renderSearchResults(results, query) {
       if (!ns.DOM.searchResultsList) return;
 
       if (results && results.length > 0) {
         ns.DOM.searchResultsList.innerHTML = "";
+
+        const current = (ns.state.sessions || []).find(s => s.id === ns.state.currentSessionId);
+        const isInOut = (current && current.type === "CHECK_IN_OUT");
+        const mode = isInOut ? (ns.state.currentScanMode || "IN") : "IN";
+        const isOut = (mode === "OUT");
+        const currentSessId = ns.state.currentSessionId || "SESI-01";
+        const inSessId = `${currentSessId}_IN`;
+        const outSessId = `${currentSessId}_OUT`;
+
         results.forEach(item => {
           const div = document.createElement("div");
           div.className = "search-result-item";
-          
-          const isHadir = item.status === "HADIR";
-          const statusBadge = isHadir 
-            ? `<span class="badge badge-warning">Sudah Hadir</span>` 
-            : `<span class="badge badge-success">Belum Hadir</span>`;
+          const uId = String(item.ticketId || "").toUpperCase().trim();
+          div.id = `search-item-${uId}`;
+          div.setAttribute("data-ticket", uId);
+
+          const cached = ns.state.cachedAttendees ? ns.state.cachedAttendees[uId] : null;
+
+          // Cek apakah sudah pernah check-in atau check-out
+          const hasIn = Boolean(
+            (item.status === "HADIR") ||
+            (cached && cached.checkedInSessions && (cached.checkedInSessions[inSessId] || cached.checkedInSessions[currentSessId])) ||
+            (ns.state.syncQueue && ns.state.syncQueue.some(q => String(q.ticketId).toUpperCase() === uId && (q.sessionId === inSessId || q.sessionId === currentSessId) && !q.isDuplicate))
+          );
+
+          const hasOut = Boolean(
+            (item.status === "CHECKOUT") ||
+            (cached && cached.checkedInSessions && cached.checkedInSessions[outSessId]) ||
+            (ns.state.syncQueue && ns.state.syncQueue.some(q => String(q.ticketId).toUpperCase() === uId && q.sessionId === outSessId && !q.isDuplicate))
+          );
+
+          let statusBadge = "";
+          let actionBtnHtml = "";
+
+          if (isOut) {
+            // Mode Check-Out
+            if (hasOut) {
+              statusBadge = `<span class="badge badge-warning">Sudah Check-Out</span>`;
+              actionBtnHtml = `<button class="btn-checkin-sm btn-disabled" disabled>Sudah Keluar</button>`;
+            } else if (hasIn) {
+              statusBadge = `<span class="badge badge-success">Sudah Check-In</span>`;
+              actionBtnHtml = `<button class="btn-checkin-sm btn-checkout-action" data-id="${ns.escapeHtml(item.ticketId)}">Check Out</button>`;
+            } else {
+              statusBadge = `<span class="badge badge-error">Belum Hadir</span>`;
+              actionBtnHtml = `<button class="btn-checkin-sm btn-checkout-action" data-id="${ns.escapeHtml(item.ticketId)}" title="Konfirmasi Checkout tanpa Check-In">Check Out</button>`;
+            }
+          } else {
+            // Mode Check-In / Single
+            if (hasIn) {
+              statusBadge = `<span class="badge badge-warning">Sudah Hadir</span>`;
+              actionBtnHtml = `<button class="btn-checkin-sm btn-disabled" disabled>Sudah Hadir</button>`;
+            } else {
+              statusBadge = `<span class="badge badge-success">Belum Hadir</span>`;
+              actionBtnHtml = `<button class="btn-checkin-sm" data-id="${ns.escapeHtml(item.ticketId)}">Check In</button>`;
+            }
+          }
 
           div.innerHTML = `
             <div>
@@ -646,15 +741,13 @@ window.EventPass = window.EventPass || {};
               <div class="attendee-sub">${ns.escapeHtml(item.ticketId)} • ${ns.escapeHtml(item.email)}</div>
             </div>
             <div>
-              <button class="btn-checkin-sm" data-id="${ns.escapeHtml(item.ticketId)}">
-                ${isHadir ? "Cek Status" : "Check In"}
-              </button>
+              ${actionBtnHtml}
             </div>
           `;
           ns.DOM.searchResultsList.appendChild(div);
         });
 
-        ns.DOM.searchResultsList.querySelectorAll(".btn-checkin-sm").forEach(btn => {
+        ns.DOM.searchResultsList.querySelectorAll(".btn-checkin-sm:not(.btn-disabled)").forEach(btn => {
           btn.addEventListener("click", (e) => {
             const tId = e.currentTarget.getAttribute("data-id");
             ns.App.processCheckIn(tId, e.currentTarget);
