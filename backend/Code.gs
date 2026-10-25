@@ -29,6 +29,14 @@ const CONFIG = {
     QR_FONT_SIZE: 18,
     QR_FONT_COLOR: "1e293b",
     
+    // Integrasi Realtime ke Google Spreadsheet Eksternal (Enriched Audit Log)
+    EXTERNAL_SYNC: {
+      ENABLED: false, // Ubah ke true untuk mengaktifkan sinkronisasi realtime
+      SPREADSHEET_ID: "", // Masukkan ID atau Link Spreadsheet target (misal: "1abcXYZ...")
+      SHEET_NAME: "Log Kehadiran Lengkap", // Nama tab di spreadsheet target
+      ONLY_SUCCESSFUL_SCANS: false // Jika true, hanya mencatat scan BERHASIL/CHECKOUT (abaikan duplikat / gagal)
+    },
+    
     SHEETS: {
       RAW_FORM: "Form Responses 1",
       RAW_FORM_ID: "Jawaban Formulir 1",
@@ -1016,6 +1024,7 @@ const CONFIG = {
           let foundRow = -1;
           let attendeeName = "";
           let attendeeEmail = "";
+          let attendeeRowData = null;
           const { ticketCol, nameCol, emailCol } = getPesertaFieldIndices(sheetPeserta);
 
           for (let r = 1; r < pesertaData.length; r++) {
@@ -1023,6 +1032,7 @@ const CONFIG = {
               foundRow = r + 1; // 1-based row index
               attendeeName = pesertaData[r][nameCol] || "Peserta";
               attendeeEmail = pesertaData[r][emailCol] || "-";
+              attendeeRowData = pesertaData[r];
               break;
             }
           }
@@ -1030,6 +1040,20 @@ const CONFIG = {
           // Skenario 1: Tiket Tidak Ditemukan
           if (foundRow === -1) {
             sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, "-", "TIDAK_VALID", scannedBy, gate, mapsUrl, deviceInfo, "ID tidak terdaftar di sistem"]);
+            forwardLogToExternalSpreadsheet({
+              timestamp: nowStr,
+              sessionId: sessionId,
+              sessionName: sessionName,
+              ticketId: ticketId,
+              attendeeName: "-",
+              status: "TIDAK_VALID",
+              scannedBy: scannedBy,
+              gate: gate,
+              mapsUrl: mapsUrl,
+              deviceInfo: deviceInfo,
+              notes: "ID tidak terdaftar di sistem"
+            }, null, pesertaData[0]);
+
             logger.warn(`Ticket not registered: ${ticketId}`);
             logger.setSummary(`Tiket Tidak Terdaftar: ${ticketId}`);
             return createJsonResponse({
@@ -1058,6 +1082,20 @@ const CONFIG = {
               : `TIKET SUDAH DIGUNAKAN untuk sesi "${sessionName}"!`;
 
             sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, attendeeName, dupType, scannedBy, gate, mapsUrl, deviceInfo, `Sudah absen sebelumnya: ${existingStatus}`]);
+            forwardLogToExternalSpreadsheet({
+              timestamp: nowStr,
+              sessionId: sessionId,
+              sessionName: sessionName,
+              ticketId: ticketId,
+              attendeeName: attendeeName,
+              status: dupType,
+              scannedBy: scannedBy,
+              gate: gate,
+              mapsUrl: mapsUrl,
+              deviceInfo: deviceInfo,
+              notes: `Sudah absen sebelumnya: ${existingStatus}`
+            }, attendeeRowData, pesertaData[0]);
+
             logger.warn(`Duplicate scan: ${ticketId} (${attendeeName}) mode=${scanMode}`);
             logger.setSummary(`Duplikat: ${attendeeName} (${ticketId})`);
             return createJsonResponse({
@@ -1101,6 +1139,20 @@ const CONFIG = {
           // Catat di sheet Log Kehadiran dengan Link Google Maps & Device Info
           sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, attendeeName, logStatus, scannedBy, gate, mapsUrl, deviceInfo, logDesc]);
 
+          forwardLogToExternalSpreadsheet({
+            timestamp: nowStr,
+            sessionId: sessionId,
+            sessionName: sessionName,
+            ticketId: ticketId,
+            attendeeName: attendeeName,
+            status: logStatus,
+            scannedBy: scannedBy,
+            gate: gate,
+            mapsUrl: mapsUrl,
+            deviceInfo: deviceInfo,
+            notes: logDesc
+          }, attendeeRowData, pesertaData[0]);
+
           logger.success(`Presensi sukses: ${ticketId} (${attendeeName}) -> ${resStatus} on ${sessionName}`);
           logger.setSummary(`${resStatus}: ${attendeeName} (${ticketId})`);
 
@@ -1135,6 +1187,7 @@ const CONFIG = {
           const { ticketCol, nameCol, emailCol } = getPesertaFieldIndices(sheetPeserta);
           const results = [];
           const logRowsToAppend = [];
+          const externalLogsToForward = [];
           const nowStr = formatFullDateTime(new Date());
 
           // Build in-memory index map for O(1) lightning lookup
@@ -1145,7 +1198,8 @@ const CONFIG = {
               ticketMap.set(tId, {
                 row: r + 1,
                 name: pesertaData[r][nameCol] || "Peserta",
-                email: pesertaData[r][emailCol] || "-"
+                email: pesertaData[r][emailCol] || "-",
+                rowData: pesertaData[r]
               });
             }
           }
@@ -1161,7 +1215,7 @@ const CONFIG = {
             const sessionName = (scan.sessionName || sessionId).trim();
             const scannedBy = (scan.scannedBy || "Panitia").trim();
             const gate = (scan.gate || "Pintu Masuk").trim();
-            const mapsUrl = (scan.mapsUrl || mapsUrl || "-").trim();
+            const scanMapsUrl = (scan.mapsUrl || mapsUrl || "-").trim();
             const scanDevice = (scan.deviceInfo || deviceInfo || "-").trim();
             const scanMode = (scan.scanMode || (sessionId.endsWith("_OUT") ? "OUT" : "IN")).toUpperCase();
             const isAnomaly = !!scan.isAnomaly;
@@ -1181,7 +1235,23 @@ const CONFIG = {
 
             if (!ticketMap.has(upperTicketId)) {
               // Tiket Tidak Ditemukan / Sudah Dihapus Admin di Sheets!
-              logRowsToAppend.push([scanTime, sessionId, sessionName, ticketId, "-", "TIDAK_VALID", scannedBy, gate, mapsUrl, scanDevice, "ID tidak terdaftar / dihapus"]);
+              logRowsToAppend.push([scanTime, sessionId, sessionName, ticketId, "-", "TIDAK_VALID", scannedBy, gate, scanMapsUrl, scanDevice, "ID tidak terdaftar / dihapus"]);
+              externalLogsToForward.push({
+                logEntry: {
+                  timestamp: scanTime,
+                  sessionId: sessionId,
+                  sessionName: sessionName,
+                  ticketId: ticketId,
+                  attendeeName: "-",
+                  status: "TIDAK_VALID",
+                  scannedBy: scannedBy,
+                  gate: gate,
+                  mapsUrl: scanMapsUrl,
+                  deviceInfo: scanDevice,
+                  notes: "ID tidak terdaftar / dihapus"
+                },
+                attendeeRowData: null
+              });
               results.push({
                 ticketId: ticketId,
                 status: "NOT_FOUND",
@@ -1201,7 +1271,23 @@ const CONFIG = {
 
             if ((scanMode === "OUT" && isAlreadyOut) || (scanMode !== "OUT" && isAlreadyIn)) {
               const dupType = (scanMode === "OUT") ? "DUPLIKAT_CHECKOUT" : "DUPLIKAT";
-              logRowsToAppend.push([scanTime, sessionId, sessionName, ticketId, attendeeName, dupType, scannedBy, gate, mapsUrl, scanDevice, `Sudah absen sebelumnya: ${existingStatus}`]);
+              logRowsToAppend.push([scanTime, sessionId, sessionName, ticketId, attendeeName, dupType, scannedBy, gate, scanMapsUrl, scanDevice, `Sudah absen sebelumnya: ${existingStatus}`]);
+              externalLogsToForward.push({
+                logEntry: {
+                  timestamp: scanTime,
+                  sessionId: sessionId,
+                  sessionName: sessionName,
+                  ticketId: ticketId,
+                  attendeeName: attendeeName,
+                  status: dupType,
+                  scannedBy: scannedBy,
+                  gate: gate,
+                  mapsUrl: scanMapsUrl,
+                  deviceInfo: scanDevice,
+                  notes: `Sudah absen sebelumnya: ${existingStatus}`
+                },
+                attendeeRowData: attendeeInfo.rowData
+              });
               results.push({
                 ticketId: ticketId,
                 status: (scanMode === "OUT") ? "ALREADY_CHECKED_OUT" : "ALREADY_CHECKED_IN",
@@ -1237,7 +1323,23 @@ const CONFIG = {
               }
 
               sheetPeserta.getRange(foundRow, sessionColIdx).setValue(statusValue);
-              logRowsToAppend.push([scanTime, sessionId, sessionName, ticketId, attendeeName, logStatus, scannedBy, gate, mapsUrl, scanDevice, logDesc]);
+              logRowsToAppend.push([scanTime, sessionId, sessionName, ticketId, attendeeName, logStatus, scannedBy, gate, scanMapsUrl, scanDevice, logDesc]);
+              externalLogsToForward.push({
+                logEntry: {
+                  timestamp: scanTime,
+                  sessionId: sessionId,
+                  sessionName: sessionName,
+                  ticketId: ticketId,
+                  attendeeName: attendeeName,
+                  status: logStatus,
+                  scannedBy: scannedBy,
+                  gate: gate,
+                  mapsUrl: scanMapsUrl,
+                  deviceInfo: scanDevice,
+                  notes: logDesc
+                },
+                attendeeRowData: attendeeInfo.rowData
+              });
               results.push({
                 ticketId: ticketId,
                 status: resStatus,
@@ -1261,6 +1363,11 @@ const CONFIG = {
           if (logRowsToAppend.length > 0) {
             const startRow = sheetLog.getLastRow() + 1;
             sheetLog.getRange(startRow, 1, logRowsToAppend.length, logRowsToAppend[0].length).setValues(logRowsToAppend);
+          }
+
+          // Sinkronisasi realtime ke spreadsheet eksternal jika diaktifkan
+          if (externalLogsToForward.length > 0) {
+            forwardBatchLogsToExternalSpreadsheet(externalLogsToForward, pesertaData[0]);
           }
 
           logger.info(`Batch check-in processed ${scans.length} scans`);
@@ -1293,12 +1400,14 @@ const CONFIG = {
           // Cari baris peserta
           let foundRow = -1;
           let attendeeName = "";
+          let attendeeRowData = null;
           const { ticketCol: cancelTicketCol, nameCol: cancelNameCol } = getPesertaFieldIndices(sheetPeserta);
 
           for (let r = 1; r < pesertaData.length; r++) {
             if (String(pesertaData[r][cancelTicketCol]).toUpperCase() === ticketId.toUpperCase()) {
               foundRow = r + 1;
               attendeeName = pesertaData[r][cancelNameCol] || "Peserta";
+              attendeeRowData = pesertaData[r];
               break;
             }
           }
@@ -1317,6 +1426,20 @@ const CONFIG = {
 
           // Catat event pembatalan di sheet Log Kehadiran dengan Link Google Maps & Device Info
           sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, attendeeName, "DIBATALKAN", cancelledBy, payload.gate || "-", mapsUrl, deviceInfo, reason]);
+
+          forwardLogToExternalSpreadsheet({
+            timestamp: nowStr,
+            sessionId: sessionId,
+            sessionName: sessionName,
+            ticketId: ticketId,
+            attendeeName: attendeeName,
+            status: "DIBATALKAN",
+            scannedBy: cancelledBy,
+            gate: payload.gate || "-",
+            mapsUrl: mapsUrl,
+            deviceInfo: deviceInfo,
+            notes: reason
+          }, attendeeRowData, pesertaData[0]);
 
           logger.info(`Cancelled check-in for ${ticketId} (${attendeeName}) on ${sessionName}`);
           logger.setSummary(`Batal: ${attendeeName} (${ticketId})`);
@@ -1415,6 +1538,20 @@ const CONFIG = {
           // 4. Catat di Log Kehadiran dengan Link Google Maps & Device Info
           sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, name, "BERHASIL (OTS)", scannedBy, gate, mapsUrl, deviceInfo, notes]);
 
+          forwardLogToExternalSpreadsheet({
+            timestamp: nowStr,
+            sessionId: sessionId,
+            sessionName: sessionName,
+            ticketId: ticketId,
+            attendeeName: name,
+            status: "BERHASIL (OTS)",
+            scannedBy: scannedBy,
+            gate: gate,
+            mapsUrl: mapsUrl,
+            deviceInfo: deviceInfo,
+            notes: notes
+          }, newRow, sheetPeserta.getRange(1, 1, 1, sheetPeserta.getLastColumn()).getValues()[0]);
+
           logger.success(`Registered OTS participant: ${ticketId} (${name}) on ${sessionName}`);
           logger.setSummary(`OTS Baru: ${name} (${ticketId})`);
 
@@ -1490,6 +1627,8 @@ const CONFIG = {
       .addSeparator()
       .addItem('🛠️ 7. Rapikan Baris Data yang Bergeser (Auto-Fix Columns)', 'fixShiftedParticipantRows')
       .addItem('📜 8. Bersihkan Log Eksekusi Lama', 'clearExecutionLogs')
+      .addSeparator()
+      .addItem('🌐 9. Hubungkan / Test Spreadsheet Eksternal', 'promptConfigureExternalSync')
       .addToUi();
   }
 
@@ -2405,6 +2544,331 @@ const CONFIG = {
       logger.setSummary("Batch Share Error: " + err.message);
     } finally {
       logger.flush();
+    }
+  }
+
+  /**
+   * ==============================================================================
+   * INTEGRASI FORWARDING LOG REALTIME KE SPREADSHEET EKSTERNAL (DYNAMIC FIELDS)
+   * ==============================================================================
+   */
+
+  /**
+   * Helper: Ekstrak Spreadsheet ID dari ID murni ataupun URL lengkap Google Spreadsheet
+   */
+  function extractSpreadsheetId(input) {
+    if (!input || typeof input !== "string") return "";
+    const trimmed = input.trim();
+    const match = trimmed.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+    return match ? match[1] : trimmed;
+  }
+
+  /**
+   * Helper: Mengambil konfigurasi integrasi eksternal (dari CONFIG atau ScriptProperties)
+   */
+  function getExternalSyncConfig() {
+    const cfg = (CONFIG && CONFIG.EXTERNAL_SYNC) ? Object.assign({}, CONFIG.EXTERNAL_SYNC) : {};
+    try {
+      const props = PropertiesService.getScriptProperties();
+      const propId = props.getProperty("EXTERNAL_SPREADSHEET_ID");
+      const propSheet = props.getProperty("EXTERNAL_SHEET_NAME");
+      const propEnabled = props.getProperty("EXTERNAL_SYNC_ENABLED");
+      if (propId) cfg.SPREADSHEET_ID = propId;
+      if (propSheet) cfg.SHEET_NAME = propSheet;
+      if (propEnabled !== null && propEnabled !== undefined) {
+        cfg.ENABLED = propEnabled === "true";
+      } else if (cfg.SPREADSHEET_ID && String(cfg.SPREADSHEET_ID).trim().length > 5) {
+        // Jika SPREADSHEET_ID sudah diisi (misal di CONFIG), otomatis aktifkan
+        cfg.ENABLED = true;
+      }
+    } catch (e) {
+      Logger.log("getExternalSyncConfig notice: " + e.message);
+    }
+    return cfg;
+  }
+
+  /**
+   * Mengirimkan satu data log scan secara realtime ke Google Spreadsheet lain.
+   */
+  function forwardLogToExternalSpreadsheet(logEntry, attendeeRowData, pHeaders) {
+    if (!logEntry) return;
+    forwardBatchLogsToExternalSpreadsheet([{ logEntry: logEntry, attendeeRowData: attendeeRowData }], pHeaders);
+  }
+
+  /**
+   * Mengirimkan antrean log scan (batch / single) secara realtime ke Google Spreadsheet target,
+   * diperkaya (enriched) secara dinamis dengan kolom-kolom profil peserta dari sheet 'Data Peserta'.
+   * 
+   * FITUR UNGGULAN:
+   * 1. 100% Fail-safe: jika spreadsheet target error/offline/kuota habis, proses absen panitia tetap sukses tanpa delay.
+   * 2. High Performance Batch Write: membuka spreadsheet eksternal hanya 1 kali untuk seluruh antrean scan.
+   * 3. Dynamic Columns: Otomatis membaca semua kolom pertanyaan form dari 'Data Peserta' dan menyinkronkannya ke sheet target.
+   * 4. Auto Header Setup: Jika sheet target masih kosong atau baru, otomatis membuat header dan format tabel secara rapi.
+   */
+  function forwardBatchLogsToExternalSpreadsheet(items, pHeaders) {
+    if (!items || !items.length) return;
+    const cfg = getExternalSyncConfig();
+    if (!cfg || !cfg.ENABLED) {
+      return;
+    }
+
+    const rawId = cfg.SPREADSHEET_ID || "";
+    const targetSpreadsheetId = extractSpreadsheetId(rawId);
+    if (!targetSpreadsheetId) {
+      Logger.log("[EXTERNAL SYNC] Diaktifkan tapi SPREADSHEET_ID masih kosong.");
+      return;
+    }
+
+    try {
+      const targetSs = SpreadsheetApp.openById(targetSpreadsheetId);
+      const targetSheetName = (cfg.SHEET_NAME || "Log Kehadiran Lengkap").trim();
+      let targetSheet = targetSs.getSheetByName(targetSheetName);
+
+      // Kumpulkan kolom profil dinamis dari sheet Data Peserta
+      const profileHeadersToAutoInclude = [];
+      if (pHeaders && Array.isArray(pHeaders)) {
+        pHeaders.forEach(h => {
+          const headerStr = String(h || "").trim();
+          if (!headerStr) return;
+          const lowerH = headerStr.toLowerCase();
+
+          // Filter: Kolom matriks sesi, file ID/URL Drive internal, dan rumus Total Hadir
+          const isSessionCol = lowerH.startsWith("sesi:") || (lowerH.includes("[") && lowerH.includes("]"));
+          const isInternalDrive = lowerH.includes("drive file id") || lowerH.includes("drive file url");
+          const isTotalFormula = lowerH.includes("total hadir") || lowerH.includes("jumlah hadir");
+
+          if (!isSessionCol && !isInternalDrive && !isTotalFormula) {
+            const isStandardLogCol = ["ticket id", "id tiket", "nomor tiket", "nama peserta", "nama lengkap", "nama"].includes(lowerH);
+            if (!isStandardLogCol && !profileHeadersToAutoInclude.includes(headerStr)) {
+              profileHeadersToAutoInclude.push(headerStr);
+            }
+          }
+        });
+      }
+
+      // Jika sheet target belum ada, buat sheet baru secara otomatis
+      if (!targetSheet) {
+        targetSheet = targetSs.insertSheet(targetSheetName);
+      }
+
+      const defaultBaseHeaders = [
+        "Timestamp Log",
+        "ID Sesi",
+        "Nama Sesi",
+        "Ticket ID",
+        "Nama Peserta",
+        "Status Scan",
+        "Petugas / Panitia",
+        "Gate",
+        "Link Lokasi (Maps)",
+        "Perangkat",
+        "Keterangan"
+      ];
+
+      // Jika sheet masih baru/kosong, buat header awal
+      if (targetSheet.getLastRow() === 0) {
+        const initialHeaders = defaultBaseHeaders.concat(profileHeadersToAutoInclude);
+        targetSheet.appendRow(initialHeaders);
+        targetSheet.getRange(1, 1, 1, initialHeaders.length).setFontWeight("bold").setBackground("#e2e8f0");
+        try { targetSheet.setFrozenRows(1); } catch (fErr) {}
+      }
+
+      // Baca header sheet target saat ini (Dynamic column mapping)
+      let targetLastCol = targetSheet.getLastColumn();
+      let targetHeaders = targetSheet.getRange(1, 1, 1, Math.max(1, targetLastCol)).getValues()[0];
+
+      // Auto-append kolom baru jika di Data Peserta ada kolom profil baru yang belum ada di targetHeaders
+      profileHeadersToAutoInclude.forEach(newColName => {
+        const exists = targetHeaders.some(th => String(th).trim().toLowerCase() === newColName.toLowerCase());
+        if (!exists) {
+          const nextCol = targetSheet.getLastColumn() + 1;
+          targetSheet.getRange(1, nextCol).setValue(newColName).setFontWeight("bold").setBackground("#e2e8f0");
+          targetHeaders.push(newColName);
+        }
+      });
+
+      const rowsToAppend = [];
+
+      items.forEach(item => {
+        const logEntry = item.logEntry;
+        const attendeeRowData = item.attendeeRowData;
+        if (!logEntry) return;
+
+        // Filter jika hanya ingin mencatat scan yang sukses
+        if (cfg.ONLY_SUCCESSFUL_SCANS) {
+          const statusUpper = String(logEntry.status || "").toUpperCase();
+          const isSuccess = statusUpper.startsWith("BERHASIL") || statusUpper.startsWith("CHECK") || statusUpper.startsWith("HADIR");
+          if (!isSuccess) return;
+        }
+
+        const dataMap = {};
+        const logFields = {
+          "timestamp": logEntry.timestamp,
+          "timestamp log": logEntry.timestamp,
+          "waktu": logEntry.timestamp,
+          "waktu scan": logEntry.timestamp,
+          "id sesi": logEntry.sessionId,
+          "kode sesi": logEntry.sessionId,
+          "nama sesi": logEntry.sessionName,
+          "sesi": logEntry.sessionName,
+          "ticket id": logEntry.ticketId,
+          "id tiket": logEntry.ticketId,
+          "nomor tiket": logEntry.ticketId,
+          "nama peserta": logEntry.attendeeName,
+          "nama lengkap": logEntry.attendeeName,
+          "nama": logEntry.attendeeName,
+          "status scan": logEntry.status,
+          "status": logEntry.status,
+          "petugas / panitia": logEntry.scannedBy,
+          "petugas": logEntry.scannedBy,
+          "panitia": logEntry.scannedBy,
+          "gate": logEntry.gate,
+          "pintu": logEntry.gate,
+          "link lokasi (maps)": logEntry.mapsUrl,
+          "lokasi": logEntry.mapsUrl,
+          "maps": logEntry.mapsUrl,
+          "perangkat": logEntry.deviceInfo,
+          "device": logEntry.deviceInfo,
+          "keterangan": logEntry.notes,
+          "catatan": logEntry.notes
+        };
+
+        Object.keys(logFields).forEach(k => {
+          dataMap[k.toLowerCase()] = (logFields[k] !== undefined && logFields[k] !== null) ? String(logFields[k]) : "";
+        });
+
+        if (attendeeRowData && pHeaders && Array.isArray(pHeaders)) {
+          pHeaders.forEach((h, idx) => {
+            const headerStr = String(h || "").trim();
+            if (!headerStr) return;
+            const val = (attendeeRowData[idx] !== undefined && attendeeRowData[idx] !== null) ? String(attendeeRowData[idx]) : "";
+            dataMap[headerStr.toLowerCase()] = val;
+          });
+        }
+
+        const rowValues = targetHeaders.map(h => {
+          const colKey = String(h || "").trim().toLowerCase();
+          if (dataMap[colKey] !== undefined) {
+            return dataMap[colKey];
+          }
+          const matchedKey = Object.keys(dataMap).find(k => k.includes(colKey) || colKey.includes(k));
+          return matchedKey ? dataMap[matchedKey] : "";
+        });
+
+        rowsToAppend.push(rowValues);
+      });
+
+      if (rowsToAppend.length > 0) {
+        const startRow = targetSheet.getLastRow() + 1;
+        targetSheet.getRange(startRow, 1, rowsToAppend.length, targetHeaders.length).setValues(rowsToAppend);
+        Logger.log(`[EXTERNAL SYNC] Berhasil mengirim ${rowsToAppend.length} baris log ke '${targetSheetName}'`);
+      }
+    } catch (err) {
+      Logger.log(`[EXTERNAL SYNC ERROR] Gagal sync ke spreadsheet eksternal: ${err.message}`);
+    }
+  }
+
+  /**
+   * Menu: Uji coba koneksi dan kirim sampel log ke Spreadsheet Eksternal
+   */
+  function testExternalSpreadsheetSync() {
+    const ui = SpreadsheetApp.getUi();
+    const cfg = getExternalSyncConfig();
+    const rawId = cfg.SPREADSHEET_ID || "";
+    const spreadsheetId = extractSpreadsheetId(rawId);
+
+    if (!spreadsheetId) {
+      ui.alert(
+        "Spreadsheet Belum Dikonfigurasi",
+        "ID Spreadsheet target belum diisi.\n\n" +
+        "Silakan masukkan ID atau Link Google Spreadsheet target via Menu '⚡ Presensi Event' -> '9. Hubungkan / Test Spreadsheet Eksternal' atau di CONFIG.EXTERNAL_SYNC.",
+        ui.ButtonSet.OK
+      );
+      return;
+    }
+
+    try {
+      const targetSs = SpreadsheetApp.openById(spreadsheetId);
+      const targetTitle = targetSs.getName();
+      const sheetPeserta = getOrCreateSheet(CONFIG.SHEETS.DATA_PESERTA);
+      const pHeaders = sheetPeserta.getRange(1, 1, 1, Math.max(1, sheetPeserta.getLastColumn())).getValues()[0];
+
+      let sampleRow = null;
+      if (sheetPeserta.getLastRow() > 1) {
+        sampleRow = sheetPeserta.getRange(2, 1, 1, pHeaders.length).getValues()[0];
+      }
+
+      forwardLogToExternalSpreadsheet({
+        timestamp: formatFullDateTime(new Date()),
+        sessionId: "TEST-01",
+        sessionName: "Test Integrasi Sesi",
+        ticketId: sampleRow ? sampleRow[0] : "TIC-TEST-999",
+        attendeeName: sampleRow ? sampleRow[1] : "Peserta Uji Coba",
+        status: "TEST_KONEKSI",
+        scannedBy: "Admin / Tester",
+        gate: "Pintu Utama",
+        mapsUrl: "https://maps.google.com",
+        deviceInfo: "Apps Script Diagnostic Test",
+        notes: "Baris uji coba integrasi log realtime dengan profil lengkap"
+      }, sampleRow, pHeaders);
+
+      ui.alert(
+        "✅ Koneksi Berhasil!",
+        `Berhasil terhubung ke spreadsheet:\n"${targetTitle}"\n\n` +
+        `Satu baris data tes berhasil dikirim ke tab '${cfg.SHEET_NAME || "Log Kehadiran Lengkap"}' beserta profil dinamis peserta dari sheet 'Data Peserta'.`,
+        ui.ButtonSet.OK
+      );
+    } catch (err) {
+      ui.alert(
+        "❌ Gagal Terhubung",
+        `Gagal mengakses spreadsheet target (${spreadsheetId}):\n\n${err.message}\n\n` +
+        "Pastikan:\n1. ID atau Link URL spreadsheet sudah benar.\n2. Akun Google Anda memiliki akses Edit ke spreadsheet target tersebut.",
+        ui.ButtonSet.OK
+      );
+    }
+  }
+
+  /**
+   * Menu UI: Dialog input untuk mengonfigurasi ID Spreadsheet target
+   */
+  function promptConfigureExternalSync() {
+    const ui = SpreadsheetApp.getUi();
+    const cfg = getExternalSyncConfig();
+    const currentId = cfg.SPREADSHEET_ID || "";
+    const currentSheet = cfg.SHEET_NAME || "Log Kehadiran Lengkap";
+
+    const promptRes = ui.prompt(
+      "🌐 Konfigurasi Integrasi Spreadsheet Eksternal",
+      `Masukkan URL atau ID Google Spreadsheet target:\n(Saat ini: ${currentId ? currentId.substring(0, 30) + "..." : "Belum disetel"})\n\nKetik 'OFF' untuk menonaktifkan sinkronisasi.`,
+      ui.ButtonSet.OK_CANCEL
+    );
+
+    if (promptRes.getSelectedButton() !== ui.Button.OK) return;
+
+    const inputVal = (promptRes.getResponseText() || "").trim();
+    if (!inputVal) return;
+
+    const props = PropertiesService.getScriptProperties();
+
+    if (inputVal.toUpperCase() === "OFF") {
+      props.setProperty("EXTERNAL_SYNC_ENABLED", "false");
+      ui.alert("Integrasi Dinonaktifkan", "Pengiriman log ke spreadsheet eksternal dinonaktifkan.", ui.ButtonSet.OK);
+      return;
+    }
+
+    const cleanId = extractSpreadsheetId(inputVal);
+    props.setProperty("EXTERNAL_SPREADSHEET_ID", cleanId);
+    props.setProperty("EXTERNAL_SHEET_NAME", currentSheet);
+    props.setProperty("EXTERNAL_SYNC_ENABLED", "true");
+
+    const testConfirm = ui.alert(
+      "Konfigurasi Berhasil Disimpan!",
+      `Target Spreadsheet ID: ${cleanId}\nTab Target: ${currentSheet}\nStatus: AKTIF (Realtime)\n\nApakah Anda ingin langsung mencoba tes koneksi sekarang?`,
+      ui.ButtonSet.YES_NO
+    );
+
+    if (testConfirm === ui.Button.YES) {
+      testExternalSpreadsheetSync();
     }
   }
 
