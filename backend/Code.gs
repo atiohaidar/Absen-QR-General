@@ -912,6 +912,68 @@ const CONFIG = {
   }
 
   /**
+   * Helper: Ambil daftar kolom dinamis (custom fields) dari sheet "Data Peserta".
+   * Mengecualikan kolom sistem: ID Tiket, Nama, Total Kehadiran, Kontak/Email, File ID, File URL, Tanggal, dan Kolom Sesi [SESI-XX].
+   * Mendeteksi otomatis dropdown validation jika ada di spreadsheet.
+   */
+  function getCustomFields(sheetPeserta) {
+    const lastCol = Math.max(1, sheetPeserta.getLastColumn());
+    const headers = sheetPeserta.getRange(1, 1, 1, lastCol).getValues()[0];
+    const customFields = [];
+
+    let validations = null;
+    try {
+      if (sheetPeserta.getLastRow() >= 2) {
+        validations = sheetPeserta.getRange(2, 1, 1, lastCol).getDataValidations()[0];
+      }
+    } catch (e) {
+      Logger.log("Validation read notice: " + e.message);
+    }
+
+    headers.forEach((h, idx) => {
+      const headerStr = String(h || "").trim();
+      const lower = headerStr.toLowerCase();
+      if (!headerStr) return;
+
+      const isTicket = lower.includes("ticket") || lower === "id" || lower.includes("id tiket");
+      const isName = lower.includes("nama");
+      const isTotal = lower.includes("total") || lower.includes("jumlah");
+      const isContact = lower.includes("email") || lower.includes("kontak") || lower.includes("no hp") || lower.includes("whatsapp");
+      const isDriveId = lower.includes("drive file id") || lower === "file id";
+      const isDriveUrl = lower.includes("drive file url") || lower === "file url";
+      const isTime = lower.includes("waktu") || lower === "timestamp" || lower.includes("tanggal");
+      const isSession = lower.startsWith("sesi:") || (lower.includes("[") && lower.includes("]"));
+
+      if (!isTicket && !isName && !isTotal && !isContact && !isDriveId && !isDriveUrl && !isTime && !isSession) {
+        let fieldType = "text";
+        let options = [];
+
+        if (validations && validations[idx]) {
+          try {
+            const rule = validations[idx];
+            if (rule && rule.getCriteriaType() === SpreadsheetApp.DataValidationCriteria.VALUE_IN_LIST) {
+              fieldType = "select";
+              options = rule.getCriteriaValues()[0] || [];
+            }
+          } catch (err) {
+            Logger.log("Validation parse error: " + err.message);
+          }
+        }
+
+        customFields.push({
+          name: headerStr,
+          label: headerStr,
+          type: fieldType,
+          options: options,
+          colIdx: idx
+        });
+      }
+    });
+
+    return customFields;
+  }
+
+  /**
   * Helper: Ambil sesi berstatus AKTIF atau RUTIN dari sheet "Master Sesi"
   */
   function getActiveSessions() {
@@ -1024,12 +1086,15 @@ const CONFIG = {
 
       if (action === "getSessions") {
         const sessions = getActiveSessions();
-        logger.info(`getSessions returned ${sessions.length} sessions`);
-        logger.setSummary(`getSessions: ${sessions.length} sessions`);
+        const sheetPeserta = getOrCreateSheet(CONFIG.SHEETS.DATA_PESERTA);
+        const customFields = getCustomFields(sheetPeserta);
+        logger.info(`getSessions returned ${sessions.length} sessions, ${customFields.length} custom fields`);
+        logger.setSummary(`getSessions: ${sessions.length} sesi, ${customFields.length} custom fields`);
         return createJsonResponse({
           success: true,
           status: "OK",
           sessions: sessions,
+          customFields: customFields,
           timestamp: new Date().toISOString()
         });
       }
@@ -1108,11 +1173,13 @@ const CONFIG = {
       // ACTION A: GET ACTIVE SESSIONS
       if (action === "getSessions") {
         const sessions = getActiveSessions();
-        logger.info(`getSessions returned ${sessions.length} sessions`);
-        logger.setSummary(`getSessions: ${sessions.length} sessions`);
+        const customFields = getCustomFields(sheetPeserta);
+        logger.info(`getSessions returned ${sessions.length} sessions, ${customFields.length} custom fields`);
+        logger.setSummary(`getSessions: ${sessions.length} sesi, ${customFields.length} custom fields`);
         return createJsonResponse({
           success: true,
-          sessions: sessions
+          sessions: sessions,
+          customFields: customFields
         });
       }
 
@@ -1733,28 +1800,60 @@ const CONFIG = {
             Logger.log("QR Drive save error: " + err.message);
           }
 
-          // 3. Masukkan ke sheet Data Peserta
+          // 3. Masukkan ke sheet Data Peserta secara dinamis sesuai kolom sheet
           const effectiveContact = contact || "OTS (Tanpa HP)";
           const nextOtsRow = sheetPeserta.getLastRow() + 1;
           const otsFormulaTotal = `=IF(A${nextOtsRow}=""; ""; COUNTIF(D${nextOtsRow}:ZZ${nextOtsRow}; "HADIR*"))`;
-          const newRow = [
-            ticketId,
-            name,
-            otsFormulaTotal,
-            effectiveContact,
-            fileId,
-            fileUrl,
-            nowStr
-          ];
 
-          // Ambil kolom sesi untuk sesi aktif
+          // Pastikan kolom sesi untuk sesi aktif sudah ada
           const sessionColIdx = getOrCreateSessionColumn(sheetPeserta, sessionId, sessionName);
-          
+
+          const lastCol = sheetPeserta.getLastColumn();
+          const pHeaders = sheetPeserta.getRange(1, 1, 1, lastCol).getValues()[0];
+          const otsRowData = new Array(pHeaders.length).fill("");
+          const otsCustom = payload.customFields || {};
+
+          pHeaders.forEach((h, idx) => {
+            const headerStr = String(h || "").trim();
+            const lower = headerStr.toLowerCase();
+
+            if (lower.includes("ticket") || lower === "id" || lower.includes("id tiket")) {
+              otsRowData[idx] = ticketId;
+            } else if (lower.includes("nama")) {
+              otsRowData[idx] = name;
+            } else if (lower.includes("total") || lower.includes("jumlah")) {
+              otsRowData[idx] = otsFormulaTotal;
+            } else if (lower.includes("email") || lower.includes("kontak") || lower.includes("no hp") || lower.includes("whatsapp")) {
+              otsRowData[idx] = effectiveContact;
+            } else if (lower.includes("drive file id") || lower === "file id") {
+              otsRowData[idx] = fileId;
+            } else if (lower.includes("drive file url") || lower === "file url") {
+              otsRowData[idx] = fileUrl;
+            } else if (lower.includes("waktu daftar") || lower === "timestamp" || lower.includes("tanggal")) {
+              otsRowData[idx] = nowStr;
+            } else if (lower.startsWith("sesi:") || (lower.includes("[") && lower.includes("]"))) {
+              otsRowData[idx] = (idx === sessionColIdx - 1) ? `HADIR - ${nowStr}` : "";
+            } else {
+              // Kolom custom (misal Jenis Kelamin, Fakultas, Instansi, dsb)
+              let val = otsCustom[headerStr];
+              if (val === undefined) {
+                const foundKey = Object.keys(otsCustom).find(k => k.toLowerCase() === lower || lower.includes(k.toLowerCase()));
+                if (foundKey && otsCustom[foundKey] !== undefined) {
+                  val = otsCustom[foundKey];
+                }
+              }
+              if (!val && (lower.includes("catatan") || lower.includes("asal") || lower.includes("keterangan"))) {
+                val = notes;
+              }
+              otsRowData[idx] = val || "";
+            }
+          });
+
           // Buat baris baru di Data Peserta
-          sheetPeserta.appendRow(newRow);
+          sheetPeserta.appendRow(otsRowData);
           const newRowIdx = sheetPeserta.getLastRow();
 
-          // Langsung tandai HADIR di sesi aktif!
+          // Pastikan cell di kolom sesi terisi status HADIR
           const statusValue = `HADIR - ${nowStr}`;
           sheetPeserta.getRange(newRowIdx, sessionColIdx).setValue(statusValue);
 
@@ -1773,7 +1872,7 @@ const CONFIG = {
             mapsUrl: mapsUrl,
             deviceInfo: deviceInfo,
             notes: notes
-          }, newRow, sheetPeserta.getRange(1, 1, 1, sheetPeserta.getLastColumn()).getValues()[0]);
+          }, otsRowData, pHeaders);
 
           logger.success(`Registered OTS participant: ${ticketId} (${name}) on ${sessionName}`);
           logger.setSummary(`OTS Baru: ${name} (${ticketId})`);
