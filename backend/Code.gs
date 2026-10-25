@@ -34,13 +34,14 @@ const CONFIG = {
       RAW_FORM_ID: "Jawaban Formulir 1",
       MASTER_SESI: "Master Sesi",
       DATA_PESERTA: "Data Peserta",
-      LOG_KEHADIRAN: "Log Kehadiran"
+      LOG_KEHADIRAN: "Log Kehadiran",
+      LOG_EKSEKUSI: "Log Eksekusi"
     }
   };
 
   /**
   * ==============================================================================
-  * HELPER: INISIALISASI STRUKTUR 4 SHEET
+  * HELPER: INISIALISASI STRUKTUR SHEET & LOG EXECUTION
   * ==============================================================================
   */
   function getSpreadsheet() {
@@ -141,6 +142,158 @@ const CONFIG = {
         if (!currentHeaders.includes("Link Lokasi (Maps)")) {
           sheetLog.getRange(1, 1, 1, logHeaders.length).setValues([logHeaders]).setFontWeight("bold").setBackground("#e2e8f0");
         }
+      }
+    }
+
+    // 4. Sheet Log Eksekusi (Audit Trail Lifecycle Eksekusi Sistem - Model A)
+    const sheetLogEksekusi = getOrCreateSheet(CONFIG.SHEETS.LOG_EKSEKUSI);
+    ensureLogEksekusiHeaders(sheetLogEksekusi);
+  }
+
+  /**
+   * Helper: Inisialisasi Header & Format Sheet Log Eksekusi (Model A: 1 Baris per Eksekusi)
+   */
+  function ensureLogEksekusiHeaders(sheet) {
+    if (sheet.getLastRow() === 0) {
+      const headers = [
+        "Timestamp",
+        "Execution ID",
+        "Context / Action",
+        "Status",
+        "Durasi (ms)",
+        "User / Client",
+        "Ringkasan",
+        "Detail Log"
+      ];
+      sheet.appendRow(headers);
+      sheet.getRange(1, 1, 1, headers.length).setFontWeight("bold").setBackground("#e2e8f0");
+      sheet.setFrozenRows(1);
+
+      try {
+        sheet.setColumnWidth(1, 155); // Timestamp
+        sheet.setColumnWidth(2, 175); // Execution ID
+        sheet.setColumnWidth(3, 140); // Context / Action
+        sheet.setColumnWidth(4, 90);  // Status
+        sheet.setColumnWidth(5, 90);  // Durasi (ms)
+        sheet.setColumnWidth(6, 130); // User / Client
+        sheet.setColumnWidth(7, 240); // Ringkasan
+        sheet.setColumnWidth(8, 400); // Detail Log
+      } catch (wErr) {}
+    }
+  }
+
+  /**
+   * Helper: Mencegah spreadsheet membengkak dengan auto-pruning baris log lama jika melebihi batas
+   */
+  function pruneOldLogsIfNeeded(sheet, maxRows) {
+    try {
+      const limit = maxRows || 1000;
+      const lastRow = sheet.getLastRow();
+      if (lastRow > limit + 100) {
+        const deleteCount = lastRow - limit;
+        if (deleteCount > 0) {
+          sheet.deleteRows(2, deleteCount);
+        }
+      }
+    } catch (e) {
+      Logger.log("Prune log error: " + e.message);
+    }
+  }
+
+  /**
+   * ==============================================================================
+   * SYSTEM EXECUTION LOGGER (MODEL A: 1 ROW PER EXECUTION)
+   * ==============================================================================
+   * Mengumpulkan step logs selama eksekusi di memory, lalu menuliskan tepat 1 baris
+   * ke tab 'Log Eksekusi' saat flush() dipanggil (di blok finally).
+   */
+  class ExecutionLogger {
+    constructor(context, meta) {
+      this.id = "EXE-" + Utilities.formatDate(new Date(), "GMT+7", "yyMMdd-HHmmss") + "-" + Math.floor(Math.random() * 900 + 100);
+      this.startTime = new Date();
+      this.context = context || "UNKNOWN";
+      this.meta = meta || {};
+      this.logs = [];
+      this.status = "SUCCESS";
+      this.summary = "";
+      this.log("START", `Starting [${this.id}] Context: ${this.context}`);
+    }
+
+    log(level, message, data) {
+      const elapsed = new Date().getTime() - this.startTime.getTime();
+      let entry = `[+${elapsed}ms] [${level.toUpperCase()}] ${message}`;
+      if (data !== undefined && data !== null) {
+        try {
+          entry += " " + (typeof data === "object" ? JSON.stringify(data) : String(data));
+        } catch (e) {
+          entry += " [Unserializable data]";
+        }
+      }
+      this.logs.push(entry);
+      try {
+        Logger.log(`[${this.context}] ${entry}`);
+      } catch (e) {}
+    }
+
+    info(msg, data) { this.log("INFO", msg, data); }
+    warn(msg, data) {
+      this.log("WARN", msg, data);
+      if (this.status !== "ERROR") this.status = "WARNING";
+    }
+    error(msg, data) {
+      this.log("ERROR", msg, data);
+      this.status = "ERROR";
+    }
+    success(msg, data) { this.log("SUCCESS", msg, data); }
+
+    setSummary(summary) {
+      this.summary = summary;
+    }
+
+    setStatus(status) {
+      this.status = status;
+    }
+
+    flush() {
+      try {
+        const endTime = new Date();
+        const durationMs = endTime.getTime() - this.startTime.getTime();
+        this.log("END", `Finished with status=${this.status} in ${durationMs}ms`);
+
+        const ss = getSpreadsheet();
+        const sheet = getOrCreateSheet(CONFIG.SHEETS.LOG_EKSEKUSI);
+        ensureLogEksekusiHeaders(sheet);
+
+        const timestampStr = formatFullDateTime(this.startTime);
+        const actionStr = this.meta.action || this.context;
+        const userStr = this.meta.user || this.meta.scannedBy || this.meta.client || "-";
+        const summaryStr = this.summary || (this.status === "SUCCESS" ? "OK" : (this.status === "ERROR" ? "Failed" : "Completed"));
+        const fullLogText = this.logs.join("\n");
+
+        sheet.appendRow([
+          timestampStr,
+          this.id,
+          actionStr,
+          this.status,
+          durationMs,
+          userStr,
+          summaryStr,
+          fullLogText
+        ]);
+
+        const lastRow = sheet.getLastRow();
+        const statusCell = sheet.getRange(lastRow, 4);
+        if (this.status === "SUCCESS") {
+          statusCell.setBackground("#dcfce7").setFontColor("#15803d").setFontWeight("bold");
+        } else if (this.status === "ERROR") {
+          statusCell.setBackground("#fee2e2").setFontColor("#b91c1c").setFontWeight("bold");
+        } else if (this.status === "WARNING") {
+          statusCell.setBackground("#fef9c3").setFontColor("#a16207").setFontWeight("bold");
+        }
+
+        pruneOldLogsIfNeeded(sheet, 1000);
+      } catch (flushErr) {
+        Logger.log("[ExecutionLogger flush error]: " + flushErr.message);
       }
     }
   }
@@ -383,6 +536,7 @@ const CONFIG = {
   * ==============================================================================
   */
   function onFormSubmit(e) {
+    const logger = new ExecutionLogger("onFormSubmit");
     try {
       ensureAllSheetsSetup();
       const ss = getSpreadsheet();
@@ -405,7 +559,11 @@ const CONFIG = {
         targetRow = sheetRaw.getLastRow();
       }
       
-      if (!sheetRaw || targetRow <= 1) return;
+      if (!sheetRaw || targetRow <= 1) {
+        logger.warn("Form sheet not found or empty targetRow");
+        logger.setSummary("Form Kosong / Baris Tidak Valid");
+        return;
+      }
 
       const rawHeaders = sheetRaw.getRange(1, 1, 1, sheetRaw.getLastColumn()).getValues()[0];
       const rawData = sheetRaw.getRange(targetRow, 1, 1, sheetRaw.getLastColumn()).getValues()[0];
@@ -423,7 +581,8 @@ const CONFIG = {
       });
 
       if (nameIdx === -1 || emailIdx === -1) {
-        Logger.log("Kolom Nama atau Email tidak ditemukan di Form Responses!");
+        logger.error("Kolom Nama atau Email tidak ditemukan di Form Responses");
+        logger.setSummary("Error: Header Form Kurang Nama/Email");
         return;
       }
 
@@ -431,7 +590,13 @@ const CONFIG = {
       const email = String(rawData[emailIdx] || "").trim();
       const regTimestamp = rawData[timeIdx] ? formatFullDateTime(new Date(rawData[timeIdx])) : formatFullDateTime(new Date());
 
-      if (!email || !name) return;
+      logger.meta.user = `${name} (${email})`;
+
+      if (!email || !name) {
+        logger.warn("Form submission missing name or email", { name, email });
+        logger.setSummary("Submit Dilewati: Nama/Email Kosong");
+        return;
+      }
 
       // 2. Cek apakah peserta sudah pernah ada di sheet "Data Peserta" (berdasarkan email)
       const sheetPeserta = getOrCreateSheet(CONFIG.SHEETS.DATA_PESERTA);
@@ -440,7 +605,8 @@ const CONFIG = {
       
       for (let r = 1; r < pesertaData.length; r++) {
         if (String(pesertaData[r][emailCol]).trim().toLowerCase() === email.toLowerCase()) {
-          Logger.log("Peserta dengan email " + email + " sudah terdaftar di Data Peserta.");
+          logger.warn(`Email ${email} sudah terdaftar sebelumnya di Data Peserta`);
+          logger.setSummary(`Dilewati (Duplikat Email): ${name}`);
           return;
         }
       }
@@ -466,13 +632,13 @@ const CONFIG = {
           // 5. SESUAI CONSTRAINT: Share akses file ke peserta secara SILENT tanpa kirim email notifikasi!
           try {
             grantDriveViewerSilent(fileId, email);
-            Logger.log("✅ Drive file viewer granted to: " + email);
+            logger.info("Drive file viewer granted to: " + email);
           } catch (shareErr) {
-            Logger.log("⚠️ Drive viewer error: " + shareErr.message);
+            logger.warn("Drive viewer warning: " + shareErr.message);
           }
         }
       } catch (qrErr) {
-        Logger.log("QR generation warning: " + qrErr.message);
+        logger.warn("QR generation warning: " + qrErr.message);
       }
 
       // 6. Masukkan data ke sheet "Data Peserta" dengan Smart Dynamic Column Mapping
@@ -529,17 +695,22 @@ const CONFIG = {
       if (lock.tryLock(8000)) {
         try {
           sheetPeserta.appendRow(attendeeRowData);
-          Logger.log("✅ Sukses menambahkan peserta baru via Form: " + name + " (" + ticketId + ")");
+          logger.success("Sukses mendaftarkan peserta baru via Form: " + name + " (" + ticketId + ")");
+          logger.setSummary(`Form Sukses: ${name} (${ticketId})`);
         } finally {
           lock.releaseLock();
         }
       } else {
-        Logger.log("⚠️ Lock timeout saat append row peserta baru, mengabaikan lock.");
+        logger.warn("Lock timeout saat append row peserta baru, append tanpa lock");
         sheetPeserta.appendRow(attendeeRowData);
+        logger.setSummary(`Form Sukses (No Lock): ${name} (${ticketId})`);
       }
 
     } catch (err) {
-      Logger.log("Error onFormSubmit: " + err.message);
+      logger.error("Error onFormSubmit: " + err.message, err.stack);
+      logger.setSummary("Form Error: " + err.message);
+    } finally {
+      logger.flush();
     }
   }
 
@@ -651,15 +822,20 @@ const CONFIG = {
   * ==============================================================================
   */
   function doGet(e) {
+    const logger = new ExecutionLogger("doGet");
     try {
       ensureAllSheetsSetup();
       const action = (e && e.parameter && e.parameter.action) || "status";
+      logger.meta.action = action;
 
       if (action === "getSessions") {
+        const sessions = getActiveSessions();
+        logger.info(`getSessions returned ${sessions.length} sessions`);
+        logger.setSummary(`getSessions: ${sessions.length} sessions`);
         return createJsonResponse({
           success: true,
           status: "OK",
-          sessions: getActiveSessions(),
+          sessions: sessions,
           timestamp: new Date().toISOString()
         });
       }
@@ -667,6 +843,8 @@ const CONFIG = {
       if (action === "getAttendees") {
         const sheetPeserta = getOrCreateSheet(CONFIG.SHEETS.DATA_PESERTA);
         const attendees = buildAttendeesList(sheetPeserta);
+        logger.info(`getAttendees returned ${attendees.length} attendees`);
+        logger.setSummary(`getAttendees: ${attendees.length} attendees`);
         return createJsonResponse({
           success: true,
           attendees: attendees,
@@ -675,6 +853,8 @@ const CONFIG = {
         });
       }
 
+      logger.info("Health check ping: ONLINE");
+      logger.setSummary("Health check: ONLINE");
       return createJsonResponse({
         success: true,
         status: "ONLINE",
@@ -684,11 +864,15 @@ const CONFIG = {
         timestamp: new Date().toISOString()
       });
     } catch (err) {
+      logger.error("doGet error: " + err.message);
+      logger.setSummary("doGet Error: " + err.message);
       return createJsonResponse({
         success: false,
         status: "ERROR",
         message: "Health check error: " + err.message
       });
+    } finally {
+      logger.flush();
     }
   }
 
@@ -698,6 +882,7 @@ const CONFIG = {
   * ==============================================================================
   */
   function doPost(e) {
+    const logger = new ExecutionLogger("doPost");
     try {
       ensureAllSheetsSetup();
 
@@ -705,12 +890,20 @@ const CONFIG = {
       if (e && e.postData && e.postData.contents) {
         try {
           payload = JSON.parse(e.postData.contents);
+          logger.info("Payload received", { action: payload.action, ticketId: payload.ticketId, sessionId: payload.sessionId });
         } catch (jsonErr) {
+          logger.error("Invalid JSON payload: " + jsonErr.message);
+          logger.setSummary("Invalid JSON payload");
           return createJsonResponse({ success: false, message: "Invalid JSON payload" });
         }
+      } else {
+        logger.warn("No postData contents received");
       }
 
       const action = payload.action || "checkIn";
+      logger.meta.action = action;
+      logger.meta.user = payload.scannedBy || payload.operator || "-";
+
       const sheetPeserta = getOrCreateSheet(CONFIG.SHEETS.DATA_PESERTA);
       const sheetLog = getOrCreateSheet(CONFIG.SHEETS.LOG_KEHADIRAN);
 
@@ -720,15 +913,20 @@ const CONFIG = {
 
       // ACTION A: GET ACTIVE SESSIONS
       if (action === "getSessions") {
+        const sessions = getActiveSessions();
+        logger.info(`getSessions returned ${sessions.length} sessions`);
+        logger.setSummary(`getSessions: ${sessions.length} sessions`);
         return createJsonResponse({
           success: true,
-          sessions: getActiveSessions()
+          sessions: sessions
         });
       }
 
       // ACTION A2: GET ALL ATTENDEES (For Offline Local Pre-Caching & Instant Mode)
       if (action === "getAttendees") {
         const attendees = buildAttendeesList(sheetPeserta);
+        logger.info(`getAttendees returned ${attendees.length} attendees`);
+        logger.setSummary(`getAttendees: ${attendees.length} attendees`);
         return createJsonResponse({
           success: true,
           attendees: attendees,
@@ -744,6 +942,8 @@ const CONFIG = {
         const sessionName = (payload.sessionName || sessionId).trim();
 
         if (!query) {
+          logger.info("Search empty query");
+          logger.setSummary("Search: query kosong");
           return createJsonResponse({ success: true, results: [] });
         }
 
@@ -773,6 +973,8 @@ const CONFIG = {
           if (results.length >= 20) break; // Limit 20 hasil teratas
         }
 
+        logger.info(`Search "${query}" matched ${results.length} rows`);
+        logger.setSummary(`Search "${query}": ${results.length} hasil`);
         return createJsonResponse({ success: true, results: results });
       }
 
@@ -781,6 +983,8 @@ const CONFIG = {
       // ============================================================================
       const lock = LockService.getScriptLock();
       if (!lock.tryLock(15000)) {
+        logger.warn("ScriptLock busy / timeout after 15s");
+        logger.setSummary("Server Busy (Lock Timeout)");
         return createJsonResponse({
           success: false,
           status: "SERVER_BUSY",
@@ -826,6 +1030,8 @@ const CONFIG = {
           // Skenario 1: Tiket Tidak Ditemukan
           if (foundRow === -1) {
             sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, "-", "TIDAK_VALID", scannedBy, gate, mapsUrl, deviceInfo, "ID tidak terdaftar di sistem"]);
+            logger.warn(`Ticket not registered: ${ticketId}`);
+            logger.setSummary(`Tiket Tidak Terdaftar: ${ticketId}`);
             return createJsonResponse({
               success: false,
               status: "NOT_FOUND",
@@ -852,6 +1058,8 @@ const CONFIG = {
               : `TIKET SUDAH DIGUNAKAN untuk sesi "${sessionName}"!`;
 
             sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, attendeeName, dupType, scannedBy, gate, mapsUrl, deviceInfo, `Sudah absen sebelumnya: ${existingStatus}`]);
+            logger.warn(`Duplicate scan: ${ticketId} (${attendeeName}) mode=${scanMode}`);
+            logger.setSummary(`Duplikat: ${attendeeName} (${ticketId})`);
             return createJsonResponse({
               success: false,
               status: (scanMode === "OUT") ? "ALREADY_CHECKED_OUT" : "ALREADY_CHECKED_IN",
@@ -892,6 +1100,9 @@ const CONFIG = {
           
           // Catat di sheet Log Kehadiran dengan Link Google Maps & Device Info
           sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, attendeeName, logStatus, scannedBy, gate, mapsUrl, deviceInfo, logDesc]);
+
+          logger.success(`Presensi sukses: ${ticketId} (${attendeeName}) -> ${resStatus} on ${sessionName}`);
+          logger.setSummary(`${resStatus}: ${attendeeName} (${ticketId})`);
 
           return createJsonResponse({
             success: true,
@@ -1052,6 +1263,9 @@ const CONFIG = {
             sheetLog.getRange(startRow, 1, logRowsToAppend.length, logRowsToAppend[0].length).setValues(logRowsToAppend);
           }
 
+          logger.info(`Batch check-in processed ${scans.length} scans`);
+          logger.setSummary(`Batch Check-In: ${scans.length} data`);
+
           return createJsonResponse({
             success: true,
             processedCount: scans.length,
@@ -1071,6 +1285,8 @@ const CONFIG = {
           const nowStr = formatFullDateTime(new Date());
 
           if (!ticketId || !sessionId) {
+            logger.warn("Cancel check-in missing ticketId or sessionId");
+            logger.setSummary("Cancel Gagal: Parameter Kurang");
             return createJsonResponse({ success: false, message: "Ticket ID dan Session ID wajib diisi untuk pembatalan." });
           }
 
@@ -1088,6 +1304,8 @@ const CONFIG = {
           }
 
           if (foundRow === -1) {
+            logger.warn(`Cancel failed, attendee not found: ${ticketId}`);
+            logger.setSummary(`Cancel Gagal: Tiket ${ticketId} Tidak Ditemukan`);
             return createJsonResponse({ success: false, message: "Peserta tidak ditemukan." });
           }
 
@@ -1099,6 +1317,9 @@ const CONFIG = {
 
           // Catat event pembatalan di sheet Log Kehadiran dengan Link Google Maps & Device Info
           sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, attendeeName, "DIBATALKAN", cancelledBy, payload.gate || "-", mapsUrl, deviceInfo, reason]);
+
+          logger.info(`Cancelled check-in for ${ticketId} (${attendeeName}) on ${sessionName}`);
+          logger.setSummary(`Batal: ${attendeeName} (${ticketId})`);
 
           return createJsonResponse({
             success: true,
@@ -1125,6 +1346,8 @@ const CONFIG = {
           const nowStr = formatFullDateTime(new Date());
 
           if (!name) {
+            logger.warn("OTS Registration missing participant name");
+            logger.setSummary("OTS Gagal: Nama Kosong");
             return createJsonResponse({ success: false, message: "Nama lengkap peserta wajib diisi." });
           }
 
@@ -1192,6 +1415,9 @@ const CONFIG = {
           // 4. Catat di Log Kehadiran dengan Link Google Maps & Device Info
           sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, name, "BERHASIL (OTS)", scannedBy, gate, mapsUrl, deviceInfo, notes]);
 
+          logger.success(`Registered OTS participant: ${ticketId} (${name}) on ${sessionName}`);
+          logger.setSummary(`OTS Baru: ${name} (${ticketId})`);
+
           return createJsonResponse({
             success: true,
             status: "CHECKED_IN",
@@ -1209,6 +1435,8 @@ const CONFIG = {
           });
         }
 
+        logger.warn(`Unknown action requested: ${action}`);
+        logger.setSummary(`Action Unknown: ${action}`);
         return createJsonResponse({ success: false, message: `Action "${action}" tidak dikenali.` });
 
       } finally {
@@ -1216,7 +1444,11 @@ const CONFIG = {
       }
 
     } catch (err) {
+      logger.error("Server error: " + err.message, err.stack);
+      logger.setSummary("Server Error: " + err.message);
       return createJsonResponse({ success: false, message: "Server error: " + err.message });
+    } finally {
+      logger.flush();
     }
   }
 
@@ -1257,7 +1489,26 @@ const CONFIG = {
       .addItem('🔄 6. Cek & Kirim Ulang Akses Drive Peserta', 'checkAndRetryDriveSharing')
       .addSeparator()
       .addItem('🛠️ 7. Rapikan Baris Data yang Bergeser (Auto-Fix Columns)', 'fixShiftedParticipantRows')
+      .addItem('📜 8. Bersihkan Log Eksekusi Lama', 'clearExecutionLogs')
       .addToUi();
+  }
+
+  /**
+   * Helper / Menu: Membersihkan baris data di sheet Log Eksekusi
+   */
+  function clearExecutionLogs() {
+    const ui = SpreadsheetApp.getUi();
+    const sheet = getSpreadsheet().getSheetByName(CONFIG.SHEETS.LOG_EKSEKUSI);
+    if (!sheet || sheet.getLastRow() <= 1) {
+      ui.alert("Log Kosong", "Sheet 'Log Eksekusi' masih kosong.", ui.ButtonSet.OK);
+      return;
+    }
+    const count = sheet.getLastRow() - 1;
+    const res = ui.alert("Bersihkan Log Eksekusi", `Apakah Anda yakin ingin menghapus seluruh riwayat log eksekusi (${count} baris)?`, ui.ButtonSet.YES_NO);
+    if (res === ui.Button.YES) {
+      sheet.deleteRows(2, count);
+      ui.alert("Selesai", "Seluruh data riwayat log eksekusi berhasil dibersihkan.", ui.ButtonSet.OK);
+    }
   }
 
   /**
@@ -2044,92 +2295,117 @@ const CONFIG = {
     const endRow = Math.min(lastRow, startRow + batchCount - 1);
     const numRows = endRow - startRow + 1;
 
-    // Ambil data rentang [startRow .. endRow], minimal 6 kolom (A:F)
-    const rangeData = sheetPeserta.getRange(startRow, 1, numRows, 6).getValues();
+    let adminUser = "-";
+    try {
+      adminUser = Session.getActiveUser().getEmail() || "Admin";
+    } catch (e) {}
 
-    let alreadyCount = 0;
-    let newlySharedCount = 0;
-    let skippedCount = 0;
-    let failedCount = 0;
-    let hitLimit = false;
-    let lastProcessedRow = startRow;
+    const logger = new ExecutionLogger("checkAndRetryDriveSharing", {
+      action: "batchShareDrive",
+      user: adminUser
+    });
 
-    for (let i = 0; i < rangeData.length; i++) {
-      const currentRow = startRow + i;
-      lastProcessedRow = currentRow;
-      const row = rangeData[i];
+    try {
+      logger.info(`Starting batch share check: rows ${startRow} to ${endRow} (${numRows} rows)`);
 
-      const ticketId = String(row[0] || "").trim();
-      const name = String(row[1] || "").trim();
-      const email = String(row[3] || "").trim();
-      const rawFileId = String(row[4] || "").trim();
-      const rawFileUrl = String(row[5] || "").trim();
+      // Ambil data rentang [startRow .. endRow], minimal 6 kolom (A:F)
+      const rangeData = sheetPeserta.getRange(startRow, 1, numRows, 6).getValues();
 
-      const fileId = extractDriveFileId(rawFileId) || extractDriveFileId(rawFileUrl);
+      let alreadyCount = 0;
+      let newlySharedCount = 0;
+      let skippedCount = 0;
+      let failedCount = 0;
+      let hitLimit = false;
+      let lastProcessedRow = startRow;
 
-      // Jika email atau fileId tidak valid, lewati
-      if (!email || !email.includes("@") || !fileId || fileId === "-") {
-        skippedCount++;
-        continue;
-      }
+      for (let i = 0; i < rangeData.length; i++) {
+        const currentRow = startRow + i;
+        lastProcessedRow = currentRow;
+        const row = rangeData[i];
 
-      try {
-        const driveFile = DriveApp.getFileById(fileId);
-        const viewers = driveFile.getViewers().map(u => u.getEmail().toLowerCase());
-        const hasAccess = viewers.includes(email.toLowerCase());
+        const ticketId = String(row[0] || "").trim();
+        const name = String(row[1] || "").trim();
+        const email = String(row[3] || "").trim();
+        const rawFileId = String(row[4] || "").trim();
+        const rawFileUrl = String(row[5] || "").trim();
 
-        const emailCell = sheetPeserta.getRange(currentRow, 4);
+        const fileId = extractDriveFileId(rawFileId) || extractDriveFileId(rawFileUrl);
 
-        if (hasAccess) {
-          alreadyCount++;
-          emailCell.setNote("✅ Akses Drive: Sudah Aktif");
-        } else {
-          // Coba berikan akses viewer secara smart (dengan notif email jika ada kuota, atau silent jika mepet)
-          try {
-            const shareResult = grantDriveViewerSmart(fileId, email);
-            newlySharedCount++;
-            const noteText = (shareResult && shareResult.notified)
-              ? "✅ Akses Drive: Dibagikan + Notif Email (" + new Date().toLocaleDateString("id-ID") + ")"
-              : "✅ Akses Drive: Dibagikan (Silent / Drive Only) (" + new Date().toLocaleDateString("id-ID") + ")";
-            emailCell.setNote(noteText);
-            Logger.log(`[Batch Share] Baris ${currentRow} (${name} - ${email}): Berhasil di-share.`);
+        // Jika email atau fileId tidak valid, lewati
+        if (!email || !email.includes("@") || !fileId || fileId === "-") {
+          skippedCount++;
+          logger.info(`Row ${currentRow} skipped: invalid email or fileId`);
+          continue;
+        }
 
-            // Jeda 1.2 detik agar tidak kena burst rate limit Google Drive
-            Utilities.sleep(1200);
-          } catch (shareErr) {
-            failedCount++;
-            const errMsg = shareErr.message || "";
-            emailCell.setNote("⚠️ Akses Drive Gagal: " + errMsg);
+        try {
+          const driveFile = DriveApp.getFileById(fileId);
+          const viewers = driveFile.getViewers().map(u => u.getEmail().toLowerCase());
+          const hasAccess = viewers.includes(email.toLowerCase());
 
-            if (errMsg.toLowerCase().includes("limit") || errMsg.toLowerCase().includes("exceeded")) {
-              hitLimit = true;
-              Logger.log(`[Batch Share] STOP di baris ${currentRow} karena limit Drive: ${errMsg}`);
-              break; // Hentikan loop agar tidak menambah error spam
+          const emailCell = sheetPeserta.getRange(currentRow, 4);
+
+          if (hasAccess) {
+            alreadyCount++;
+            emailCell.setNote("✅ Akses Drive: Sudah Aktif");
+            logger.info(`Row ${currentRow} (${name}): Access already active`);
+          } else {
+            // Coba berikan akses viewer secara smart (dengan notif email jika ada kuota, atau silent jika mepet)
+            try {
+              const shareResult = grantDriveViewerSmart(fileId, email);
+              newlySharedCount++;
+              const noteText = (shareResult && shareResult.notified)
+                ? "✅ Akses Drive: Dibagikan + Notif Email (" + new Date().toLocaleDateString("id-ID") + ")"
+                : "✅ Akses Drive: Dibagikan (Silent / Drive Only) (" + new Date().toLocaleDateString("id-ID") + ")";
+              emailCell.setNote(noteText);
+              logger.info(`Row ${currentRow} (${name} - ${email}): Shared successfully`);
+
+              // Jeda 1.2 detik agar tidak kena burst rate limit Google Drive
+              Utilities.sleep(1200);
+            } catch (shareErr) {
+              failedCount++;
+              const errMsg = shareErr.message || "";
+              emailCell.setNote("⚠️ Akses Drive Gagal: " + errMsg);
+              logger.error(`Row ${currentRow} (${name}) share error: ${errMsg}`);
+
+              if (errMsg.toLowerCase().includes("limit") || errMsg.toLowerCase().includes("exceeded")) {
+                hitLimit = true;
+                logger.warn(`STOP at row ${currentRow} due to Drive quota limit`);
+                break; // Hentikan loop agar tidak menambah error spam
+              }
             }
           }
+        } catch (fileErr) {
+          failedCount++;
+          logger.error(`Row ${currentRow} read error: ${fileErr.message}`);
         }
-      } catch (fileErr) {
-        failedCount++;
-        Logger.log(`[Batch Share] Error baca file Drive baris ${currentRow}: ${fileErr.message}`);
       }
+
+      // Tampilkan rangkuman hasil
+      const summary = [
+        "📊 HASIL PENGECEKAN AKSES DRIVE",
+        "------------------------------------------",
+        `• Rentang Baris: ${startRow} s/d ${lastProcessedRow} (dari total ${lastRow})`,
+        `• Sudah Punya Akses Sebelumnya: ${alreadyCount} peserta`,
+        `• Baru Saja Berhasil Dibagikan: ${newlySharedCount} peserta`,
+        `• Dilewati (Email/File Kosong): ${skippedCount} peserta`,
+        `• Gagal / Tertahan: ${failedCount} peserta`,
+        "------------------------------------------",
+        hitLimit
+          ? `⚠️ PERHATIAN: Kuota Google Drive harian/burst limit tercapai di baris ${lastProcessedRow}.\nSilakan lanjutkan kembali nanti mulai dari baris ${lastProcessedRow}.`
+          : "✅ Selesai! Tidak ada kendala kuota pada rentang ini."
+      ].join("\n");
+
+      logger.setSummary(`Drive Share: Baris ${startRow}-${lastProcessedRow} (${newlySharedCount} baru, ${alreadyCount} aktif, ${skippedCount} dilewati, ${failedCount} gagal)`);
+      if (hitLimit) logger.warn("Drive quota limit reached");
+
+      ui.alert("Laporan Akses Drive", summary, ui.ButtonSet.OK);
+    } catch (err) {
+      logger.error("checkAndRetryDriveSharing exception: " + err.message);
+      logger.setSummary("Batch Share Error: " + err.message);
+    } finally {
+      logger.flush();
     }
-
-    // Tampilkan rangkuman hasil
-    const summary = [
-      "📊 HASIL PENGECEKAN AKSES DRIVE",
-      "------------------------------------------",
-      `• Rentang Baris: ${startRow} s/d ${lastProcessedRow} (dari total ${lastRow})`,
-      `• Sudah Punya Akses Sebelumnya: ${alreadyCount} peserta`,
-      `• Baru Saja Berhasil Dibagikan: ${newlySharedCount} peserta`,
-      `• Dilewati (Email/File Kosong): ${skippedCount} peserta`,
-      `• Gagal / Tertahan: ${failedCount} peserta`,
-      "------------------------------------------",
-      hitLimit
-        ? `⚠️ PERHATIAN: Kuota Google Drive harian/burst limit tercapai di baris ${lastProcessedRow}.\nSilakan lanjutkan kembali nanti mulai dari baris ${lastProcessedRow}.`
-        : "✅ Selesai! Tidak ada kendala kuota pada rentang ini."
-    ].join("\n");
-
-    ui.alert("Laporan Akses Drive", summary, ui.ButtonSet.OK);
   }
 
 
