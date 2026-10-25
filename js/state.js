@@ -122,6 +122,9 @@ window.EventPass = window.EventPass || {};
     isSyncingQueue: false,
     lastSyncTime: localStorage.getItem("absen_last_sync_time") || null,
 
+    // Dynamic Custom Participant Columns
+    customFields: JSON.parse(localStorage.getItem("absen_custom_fields") || "[]"),
+
     // Session Stats
     stats: {
       total: 0,
@@ -243,6 +246,7 @@ window.EventPass = window.EventPass || {};
     formOts: document.getElementById("form-ots"),
     inputOtsName: document.getElementById("ots-name"),
     inputOtsContact: document.getElementById("ots-contact"),
+    otsCustomFieldsContainer: document.getElementById("ots-custom-fields-container"),
     inputOtsNotes: document.getElementById("ots-notes"),
     btnSubmitOts: document.getElementById("btn-submit-ots"),
 

@@ -756,6 +756,40 @@ window.EventPass = window.EventPass || {};
       } else {
         ns.DOM.searchResultsList.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 20px;">Tidak ada peserta yang cocok dengan "${ns.escapeHtml(query)}"</div>`;
       }
+    },
+
+    /**
+     * Render dynamic form fields in OTS tab based on custom columns in Data Peserta sheet
+     */
+    renderOtsCustomFields(fields) {
+      if (!ns.DOM.otsCustomFieldsContainer) return;
+      ns.DOM.otsCustomFieldsContainer.innerHTML = "";
+      if (!fields || !Array.isArray(fields) || fields.length === 0) return;
+
+      fields.forEach(field => {
+        const group = document.createElement("div");
+        group.className = "form-group";
+        const fieldId = `ots-custom-${field.name.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+
+        if (field.type === "select" && field.options && field.options.length > 0) {
+          let optionsHtml = `<option value="">-- Pilih ${ns.escapeHtml(field.label)} --</option>`;
+          field.options.forEach(opt => {
+            optionsHtml += `<option value="${ns.escapeHtml(opt)}">${ns.escapeHtml(opt)}</option>`;
+          });
+          group.innerHTML = `
+            <label class="form-label" for="${fieldId}">${ns.escapeHtml(field.label)} (Opsional)</label>
+            <select id="${fieldId}" class="input-box ots-custom-field" data-field-name="${ns.escapeHtml(field.name)}" style="cursor: pointer; background: #ffffff;">
+              ${optionsHtml}
+            </select>
+          `;
+        } else {
+          group.innerHTML = `
+            <label class="form-label" for="${fieldId}">${ns.escapeHtml(field.label)} (Opsional)</label>
+            <input type="text" id="${fieldId}" class="input-box ots-custom-field" data-field-name="${ns.escapeHtml(field.name)}" placeholder="Masukkan ${ns.escapeHtml(field.label)}..." autocomplete="off">
+          `;
+        }
+        ns.DOM.otsCustomFieldsContainer.appendChild(group);
+      });
     }
   };
 

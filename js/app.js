@@ -21,6 +21,9 @@ window.EventPass = window.EventPass || {};
       ns.UI.renderOperatorHeader();
       ns.UI.renderSessionDropdown();
       ns.UI.renderHistory();
+      if (ns.state.customFields && ns.state.customFields.length > 0) {
+        ns.UI.renderOtsCustomFields(ns.state.customFields);
+      }
 
       // Asynchronously enrich device model (e.g. Samsung SM-..., Pixel, Xiaomi) via Client Hints
       if (typeof ns.enrichDeviceInfoWithModel === "function") {
@@ -155,6 +158,7 @@ window.EventPass = window.EventPass || {};
           } else {
             if (ns.state.isScanning) ns.Scanner.stopScanning();
             if (targetTab === "history") ns.UI.renderHistory();
+            if (targetTab === "ots") ns.UI.renderOtsCustomFields(ns.state.customFields);
           }
         });
       });
@@ -1439,8 +1443,19 @@ window.EventPass = window.EventPass || {};
         ns.DOM.btnSubmitOts.innerHTML = `<div class="spinner"></div><span>Mendaftarkan & Check-In...</span>`;
       }
 
+      // Kumpulkan nilai kolom dinamis customFields jika ada di sheet Data Peserta
+      const customFields = {};
+      if (ns.DOM.otsCustomFieldsContainer) {
+        ns.DOM.otsCustomFieldsContainer.querySelectorAll(".ots-custom-field").forEach(input => {
+          const fieldName = input.getAttribute("data-field-name");
+          if (fieldName && input.value) {
+            customFields[fieldName] = input.value.trim();
+          }
+        });
+      }
+
       try {
-        const result = await ns.API.registerOts(name, contact, notes);
+        const result = await ns.API.registerOts(name, contact, notes, customFields);
 
         if (result.success && result.attendee) {
           ns.sounds.playSuccess();
@@ -1454,6 +1469,11 @@ window.EventPass = window.EventPass || {};
           ns.DOM.inputOtsName.value = "";
           ns.DOM.inputOtsContact.value = "";
           ns.DOM.inputOtsNotes.value = "";
+          if (ns.DOM.otsCustomFieldsContainer) {
+            ns.DOM.otsCustomFieldsContainer.querySelectorAll(".ots-custom-field").forEach(input => {
+              input.value = "";
+            });
+          }
 
           ns.UI.showToast(`${name} berhasil didaftarkan OTS & hadir.`);
 
@@ -1540,19 +1560,21 @@ window.EventPass = window.EventPass || {};
 
       try {
         const data = await ns.API.fetchSessions();
-        if (data && data.success && data.sessions && data.sessions.length > 0) {
-          ns.state.sessions = data.sessions;
-          localStorage.setItem("absen_cached_sessions", JSON.stringify(data.sessions));
-          ns.UI.renderSessionDropdown();
+        if (data && data.success) {
+          if (data.sessions && data.sessions.length > 0) {
+            ns.state.sessions = data.sessions;
+            localStorage.setItem("absen_cached_sessions", JSON.stringify(data.sessions));
+            ns.UI.renderSessionDropdown();
+          }
+          if (data.customFields) {
+            ns.state.customFields = data.customFields;
+            localStorage.setItem("absen_custom_fields", JSON.stringify(data.customFields));
+            ns.UI.renderOtsCustomFields(data.customFields);
+          }
           ns.state.isApiConnected = true;
           ns.state.apiErrorMessage = "";
           if (ns.Sync) ns.Sync.updateSyncUI();
-          if (isManual) ns.UI.showToast("Daftar sesi berhasil diperbarui.");
-        } else if (data && data.success) {
-          ns.state.isApiConnected = true;
-          ns.state.apiErrorMessage = "";
-          if (ns.Sync) ns.Sync.updateSyncUI();
-          if (isManual) ns.UI.showToast("Belum ada sesi aktif di Master Sesi.");
+          if (isManual) ns.UI.showToast("Daftar sesi & kolom peserta berhasil diperbarui.");
         }
       } catch (err) {
         console.warn("Gagal mengambil sesi:", err);

@@ -475,24 +475,61 @@ const CONFIG = {
         Logger.log("QR generation warning: " + qrErr.message);
       }
 
-      // 6. Masukkan data ke sheet "Data Peserta" dengan lock singkat
+      // 6. Masukkan data ke sheet "Data Peserta" dengan Smart Dynamic Column Mapping
       const nextRow = sheetPeserta.getLastRow() + 1;
       const formulaTotal = `=IF(A${nextRow}=""; ""; COUNTIF(D${nextRow}:ZZ${nextRow}; "HADIR*"))`;
-      const attendeeRowData = [
-        ticketId,
-        name,
-        formulaTotal,
-        email,
-        fileId,
-        fileUrl,
-        regTimestamp
-      ];
+
+      // Kumpulkan seluruh jawaban form dalam map (lowercase key)
+      const formAnswers = {};
+      rawHeaders.forEach((h, idx) => {
+        const title = String(h || "").trim();
+        if (title) {
+          formAnswers[title.toLowerCase()] = String(rawData[idx] || "").trim();
+        }
+      });
+
+      const lastCol = sheetPeserta.getLastColumn();
+      const pHeaders = sheetPeserta.getRange(1, 1, 1, lastCol).getValues()[0];
+      const attendeeRowData = new Array(pHeaders.length).fill("");
+
+      pHeaders.forEach((h, idx) => {
+        const headerStr = String(h || "").trim();
+        const lower = headerStr.toLowerCase();
+
+        if (lower.includes("ticket") || lower === "id" || lower.includes("id tiket")) {
+          attendeeRowData[idx] = ticketId;
+        } else if (lower.includes("nama")) {
+          attendeeRowData[idx] = name;
+        } else if (lower.includes("total") || lower.includes("jumlah")) {
+          attendeeRowData[idx] = formulaTotal;
+        } else if (lower.includes("email")) {
+          attendeeRowData[idx] = email;
+        } else if (lower.includes("drive file id") || lower === "file id") {
+          attendeeRowData[idx] = fileId;
+        } else if (lower.includes("drive file url") || lower === "file url") {
+          attendeeRowData[idx] = fileUrl;
+        } else if (lower.includes("waktu daftar") || lower === "timestamp" || lower.includes("tanggal")) {
+          attendeeRowData[idx] = regTimestamp;
+        } else if (lower.startsWith("sesi:") || (lower.includes("[") && lower.includes("]"))) {
+          attendeeRowData[idx] = "";
+        } else {
+          // Kolom custom (misal Fakultas, Jenis Kelamin, No HP, dll)
+          let matchedAns = formAnswers[lower];
+          if (matchedAns === undefined) {
+            const foundKey = Object.keys(formAnswers).find(k => k.includes(lower) || lower.includes(k));
+            if (foundKey && formAnswers[foundKey] !== undefined) {
+              matchedAns = formAnswers[foundKey];
+            }
+          }
+          attendeeRowData[idx] = matchedAns || "";
+        }
+      });
 
       const lock = LockService.getScriptLock();
       if (lock.tryLock(8000)) {
         try {
           sheetPeserta.appendRow(attendeeRowData);
-          Logger.log("✅ Sukses menambahkan peserta baru: " + name + " (" + ticketId + ")");
+          Logger.log("✅ Sukses menambahkan peserta baru via Form: " + name + " (" + ticketId + ")");
         } finally {
           lock.releaseLock();
         }
@@ -1218,6 +1255,8 @@ const CONFIG = {
       .addItem('📊 5. Periksa Status Sistem', 'showSystemStatus')
       .addSeparator()
       .addItem('🔄 6. Cek & Kirim Ulang Akses Drive Peserta', 'checkAndRetryDriveSharing')
+      .addSeparator()
+      .addItem('🛠️ 7. Rapikan Baris Data yang Bergeser (Auto-Fix Columns)', 'fixShiftedParticipantRows')
       .addToUi();
   }
 
@@ -1461,15 +1500,51 @@ const CONFIG = {
         const nextSyncRow = sheetPeserta.getLastRow() + 1;
         const syncFormulaTotal = `=IF(A${nextSyncRow}=""; ""; COUNTIF(D${nextSyncRow}:ZZ${nextSyncRow}; "HADIR*"))`;
 
-        sheetPeserta.appendRow([
-          ticketId,
-          name,
-          syncFormulaTotal,
-          email,
-          fileId,
-          fileUrl,
-          regTimestamp
-        ]);
+        // Kumpulkan seluruh jawaban form dalam map (lowercase key)
+        const rowFormAnswers = {};
+        rawHeaders.forEach((h, hIdx) => {
+          const title = String(h || "").trim();
+          if (title) {
+            rowFormAnswers[title.toLowerCase()] = String(row[hIdx] || "").trim();
+          }
+        });
+
+        const syncHeaders = sheetPeserta.getRange(1, 1, 1, sheetPeserta.getLastColumn()).getValues()[0];
+        const syncRowData = new Array(syncHeaders.length).fill("");
+
+        syncHeaders.forEach((h, sIdx) => {
+          const headerStr = String(h || "").trim();
+          const lower = headerStr.toLowerCase();
+
+          if (lower.includes("ticket") || lower === "id" || lower.includes("id tiket")) {
+            syncRowData[sIdx] = ticketId;
+          } else if (lower.includes("nama")) {
+            syncRowData[sIdx] = name;
+          } else if (lower.includes("total") || lower.includes("jumlah")) {
+            syncRowData[sIdx] = syncFormulaTotal;
+          } else if (lower.includes("email")) {
+            syncRowData[sIdx] = email;
+          } else if (lower.includes("drive file id") || lower === "file id") {
+            syncRowData[sIdx] = fileId;
+          } else if (lower.includes("drive file url") || lower === "file url") {
+            syncRowData[sIdx] = fileUrl;
+          } else if (lower.includes("waktu daftar") || lower === "timestamp" || lower.includes("tanggal")) {
+            syncRowData[sIdx] = regTimestamp;
+          } else if (lower.startsWith("sesi:") || (lower.includes("[") && lower.includes("]"))) {
+            syncRowData[sIdx] = "";
+          } else {
+            let matchedAns = rowFormAnswers[lower];
+            if (matchedAns === undefined) {
+              const foundKey = Object.keys(rowFormAnswers).find(k => k.includes(lower) || lower.includes(k));
+              if (foundKey && rowFormAnswers[foundKey] !== undefined) {
+                matchedAns = rowFormAnswers[foundKey];
+              }
+            }
+            syncRowData[sIdx] = matchedAns || "";
+          }
+        });
+
+        sheetPeserta.appendRow(syncRowData);
 
         existingEmails.add(email.toLowerCase());
         importedCount++;
@@ -1492,6 +1567,89 @@ const CONFIG = {
   function applyFreezeAndTotalHadir() {
     ensureAllSheetsSetup();
     SpreadsheetApp.getUi().alert("✅ Berhasil!", "3 kolom pertama (Ticket ID, Nama Lengkap, Total Hadir) dan baris header berhasil dibekukan (freeze).", SpreadsheetApp.getUi().ButtonSet.OK);
+  }
+
+  /**
+   * Helper / Tool: Memperbaiki otomatis baris di sheet Data Peserta yang kolomnya sempat bergeser
+   * Akibat penyisipan kolom custom manual (misal Email masuk ke kolom Fakultas / Jenis Kelamin).
+   */
+  function fixShiftedParticipantRows() {
+    const ui = SpreadsheetApp.getUi();
+    const sheetPeserta = getOrCreateSheet(CONFIG.SHEETS.DATA_PESERTA);
+    const lastRow = sheetPeserta.getLastRow();
+    const lastCol = sheetPeserta.getLastColumn();
+
+    if (lastRow <= 1 || lastCol === 0) {
+      ui.alert("Tidak Ada Data", "Sheet Data Peserta masih kosong.", ui.ButtonSet.OK);
+      return;
+    }
+
+    const headers = sheetPeserta.getRange(1, 1, 1, lastCol).getValues()[0];
+    const emailColIdx = headers.findIndex(h => String(h).toLowerCase().includes("email"));
+    const fileIdColIdx = headers.findIndex(h => String(h).toLowerCase().includes("drive file id") || String(h).toLowerCase() === "file id");
+    const fileUrlColIdx = headers.findIndex(h => String(h).toLowerCase().includes("drive file url") || String(h).toLowerCase() === "file url");
+    const regTimeColIdx = headers.findIndex(h => String(h).toLowerCase().includes("waktu daftar") || String(h).toLowerCase().includes("timestamp"));
+
+    if (emailColIdx === -1 || fileIdColIdx === -1) {
+      ui.alert("Gagal", "Kolom 'Email' atau 'Drive File ID' tidak ditemukan di header.", ui.ButtonSet.OK);
+      return;
+    }
+
+    const dataRange = sheetPeserta.getRange(2, 1, lastRow - 1, lastCol);
+    const values = dataRange.getValues();
+    let fixedCount = 0;
+
+    for (let r = 0; r < values.length; r++) {
+      const row = values[r];
+      const actualEmail = String(row[emailColIdx] || "").trim();
+
+      // Deteksi apakah kolom email saat ini bukan berisi email (misal berisi link drive atau timestamp)
+      // DAN cari apakah email tersasar di kolom sebelumnya (misal kolom D atau E)
+      if (!actualEmail.includes("@")) {
+        let misplacedEmailIdx = -1;
+        let misplacedEmailVal = "";
+
+        for (let c = 2; c < lastCol; c++) {
+          const cellVal = String(row[c] || "").trim();
+          if (cellVal.includes("@") && cellVal.includes(".")) {
+            misplacedEmailIdx = c;
+            misplacedEmailVal = cellVal;
+            break;
+          }
+        }
+
+        if (misplacedEmailIdx !== -1 && misplacedEmailIdx !== emailColIdx) {
+          const misplacedFileId = String(row[misplacedEmailIdx + 1] || "").trim();
+          const misplacedFileUrl = String(row[misplacedEmailIdx + 2] || "").trim();
+          const misplacedRegTime = String(row[misplacedEmailIdx + 3] || "").trim();
+
+          // Pindahkan ke kolom yang benar
+          row[emailColIdx] = misplacedEmailVal;
+          if (fileIdColIdx !== -1 && misplacedFileId) row[fileIdColIdx] = misplacedFileId;
+          if (fileUrlColIdx !== -1 && misplacedFileUrl) row[fileUrlColIdx] = misplacedFileUrl;
+          if (regTimeColIdx !== -1 && misplacedRegTime) row[regTimeColIdx] = misplacedRegTime;
+
+          // Kosongkan kolom yang tadinya salah terisi jika posisinya sebelum kolom email
+          if (misplacedEmailIdx < emailColIdx) row[misplacedEmailIdx] = "";
+          if (misplacedEmailIdx + 1 < emailColIdx) row[misplacedEmailIdx + 1] = "";
+          if (misplacedEmailIdx + 2 < emailColIdx) row[misplacedEmailIdx + 2] = "";
+          if (misplacedEmailIdx + 3 < emailColIdx) row[misplacedEmailIdx + 3] = "";
+
+          // Pastikan formula Total Hadir di kolom C
+          const rowNum = r + 2;
+          row[2] = `=IF(A${rowNum}=""; ""; COUNTIF(D${rowNum}:ZZ${rowNum}; "HADIR*"))`;
+
+          fixedCount++;
+        }
+      }
+    }
+
+    if (fixedCount > 0) {
+      dataRange.setValues(values);
+      ui.alert("Berhasil Merapikan Data!", `✅ Sebanyak ${fixedCount} baris data peserta yang bergeser berhasil dirapikan kembali ke kolom aslinya.`, ui.ButtonSet.OK);
+    } else {
+      ui.alert("Data Sudah Rapi", "Seluruh baris peserta sudah berada di kolom yang sesuai.", ui.ButtonSet.OK);
+    }
   }
 
   /**

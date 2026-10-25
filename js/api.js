@@ -233,9 +233,9 @@ window.EventPass = window.EventPass || {};
     },
 
     /**
-     * Register walk-in attendee on the spot
+     * Register walk-in attendee on the spot with dynamic custom fields
      */
-    async registerOts(name, contact, notes) {
+    async registerOts(name, contact, notes, customFields = {}) {
       const mapsUrl = (ns.state.location && ns.state.location.mapsUrl) ? ns.state.location.mapsUrl : "-";
       const deviceInfo = ns.state.deviceInfo || "-";
 
@@ -244,6 +244,7 @@ window.EventPass = window.EventPass || {};
         name: name.trim(),
         contact: contact.trim(),
         notes: notes.trim(),
+        customFields: customFields,
         sessionId: ns.state.currentSessionId,
         sessionName: ns.state.currentSessionName,
         scannedBy: ns.state.panitiaName,
