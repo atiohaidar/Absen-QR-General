@@ -175,19 +175,22 @@ window.EventPass = window.EventPass || {};
     /**
      * Verify ticket check-in for active session
      */
-    async checkIn(ticketId) {
+    async checkIn(ticketId, extra = {}) {
       const mapsUrl = (ns.state.location && ns.state.location.mapsUrl) ? ns.state.location.mapsUrl : "-";
       const deviceInfo = ns.state.deviceInfo || "-";
 
       const payload = {
         action: 'checkIn',
         ticketId: ticketId.trim(),
-        sessionId: ns.state.currentSessionId,
-        sessionName: ns.state.currentSessionName,
+        sessionId: extra.sessionId || ns.state.currentSessionId,
+        sessionName: extra.sessionName || ns.state.currentSessionName,
         scannedBy: ns.state.panitiaName,
         gate: ns.state.gateName || "Pintu Masuk",
         mapsUrl: mapsUrl,
-        deviceInfo: deviceInfo
+        deviceInfo: deviceInfo,
+        scanMode: extra.scanMode || ns.state.currentScanMode || "IN",
+        isAnomaly: !!extra.isAnomaly,
+        anomalyReason: extra.anomalyReason || ""
       };
 
       return await postJsonWithRetry(payload, 1);
@@ -219,30 +222,48 @@ window.EventPass = window.EventPass || {};
      * Search attendees by query in Data Peserta
      */
     async searchAttendees(query) {
+      const currentSessionId = ns.state.currentSessionId || "SESI-01";
+      const activeSessionObj = (ns.state.sessions || []).find(s => s.id === currentSessionId);
+      const isInOut = (activeSessionObj && activeSessionObj.type === "CHECK_IN_OUT");
+      const scanMode = isInOut ? (ns.state.currentScanMode || "IN") : "SINGLE";
+      const effectiveSessionId = isInOut ? `${currentSessionId}_${scanMode}` : currentSessionId;
+      const effectiveSessionName = isInOut 
+        ? `${ns.state.currentSessionName} (${scanMode === "IN" ? "Masuk" : "Keluar"})` 
+        : ns.state.currentSessionName;
+
       const payload = {
         action: 'search',
         query: query.trim(),
-        sessionId: ns.state.currentSessionId,
-        sessionName: ns.state.currentSessionName
+        sessionId: effectiveSessionId,
+        sessionName: effectiveSessionName
       };
 
       return await postJsonWithRetry(payload, 0);
     },
 
     /**
-     * Register walk-in attendee on the spot
+     * Register walk-in attendee on the spot with dynamic custom fields
      */
-    async registerOts(name, contact, notes) {
+    async registerOts(name, contact, notes, customFields = {}) {
       const mapsUrl = (ns.state.location && ns.state.location.mapsUrl) ? ns.state.location.mapsUrl : "-";
       const deviceInfo = ns.state.deviceInfo || "-";
+      const currentSessionId = ns.state.currentSessionId || "SESI-01";
+      const activeSessionObj = (ns.state.sessions || []).find(s => s.id === currentSessionId);
+      const isInOut = (activeSessionObj && activeSessionObj.type === "CHECK_IN_OUT");
+      const scanMode = isInOut ? (ns.state.currentScanMode || "IN") : "SINGLE";
+      const effectiveSessionId = isInOut ? `${currentSessionId}_${scanMode}` : currentSessionId;
+      const effectiveSessionName = isInOut 
+        ? `${ns.state.currentSessionName} (${scanMode === "IN" ? "Masuk" : "Keluar"})` 
+        : ns.state.currentSessionName;
 
       const payload = {
         action: 'registerOts',
         name: name.trim(),
         contact: contact.trim(),
         notes: notes.trim(),
-        sessionId: ns.state.currentSessionId,
-        sessionName: ns.state.currentSessionName,
+        customFields: customFields,
+        sessionId: effectiveSessionId,
+        sessionName: effectiveSessionName,
         scannedBy: ns.state.panitiaName,
         gate: ns.state.gateName || "Pintu Masuk",
         mapsUrl: mapsUrl,

@@ -21,6 +21,9 @@ window.EventPass = window.EventPass || {};
       ns.UI.renderOperatorHeader();
       ns.UI.renderSessionDropdown();
       ns.UI.renderHistory();
+      if (ns.state.customFields && ns.state.customFields.length > 0) {
+        ns.UI.renderOtsCustomFields(ns.state.customFields);
+      }
 
       // Asynchronously enrich device model (e.g. Samsung SM-..., Pixel, Xiaomi) via Client Hints
       if (typeof ns.enrichDeviceInfoWithModel === "function") {
@@ -97,6 +100,47 @@ window.EventPass = window.EventPass || {};
         });
       }
 
+      // 1b. Mode Presensi (Check-In vs Check-Out) Toggle
+      if (DOM.btnModeIn) {
+        DOM.btnModeIn.addEventListener("click", () => {
+          ns.state.currentScanMode = "IN";
+          localStorage.setItem("absen_scan_mode", "IN");
+          ns.UI.updateScanModeUI();
+          ns.UI.showToast("Mode aktif: Check-In (Masuk) 🟢");
+          if (DOM.inputManualSearch && DOM.inputManualSearch.value.trim()) {
+            this.performSearch();
+          }
+        });
+      }
+      if (DOM.btnModeOut) {
+        DOM.btnModeOut.addEventListener("click", () => {
+          ns.state.currentScanMode = "OUT";
+          localStorage.setItem("absen_scan_mode", "OUT");
+          ns.UI.updateScanModeUI();
+          ns.UI.showToast("Mode aktif: Check-Out (Keluar) 🟠");
+          if (DOM.inputManualSearch && DOM.inputManualSearch.value.trim()) {
+            this.performSearch();
+          }
+        });
+      }
+
+      // 1c. Anomaly Modal Actions (Checkout Tanpa Checkin)
+      if (DOM.btnCloseAnomalyModal) {
+        DOM.btnCloseAnomalyModal.addEventListener("click", () => ns.UI.closeAnomalyModal(true));
+      }
+      if (DOM.btnCancelAnomaly) {
+        DOM.btnCancelAnomaly.addEventListener("click", () => ns.UI.closeAnomalyModal(true));
+      }
+      if (DOM.btnForceCheckout) {
+        DOM.btnForceCheckout.addEventListener("click", () => {
+          const reason = (DOM.anomalyReasonSelect ? DOM.anomalyReasonSelect.value : "Lolos gate masuk / terlambat") || "Lolos gate masuk";
+          if (ns.UI._anomalyCallbacks && typeof ns.UI._anomalyCallbacks.onConfirm === "function") {
+            ns.UI._anomalyCallbacks.onConfirm(reason);
+          }
+          ns.UI.closeAnomalyModal(false);
+        });
+      }
+
       // 2. Navigation Tabs
       DOM.tabButtons.forEach(btn => {
         btn.addEventListener("click", () => {
@@ -114,6 +158,7 @@ window.EventPass = window.EventPass || {};
           } else {
             if (ns.state.isScanning) ns.Scanner.stopScanning();
             if (targetTab === "history") ns.UI.renderHistory();
+            if (targetTab === "ots") ns.UI.renderOtsCustomFields(ns.state.customFields);
           }
         });
       });
@@ -230,7 +275,7 @@ window.EventPass = window.EventPass || {};
               DOM.btnRecheckServer.style.display = "none";
               if (DOM.btnCancelCheckin) DOM.btnCancelCheckin.style.display = "flex";
 
-              ns.UI.showToast("✅ Status berhasil diverifikasi ulang dari spreadsheet!");
+              ns.UI.showToast("Status berhasil diverifikasi ulang dari spreadsheet!");
             } else if (res && res.status === "NOT_FOUND") {
               // Tiket telah dihapus admin di spreadsheet
               ns.sounds.playError();
@@ -431,13 +476,38 @@ window.EventPass = window.EventPass || {};
         });
       }
 
+      // Helper to clear local attendees cache safely
+      const handleClearCachePrompt = () => {
+        if (!confirm("Hapus seluruh cache database peserta di perangkat ini?\n\n(Data di Google Sheets tetap 100% AMAN. Anda dapat mengunduh data terbaru kapan saja dengan klik 'Sync Database').")) {
+          return;
+        }
+        ns.state.cachedAttendees = {};
+        localStorage.removeItem("absen_cached_attendees");
+        localStorage.removeItem("absen_last_sync_time");
+        ns.state.lastSyncTime = null;
+
+        if (ns.Sync) {
+          ns.Sync.updateCacheCountUI();
+          ns.Sync.updateSyncUI();
+        }
+        ns.UI.showToast("Cache data peserta lokal berhasil dibersihkan.");
+      };
+
+      if (DOM.btnClearCache) {
+        DOM.btnClearCache.addEventListener("click", handleClearCachePrompt);
+      }
+      if (DOM.btnClearAllData) {
+        DOM.btnClearAllData.addEventListener("click", handleClearCachePrompt);
+      }
+
       // 9. History Clear
       if (DOM.btnClearHistory) {
         DOM.btnClearHistory.addEventListener("click", () => {
+          if (!confirm("Bersihkan seluruh riwayat pemindaian pada perangkat ini?")) return;
           ns.state.history = [];
           localStorage.removeItem("absen_history");
           ns.UI.renderHistory();
-          ns.UI.showToast("Riwayat lokal telah dibersihkan.");
+          ns.UI.showToast("Riwayat pemindaian telah dibersihkan.");
         });
       }
 
@@ -727,21 +797,28 @@ window.EventPass = window.EventPass || {};
       const currentSessionName = ns.state.currentSessionName || "Sesi Utama";
       const currentOperator = [ns.state.panitiaName, ns.state.gateName].filter(Boolean).join(" • ") || "-";
 
+      // Deteksi apakah sesi yang aktif bertipe CHECK_IN_OUT
+      const activeSessionObj = (ns.state.sessions || []).find(s => s.id === currentSessionId);
+      const isInOutSession = (activeSessionObj && activeSessionObj.type === "CHECK_IN_OUT");
+      const scanMode = isInOutSession ? (ns.state.currentScanMode || "IN") : "SINGLE";
+      const effectiveSessionId = isInOutSession ? `${currentSessionId}_${scanMode}` : currentSessionId;
+      const effectiveSessionName = isInOutSession ? `${currentSessionName} (${scanMode === "IN" ? "Masuk" : "Keluar"})` : currentSessionName;
+
       // =========================================================================
       // ⚡ INSTANT SCAN MODE (SAT-SET 0.05s / OFFLINE-READY LOCAL LOOKUP)
       // =========================================================================
       if (ns.state.instantMode && ns.Sync) {
         ns.sounds.init();
 
-        // 1. Cek duplikasi di sesi ini (baik di cache sesi, antrean pending, maupun riwayat sesi ini)
         const cachedAttendee = ns.state.cachedAttendees ? ns.state.cachedAttendees[upperTicketId] : null;
-        const alreadyInCacheSession = cachedAttendee && cachedAttendee.checkedInSessions && cachedAttendee.checkedInSessions[currentSessionId];
+
+        // 1. Cek duplikasi di sesi/mode ini
+        const alreadyInCacheSession = cachedAttendee && cachedAttendee.checkedInSessions && cachedAttendee.checkedInSessions[effectiveSessionId];
         const alreadyInQueue = ns.state.syncQueue && ns.state.syncQueue.some(
-          item => String(item.ticketId || "").toUpperCase() === upperTicketId && item.sessionId === currentSessionId && !item.isDuplicate
+          item => String(item.ticketId || "").toUpperCase() === upperTicketId && item.sessionId === effectiveSessionId && !item.isDuplicate
         );
-        // Fallback duplicate check: hanya jika tiket belum tersimpan di cache lokal
         const alreadyInHistory = !cachedAttendee && ns.state.history && ns.state.history.some(
-          h => String(h.ticketId || "").toUpperCase() === upperTicketId && h.sessionId === currentSessionId && (h.status === "SUCCESS" || h.status === "CHECKED_IN")
+          h => String(h.ticketId || "").toUpperCase() === upperTicketId && h.sessionId === effectiveSessionId && (h.status === "SUCCESS" || h.status === "CHECKED_IN" || h.status === "CHECKED_OUT")
         );
 
         if (alreadyInCacheSession || alreadyInQueue || alreadyInHistory) {
@@ -759,19 +836,21 @@ window.EventPass = window.EventPass || {};
 
           ns.state.lastScanned = {
             ticketId: rawTicketId,
-            sessionId: currentSessionId,
-            sessionName: currentSessionName,
+            sessionId: effectiveSessionId,
+            sessionName: effectiveSessionName,
             attendeeName: attendeeName
           };
 
+          const isOut = (scanMode === "OUT");
           ns.UI.showResultModal({
             type: "warning",
-            title: "SUDAH ABSEN DI SESI INI",
-            subtitle: `Sesi: ${currentSessionName} (Pemeriksaan Instan)`,
+            title: isOut ? "SUDAH CHECK-OUT SEBELUMNYA" : "SUDAH ABSEN DI SESI INI",
+            subtitle: `Sesi: ${effectiveSessionName} (Pemeriksaan Instan)`,
             name: attendeeName,
             ticketId: rawTicketId,
             email: cached.email || "-",
             time: checkTime,
+            timeLabel: isOut ? "Waktu Keluar" : "Waktu Masuk",
             officer: currentOperator,
             allowCancel: true,
             allowRecheck: true
@@ -779,28 +858,28 @@ window.EventPass = window.EventPass || {};
 
           ns.UI.recordHistory({
             ticketId: rawTicketId,
-            sessionId: currentSessionId,
-            sessionName: currentSessionName,
+            sessionId: effectiveSessionId,
+            sessionName: effectiveSessionName,
             name: attendeeName,
             status: "DUPLICATE",
             time: checkTime
           });
 
-          // 🌟 PENTING: Masukkan juga ke background sync queue agar tercatat di Google Sheets "Log Kehadiran" sebagai DUPLIKAT!
-          // Debounce agar scan bertubi-tubi tidak membanjiri antrean jika duplikat yang sama masih pending
+          // Masukkan ke background queue sebagai duplikat untuk audit trail
           const isAlreadyQueuedDup = ns.state.syncQueue && ns.state.syncQueue.some(
-            item => String(item.ticketId || "").toUpperCase() === upperTicketId && item.sessionId === currentSessionId && item.isDuplicate
+            item => String(item.ticketId || "").toUpperCase() === upperTicketId && item.sessionId === effectiveSessionId && item.isDuplicate
           );
           if (!isAlreadyQueuedDup) {
             ns.Sync.enqueue({
               ticketId: rawTicketId,
-              sessionId: currentSessionId,
-              sessionName: currentSessionName,
+              sessionId: effectiveSessionId,
+              sessionName: effectiveSessionName,
               scannedBy: ns.state.panitiaName,
-              gate: ns.state.gateName || "Pintu Masuk",
+              gate: ns.state.gateName || (isOut ? "Pintu Keluar" : "Pintu Masuk"),
               mapsUrl: ns.state.location ? ns.state.location.mapsUrl : "-",
               deviceInfo: ns.state.deviceInfo || "-",
               clientTime: ns.Sync ? ns.Sync.formatLocalIsoDateTime() : new Date().toLocaleTimeString(),
+              scanMode: scanMode,
               isDuplicate: true
             });
           }
@@ -808,74 +887,63 @@ window.EventPass = window.EventPass || {};
           return;
         }
 
+        // =========================================================================
+        // ⚠️ ANOMALY CHECK: CHECK-OUT TAPI BELUM CHECK-IN
+        // =========================================================================
+        if (isInOutSession && scanMode === "OUT" && cachedAttendee) {
+          const inSessionId = `${currentSessionId}_IN`;
+          const hasCheckedIn = Boolean(
+            (cachedAttendee.checkedInSessions && cachedAttendee.checkedInSessions[inSessionId]) ||
+            (ns.state.syncQueue && ns.state.syncQueue.some(item => String(item.ticketId || "").toUpperCase() === upperTicketId && item.sessionId === inSessionId && !item.isDuplicate)) ||
+            (ns.state.history && ns.state.history.some(h => String(h.ticketId || "").toUpperCase() === upperTicketId && h.sessionId === inSessionId && (h.status === "SUCCESS" || h.status === "CHECKED_IN")))
+          );
+
+          if (!hasCheckedIn) {
+            // Trigger Anomaly Modal!
+            ns.state.isProcessing = true;
+            ns.sounds.playWarning();
+            if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+
+            ns.UI.openAnomalyModal({
+              name: cachedAttendee.name || "Peserta",
+              ticketId: rawTicketId,
+              onConfirm: (reason) => {
+                this.executeSuccessfulScan({
+                  rawTicketId,
+                  cachedAttendee,
+                  effectiveSessionId,
+                  effectiveSessionName,
+                  scanMode: "OUT",
+                  currentOperator,
+                  isAnomaly: true,
+                  anomalyReason: reason
+                });
+              },
+              onCancel: () => {
+                ns.state.isProcessing = false;
+                ns.Scanner.resetReticle();
+              }
+            });
+            return;
+          }
+        }
+
         // 2. Cek apakah tiket terdaftar di cache lokal
         if (cachedAttendee) {
-          // 🎉 TIKET DITEMUKAN DI CACHE: Langsung Lolos (0.05 Detik!)
-          ns.state.isProcessing = true;
-          ns.sounds.playSuccess();
-          if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
-
-          ns.state.stats.total++;
-          ns.state.stats.success++;
-          if (ns.DOM.statTotal) ns.DOM.statTotal.textContent = ns.state.stats.total;
-
-          const checkTime = new Date().toLocaleTimeString();
-          const attendeeName = cachedAttendee.name || "Peserta";
-
-          // Simpan status hadir sesi ini di memori agar anti double-scan selamanya
-          if (!cachedAttendee.checkedInSessions) cachedAttendee.checkedInSessions = {};
-          cachedAttendee.checkedInSessions[currentSessionId] = checkTime;
-          try {
-            localStorage.setItem("absen_cached_attendees", JSON.stringify(ns.state.cachedAttendees));
-          } catch (e) { }
-
-          ns.state.lastScanned = {
-            ticketId: rawTicketId,
-            sessionId: currentSessionId,
-            sessionName: currentSessionName,
-            attendeeName: attendeeName
-          };
-
-          // Tampilkan modal hasil seketika tanpa nunggu server
-          ns.UI.showResultModal({
-            type: "success",
-            title: "CHECK-IN BERHASIL ⚡",
-            subtitle: `${currentSessionName} • Hadir (Mode Instan)`,
-            name: attendeeName,
-            ticketId: rawTicketId,
-            email: cachedAttendee.email || "-",
-            time: checkTime,
-            officer: currentOperator,
-            allowCancel: true
+          this.executeSuccessfulScan({
+            rawTicketId,
+            cachedAttendee,
+            effectiveSessionId,
+            effectiveSessionName,
+            scanMode,
+            currentOperator,
+            isAnomaly: false,
+            anomalyReason: ""
           });
-
-          // Catat ke riwayat lokal
-          ns.UI.recordHistory({
-            ticketId: rawTicketId,
-            sessionId: currentSessionId,
-            sessionName: currentSessionName,
-            name: attendeeName,
-            status: "SUCCESS",
-            time: checkTime
-          });
-
-          // Masukkan ke background sync queue untuk di-batch ke Google Apps Script
-          ns.Sync.enqueue({
-            ticketId: rawTicketId,
-            sessionId: currentSessionId,
-            sessionName: currentSessionName,
-            scannedBy: ns.state.panitiaName,
-            gate: ns.state.gateName || "Pintu Masuk",
-            mapsUrl: ns.state.location ? ns.state.location.mapsUrl : "-",
-            deviceInfo: ns.state.deviceInfo || "-",
-            clientTime: ns.Sync ? ns.Sync.formatLocalIsoDateTime() : checkTime
-          });
-
           return;
         }
 
         // 3. JIKA TIKET BELUM ADA DI CACHE LOKAL:
-        // Peserta mungkin baru daftar OTS / Google Form. Lakukan Smart Fallback Live Check ke server.
         console.log(`[Smart Fallback] Tiket ${rawTicketId} belum ada di cache lokal, cek langsung ke server...`);
       }
 
@@ -889,7 +957,7 @@ window.EventPass = window.EventPass || {};
       if (ns.DOM.globalLoadingBar) ns.DOM.globalLoadingBar.classList.add("active");
       if (ns.DOM.scannerLoadingHud) {
         ns.DOM.scannerLoadingHud.classList.add("show");
-        if (ns.DOM.hudTicketId) ns.DOM.hudTicketId.textContent = `${rawTicketId} • ${currentSessionName}`;
+        if (ns.DOM.hudTicketId) ns.DOM.hudTicketId.textContent = `${rawTicketId} • ${effectiveSessionName}`;
       }
       if (ns.DOM.btnManualCheckin) {
         ns.DOM.btnManualCheckin.disabled = true;
@@ -906,13 +974,21 @@ window.EventPass = window.EventPass || {};
 
       if (ns.DOM.verifyingBox) ns.DOM.verifyingBox.style.display = "inline-flex";
       if (ns.DOM.verifyingText) ns.DOM.verifyingText.textContent = `Memverifikasi ${rawTicketId}...`;
-      ns.UI.updateScannerStatus("Memproses...", `Mengecek sesi: ${currentSessionName}`);
+      ns.UI.updateScannerStatus("Memproses...", `Mengecek sesi: ${effectiveSessionName}`);
 
       if (navigator.vibrate) navigator.vibrate(60);
 
       try {
-        const result = await ns.API.checkIn(rawTicketId);
-        this.handleCheckInResponse(rawTicketId, result);
+        const result = await ns.API.checkIn(rawTicketId, {
+          sessionId: effectiveSessionId,
+          sessionName: effectiveSessionName,
+          scanMode: scanMode
+        });
+        this.handleCheckInResponse(rawTicketId, result, {
+          scanMode,
+          effectiveSessionId,
+          effectiveSessionName
+        });
       } catch (err) {
         console.error("Check-in error:", err);
         ns.sounds.playError();
@@ -937,14 +1013,15 @@ window.EventPass = window.EventPass || {};
           ticketId: rawTicketId,
           email: "-",
           time: new Date().toLocaleTimeString(),
+          timeLabel: (scanMode === "OUT") ? "Waktu Keluar" : "Waktu Masuk",
           officer: currentOperator,
           allowCancel: false,
           isConfigError: isConnErr
         });
         ns.UI.recordHistory({
           ticketId: rawTicketId,
-          sessionId: currentSessionId,
-          sessionName: currentSessionName,
+          sessionId: effectiveSessionId,
+          sessionName: effectiveSessionName,
           name: isConnErr ? "Koneksi Gagal (Cek URL API)" : "Koneksi Gagal",
           status: "ERROR",
           time: new Date().toLocaleTimeString()
@@ -954,6 +1031,83 @@ window.EventPass = window.EventPass || {};
       }
     },
 
+    /**
+     * Helper to execute a successful scan (both normal and anomaly) in instant mode
+     */
+    executeSuccessfulScan({ rawTicketId, cachedAttendee, effectiveSessionId, effectiveSessionName, scanMode, currentOperator, isAnomaly, anomalyReason }) {
+      ns.state.isProcessing = true;
+      ns.sounds.playSuccess();
+      if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+
+      ns.state.stats.total++;
+      ns.state.stats.success++;
+      if (ns.DOM.statTotal) ns.DOM.statTotal.textContent = ns.state.stats.total;
+
+      const checkTime = new Date().toLocaleTimeString();
+      const attendeeName = cachedAttendee.name || "Peserta";
+
+      // Simpan status hadir sesi ini di memori agar anti double-scan selamanya
+      if (!cachedAttendee.checkedInSessions) cachedAttendee.checkedInSessions = {};
+      cachedAttendee.checkedInSessions[effectiveSessionId] = checkTime;
+      try {
+        localStorage.setItem("absen_cached_attendees", JSON.stringify(ns.state.cachedAttendees));
+      } catch (e) { }
+
+      ns.state.lastScanned = {
+        ticketId: rawTicketId,
+        sessionId: effectiveSessionId,
+        sessionName: effectiveSessionName,
+        attendeeName: attendeeName
+      };
+
+      const isOut = (scanMode === "OUT");
+      const title = isOut ? (isAnomaly ? "CHECK-OUT (ANOMALI) ⚠️" : "CHECK-OUT BERHASIL ⚡") : "CHECK-IN BERHASIL ⚡";
+      const subtitle = isAnomaly
+        ? `Lolos Check-Out • Anomali: ${anomalyReason || "Tanpa Check-in"}`
+        : `${effectiveSessionName} • ${isOut ? "Kepulangan Terverifikasi" : "Hadir (Mode Instan)"}`;
+
+      ns.UI.showResultModal({
+        type: isAnomaly ? "warning" : "success",
+        title: title,
+        subtitle: subtitle,
+        name: attendeeName,
+        ticketId: rawTicketId,
+        email: cachedAttendee.email || "-",
+        time: checkTime,
+        timeLabel: isOut ? "Waktu Keluar" : "Waktu Masuk",
+        officer: currentOperator,
+        allowCancel: true
+      });
+
+      ns.UI.recordHistory({
+        ticketId: rawTicketId,
+        sessionId: effectiveSessionId,
+        sessionName: effectiveSessionName,
+        name: attendeeName,
+        status: isAnomaly ? "ANOMALY_CHECKOUT" : (isOut ? "CHECKED_OUT" : "SUCCESS"),
+        time: checkTime
+      });
+
+      // Masukkan ke background sync queue untuk di-batch ke Google Apps Script
+      ns.Sync.enqueue({
+        ticketId: rawTicketId,
+        sessionId: effectiveSessionId,
+        sessionName: effectiveSessionName,
+        scannedBy: ns.state.panitiaName,
+        gate: ns.state.gateName || (isOut ? "Pintu Keluar" : "Pintu Masuk"),
+        mapsUrl: ns.state.location ? ns.state.location.mapsUrl : "-",
+        deviceInfo: ns.state.deviceInfo || "-",
+        clientTime: ns.Sync ? ns.Sync.formatLocalIsoDateTime() : checkTime,
+        scanMode: scanMode,
+        isAnomaly: !!isAnomaly,
+        anomalyReason: anomalyReason || ""
+      });
+
+      ns.UI.removeSearchResultItem(rawTicketId);
+      if (ns.DOM.inputManualId) ns.DOM.inputManualId.value = "";
+      this.finishProcessing();
+    },
+
     finishProcessing(sourceButton = null) {
       if (ns.DOM.globalLoadingBar) ns.DOM.globalLoadingBar.classList.remove("active");
       if (ns.DOM.scannerLoadingHud) ns.DOM.scannerLoadingHud.classList.remove("show");
@@ -961,21 +1115,23 @@ window.EventPass = window.EventPass || {};
       if (ns.DOM.btnManualCheckin) {
         ns.DOM.btnManualCheckin.disabled = false;
         ns.DOM.btnManualCheckin.classList.remove("btn-loading");
-        ns.DOM.btnManualCheckin.innerHTML = `Check In`;
+        const isOut = (ns.state.currentScanMode === "OUT");
+        ns.DOM.btnManualCheckin.innerHTML = isOut ? `Check Out` : `Check In`;
       }
       if (ns.DOM.inputManualId) ns.DOM.inputManualId.disabled = false;
 
       if (sourceButton) {
         sourceButton.disabled = false;
         sourceButton.classList.remove("btn-loading");
-        sourceButton.innerHTML = `Check In`;
+        const isOut = (ns.state.currentScanMode === "OUT");
+        sourceButton.innerHTML = isOut ? `Check Out` : `Check In`;
       }
 
       if (ns.DOM.verifyingBox) ns.DOM.verifyingBox.style.display = "none";
-      ns.UI.updateScannerStatus("Siap Memindai", `Sesi: ${ns.state.currentSessionName}`);
+      ns.UI.updateScanModeUI();
     },
 
-    handleCheckInResponse(scannedTicketId, res) {
+    handleCheckInResponse(scannedTicketId, res, options = {}) {
       const attendee = res.attendee || {};
       const attendeeName = attendee.name || "Peserta";
       const attendeeEmail = attendee.email || "-";
@@ -983,14 +1139,19 @@ window.EventPass = window.EventPass || {};
       const currentOperator = [ns.state.panitiaName, ns.state.gateName].filter(Boolean).join(" • ") || "-";
       const officer = attendee.scannedBy || currentOperator;
 
+      const effectiveSessionId = options.effectiveSessionId || ns.state.currentSessionId;
+      const effectiveSessionName = options.effectiveSessionName || ns.state.currentSessionName;
+      const scanMode = options.scanMode || (effectiveSessionId.endsWith("_OUT") ? "OUT" : "IN");
+      const isOut = (scanMode === "OUT");
+
       ns.state.lastScanned = {
         ticketId: scannedTicketId,
-        sessionId: ns.state.currentSessionId,
-        sessionName: ns.state.currentSessionName,
+        sessionId: effectiveSessionId,
+        sessionName: effectiveSessionName,
         attendeeName: attendeeName
       };
 
-      if (res.success && res.status === "CHECKED_IN") {
+      if (res.success && (res.status === "CHECKED_IN" || res.status === "CHECKED_OUT")) {
         ns.sounds.playSuccess();
         if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
 
@@ -998,24 +1159,28 @@ window.EventPass = window.EventPass || {};
         ns.state.stats.success++;
         ns.DOM.statTotal.textContent = ns.state.stats.total;
 
+        const title = isOut ? (res.isAnomaly ? "CHECK-OUT (ANOMALI) ⚠️" : "CHECK-OUT BERHASIL") : "CHECK-IN BERHASIL";
+        const subtitle = `${effectiveSessionName} • ${isOut ? "Kepulangan Terverifikasi" : "Hadir"}`;
+
         ns.UI.showResultModal({
-          type: "success",
-          title: "CHECK-IN BERHASIL",
-          subtitle: `${ns.state.currentSessionName} • Hadir`,
+          type: res.isAnomaly ? "warning" : "success",
+          title: title,
+          subtitle: subtitle,
           name: attendeeName,
           ticketId: attendee.ticketId || scannedTicketId,
           email: attendeeEmail,
           time: checkTime,
+          timeLabel: isOut ? "Waktu Keluar" : "Waktu Masuk",
           officer: officer,
           allowCancel: true
         });
 
         ns.UI.recordHistory({
           ticketId: scannedTicketId,
-          sessionId: ns.state.currentSessionId,
-          sessionName: ns.state.currentSessionName,
+          sessionId: effectiveSessionId,
+          sessionName: effectiveSessionName,
           name: attendeeName,
-          status: "SUCCESS",
+          status: isOut ? "CHECKED_OUT" : "SUCCESS",
           time: checkTime
         });
 
@@ -1023,7 +1188,7 @@ window.EventPass = window.EventPass || {};
         if (!ns.state.cachedAttendees) ns.state.cachedAttendees = {};
         const uId = String(attendee.ticketId || scannedTicketId).toUpperCase().trim();
         const existingSessions = (ns.state.cachedAttendees[uId] && ns.state.cachedAttendees[uId].checkedInSessions) || {};
-        existingSessions[ns.state.currentSessionId || "SESI-01"] = checkTime;
+        existingSessions[effectiveSessionId] = checkTime;
         ns.state.cachedAttendees[uId] = {
           ticketId: attendee.ticketId || scannedTicketId,
           name: attendeeName,
@@ -1035,7 +1200,10 @@ window.EventPass = window.EventPass || {};
         } catch (e) { }
         if (ns.Sync) ns.Sync.updateCacheCountUI();
 
-      } else if (res.status === "ALREADY_CHECKED_IN") {
+        ns.UI.removeSearchResultItem(scannedTicketId);
+        if (ns.DOM.inputManualId) ns.DOM.inputManualId.value = "";
+
+      } else if (res.status === "ALREADY_CHECKED_IN" || res.status === "ALREADY_CHECKED_OUT") {
         ns.sounds.playWarning();
         if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
 
@@ -1045,20 +1213,21 @@ window.EventPass = window.EventPass || {};
 
         ns.UI.showResultModal({
           type: "warning",
-          title: "SUDAH ABSEN DI SESI INI",
-          subtitle: `Sesi: ${ns.state.currentSessionName} (${checkTime})`,
+          title: (res.status === "ALREADY_CHECKED_OUT" || isOut) ? "SUDAH CHECK-OUT SEBELUMNYA" : "SUDAH ABSEN DI SESI INI",
+          subtitle: `Sesi: ${effectiveSessionName} (${checkTime})`,
           name: attendeeName,
           ticketId: attendee.ticketId || scannedTicketId,
           email: attendeeEmail,
           time: checkTime,
+          timeLabel: isOut ? "Waktu Keluar" : "Waktu Masuk",
           officer: attendee.scannedBy || "Petugas lain",
           allowCancel: true
         });
 
         ns.UI.recordHistory({
           ticketId: scannedTicketId,
-          sessionId: ns.state.currentSessionId,
-          sessionName: ns.state.currentSessionName,
+          sessionId: effectiveSessionId,
+          sessionName: effectiveSessionName,
           name: attendeeName,
           status: "DUPLICATE",
           time: checkTime
@@ -1068,7 +1237,7 @@ window.EventPass = window.EventPass || {};
         if (!ns.state.cachedAttendees) ns.state.cachedAttendees = {};
         const uIdDup = String(attendee.ticketId || scannedTicketId).toUpperCase().trim();
         const existingSessionsDup = (ns.state.cachedAttendees[uIdDup] && ns.state.cachedAttendees[uIdDup].checkedInSessions) || {};
-        existingSessionsDup[ns.state.currentSessionId || "SESI-01"] = checkTime;
+        existingSessionsDup[effectiveSessionId] = checkTime;
         ns.state.cachedAttendees[uIdDup] = {
           ticketId: attendee.ticketId || scannedTicketId,
           name: attendeeName,
@@ -1096,14 +1265,15 @@ window.EventPass = window.EventPass || {};
           ticketId: scannedTicketId,
           email: "-",
           time: new Date().toLocaleTimeString(),
+          timeLabel: isOut ? "Waktu Keluar" : "Waktu Masuk",
           officer: currentOperator,
           allowCancel: false
         });
 
         ns.UI.recordHistory({
           ticketId: scannedTicketId,
-          sessionId: ns.state.currentSessionId,
-          sessionName: ns.state.currentSessionName,
+          sessionId: effectiveSessionId,
+          sessionName: effectiveSessionName,
           name: "Tidak Terdaftar",
           status: "INVALID",
           time: new Date().toLocaleTimeString()
@@ -1298,8 +1468,19 @@ window.EventPass = window.EventPass || {};
         ns.DOM.btnSubmitOts.innerHTML = `<div class="spinner"></div><span>Mendaftarkan & Check-In...</span>`;
       }
 
+      // Kumpulkan nilai kolom dinamis customFields jika ada di sheet Data Peserta
+      const customFields = {};
+      if (ns.DOM.otsCustomFieldsContainer) {
+        ns.DOM.otsCustomFieldsContainer.querySelectorAll(".ots-custom-field").forEach(input => {
+          const fieldName = input.getAttribute("data-field-name");
+          if (fieldName && input.value) {
+            customFields[fieldName] = input.value.trim();
+          }
+        });
+      }
+
       try {
-        const result = await ns.API.registerOts(name, contact, notes);
+        const result = await ns.API.registerOts(name, contact, notes, customFields);
 
         if (result.success && result.attendee) {
           ns.sounds.playSuccess();
@@ -1313,6 +1494,11 @@ window.EventPass = window.EventPass || {};
           ns.DOM.inputOtsName.value = "";
           ns.DOM.inputOtsContact.value = "";
           ns.DOM.inputOtsNotes.value = "";
+          if (ns.DOM.otsCustomFieldsContainer) {
+            ns.DOM.otsCustomFieldsContainer.querySelectorAll(".ots-custom-field").forEach(input => {
+              input.value = "";
+            });
+          }
 
           ns.UI.showToast(`${name} berhasil didaftarkan OTS & hadir.`);
 
@@ -1399,19 +1585,21 @@ window.EventPass = window.EventPass || {};
 
       try {
         const data = await ns.API.fetchSessions();
-        if (data && data.success && data.sessions && data.sessions.length > 0) {
-          ns.state.sessions = data.sessions;
-          localStorage.setItem("absen_cached_sessions", JSON.stringify(data.sessions));
-          ns.UI.renderSessionDropdown();
+        if (data && data.success) {
+          if (data.sessions && data.sessions.length > 0) {
+            ns.state.sessions = data.sessions;
+            localStorage.setItem("absen_cached_sessions", JSON.stringify(data.sessions));
+            ns.UI.renderSessionDropdown();
+          }
+          if (data.customFields) {
+            ns.state.customFields = data.customFields;
+            localStorage.setItem("absen_custom_fields", JSON.stringify(data.customFields));
+            ns.UI.renderOtsCustomFields(data.customFields);
+          }
           ns.state.isApiConnected = true;
           ns.state.apiErrorMessage = "";
           if (ns.Sync) ns.Sync.updateSyncUI();
-          if (isManual) ns.UI.showToast("Daftar sesi berhasil diperbarui.");
-        } else if (data && data.success) {
-          ns.state.isApiConnected = true;
-          ns.state.apiErrorMessage = "";
-          if (ns.Sync) ns.Sync.updateSyncUI();
-          if (isManual) ns.UI.showToast("Belum ada sesi aktif di Master Sesi.");
+          if (isManual) ns.UI.showToast("Daftar sesi & kolom peserta berhasil diperbarui.");
         }
       } catch (err) {
         console.warn("Gagal mengambil sesi:", err);
@@ -1451,7 +1639,7 @@ window.EventPass = window.EventPass || {};
           ns.state.isApiConnected = true;
           ns.state.apiErrorMessage = "";
           if (ns.Sync) ns.Sync.updateSyncUI();
-          ns.UI.showToast("✅ Koneksi Berhasil! API Online.");
+          ns.UI.showToast("Koneksi Berhasil! API Online.");
         } else {
           ns.UI.showToast("Respons diterima namun format berbeda.");
         }
@@ -1459,7 +1647,7 @@ window.EventPass = window.EventPass || {};
         ns.state.isApiConnected = false;
         ns.state.apiErrorMessage = e.message;
         if (ns.Sync) ns.Sync.updateSyncUI();
-        ns.UI.showToast(`❌ Gagal: ${e.message}`);
+        ns.UI.showToast(`Gagal: ${e.message}`);
       } finally {
         ns.DOM.btnTestConnection.textContent = "Test Koneksi";
       }
@@ -1496,6 +1684,17 @@ window.EventPass = window.EventPass || {};
       // Sinkronkan ke form modal Operator Identity
       if (ns.DOM.inputOpName) ns.DOM.inputOpName.value = pName;
       if (ns.DOM.inputOpGate) ns.DOM.inputOpGate.value = gName;
+
+      // Auto-detect gate mode if gate contains "keluar" / "out"
+      const lowerGate = gName.toLowerCase();
+      if (lowerGate.includes("keluar") || lowerGate.includes("out")) {
+        ns.state.currentScanMode = "OUT";
+        localStorage.setItem("absen_scan_mode", "OUT");
+      } else if (lowerGate.includes("masuk") || lowerGate.includes("in")) {
+        ns.state.currentScanMode = "IN";
+        localStorage.setItem("absen_scan_mode", "IN");
+      }
+      ns.UI.updateScanModeUI();
 
       ns.UI.renderOperatorHeader();
       ns.UI.closeSettingsModal();
@@ -1560,6 +1759,17 @@ window.EventPass = window.EventPass || {};
       // Sinkronkan ke modal Settings
       if (ns.DOM.inputPanitiaName) ns.DOM.inputPanitiaName.value = pName;
       if (ns.DOM.inputGateName) ns.DOM.inputGateName.value = gName;
+
+      // Auto-detect gate mode if gate contains "keluar" / "out"
+      const lowerGate = gName.toLowerCase();
+      if (lowerGate.includes("keluar") || lowerGate.includes("out")) {
+        ns.state.currentScanMode = "OUT";
+        localStorage.setItem("absen_scan_mode", "OUT");
+      } else if (lowerGate.includes("masuk") || lowerGate.includes("in")) {
+        ns.state.currentScanMode = "IN";
+        localStorage.setItem("absen_scan_mode", "IN");
+      }
+      ns.UI.updateScanModeUI();
 
       ns.UI.renderOperatorHeader();
       ns.UI.closeOperatorModal();

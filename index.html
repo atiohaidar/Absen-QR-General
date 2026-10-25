@@ -109,6 +109,36 @@
           </svg>
         </button>
       </div>
+
+      <!-- Mode Presensi Segmented Control (Otomatis tampil jika Sesi bertipe CHECK_IN_OUT) -->
+      <div id="scan-mode-container" class="scan-mode-container" style="display: none;">
+        <div class="scan-mode-pill-group" role="radiogroup" aria-label="Mode Presensi">
+          <button type="button" id="btn-mode-in" class="scan-mode-btn active" data-mode="IN" role="radio"
+            aria-checked="true">
+            <span class="mode-dot in"></span>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+              <polyline points="10 17 15 12 10 7"></polyline>
+              <line x1="15" y1="12" x2="3" y2="12"></line>
+            </svg>
+            <span class="mode-text">Masuk (Check-In)</span>
+            <span class="mode-badge-status">✓ AKTIF</span>
+          </button>
+          <button type="button" id="btn-mode-out" class="scan-mode-btn" data-mode="OUT" role="radio"
+            aria-checked="false">
+            <span class="mode-dot out"></span>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+              <polyline points="16 17 21 12 16 7"></polyline>
+              <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+            <span class="mode-text">Keluar (Check-Out)</span>
+            <span class="mode-badge-status">✓ AKTIF</span>
+          </button>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -133,7 +163,7 @@
           <circle cx="11" cy="11" r="8"></circle>
           <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
         </svg>
-        <span>Cari Manual</span>
+        <span>Cari<span class="tab-text-extra"> Manual</span></span>
       </button>
 
       <button class="tab-btn" data-tab="ots" id="tab-btn-ots">
@@ -144,7 +174,7 @@
           <line x1="20" y1="8" x2="20" y2="14"></line>
           <line x1="23" y1="11" x2="17" y2="11"></line>
         </svg>
-        <span>Daftar OTS</span>
+        <span><span class="tab-text-extra">Daftar </span>OTS</span>
       </button>
 
       <button class="tab-btn" data-tab="history" id="tab-btn-history">
@@ -227,7 +257,7 @@
     <!-- TAB 2: MANUAL SEARCH & CHECK-IN -->
     <div id="tab-manual" class="tab-pane">
       <div class="manual-card">
-        <h2 class="section-title">Manual Check-In</h2>
+        <h2 class="section-title" id="manual-section-title">Manual Check-In</h2>
         <p class="section-desc">Gunakan ini jika kamera kesulitan membaca QR atau ponsel peserta kehabisan daya baterai.
         </p>
 
@@ -257,7 +287,7 @@
 
         <!-- Search by Name/Email -->
         <div class="form-group">
-          <label class="form-label" for="manual-search-query">Cari Berdasarkan Nama / Email</label>
+          <label class="form-label" for="manual-search-query">Cari Berdasarkan Nama</label>
           <div class="input-action-row">
             <input type="text" id="manual-search-query" class="input-box"
               placeholder="Ketik nama atau email peserta...">
@@ -278,9 +308,14 @@
             <h2 class="section-title" style="margin-bottom: 2px;">Riwayat Pemindaian</h2>
             <p class="section-desc" style="margin-bottom: 0;">Daftar aktivitas check-in pada perangkat ini.</p>
           </div>
-          <button id="btn-clear-history" class="btn-icon btn-clear-text" title="Bersihkan Riwayat">
-            <span>Bersihkan</span>
-          </button>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <button id="btn-clear-history" class="btn-icon btn-clear-text" title="Bersihkan Riwayat Pemindaian">
+              <span>Bersihkan Riwayat</span>
+            </button>
+            <button id="btn-clear-all-data" class="btn-icon btn-clear-text" style="color: #b91c1c; border-color: rgba(185, 28, 28, 0.25);" title="Hapus Cache Peserta Lokal">
+              <span>Hapus Cache</span>
+            </button>
+          </div>
         </div>
 
         <!-- Dynamic Sync Queue Status Banner in Riwayat Tab -->
@@ -338,6 +373,9 @@
               Jika tidak punya email/HP, biarkan kosong. Sistem akan membuat ID khusus OTS.
             </small>
           </div>
+
+          <!-- Dynamic Custom Fields Container (Otomatis menyesuaikan kolom di sheet Data Peserta) -->
+          <div id="ots-custom-fields-container"></div>
 
           <div class="form-group">
             <label class="form-label" for="ots-notes">Catatan / Asal (Opsional)</label>
@@ -404,7 +442,7 @@
               <td id="detail-email">-</td>
             </tr>
             <tr>
-              <td>Waktu Masuk</td>
+              <td id="detail-time-label">Waktu Masuk</td>
               <td id="detail-time">-</td>
             </tr>
             <tr>
@@ -579,17 +617,29 @@
           direkomendasikan saat antrean padat!
         </p>
         <div
-          style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(16, 185, 129, 0.15); padding-top: 8px;">
+          style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(16, 185, 129, 0.15); padding-top: 8px; flex-wrap: wrap; gap: 8px;">
           <span id="cache-status-text" style="font-size: 11px; color: var(--text-muted);">0 peserta tersimpan di
             HP</span>
-          <button type="button" id="btn-sync-attendees" class="ctrl-btn-outline"
-            style="font-size: 11px; padding: 4px 10px; gap: 4px; border-color: rgba(16, 185, 129, 0.4); color: #059669;">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-              stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
-            </svg>
-            <span>Sync Database</span>
-          </button>
+          <div style="display: flex; gap: 6px;">
+            <button type="button" id="btn-sync-attendees" class="ctrl-btn-outline"
+              style="font-size: 11px; padding: 4px 10px; gap: 4px; border-color: rgba(16, 185, 129, 0.4); color: #059669;"
+              title="Perbarui database lokal dari Spreadsheet">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+              </svg>
+              <span>Sync Database</span>
+            </button>
+            <button type="button" id="btn-clear-cache" class="ctrl-btn-outline"
+              style="font-size: 11px; padding: 4px 10px; gap: 4px; border-color: rgba(185, 28, 28, 0.35); color: #b91c1c;"
+              title="Hapus cache data peserta di perangkat ini">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              </svg>
+              <span>Hapus Cache</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -695,6 +745,48 @@
         <button type="button" id="btn-execute-cancel" class="btn-secondary-danger" style="flex: 1.5; margin-top: 0;">
           Ya, Batalkan Presensi
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ANOMALY CONFIRMATION MODAL (CHECK-OUT TANPA CHECK-IN) -->
+  <div id="anomaly-confirm-modal" class="modal-backdrop" role="dialog" aria-modal="true" style="display: none;">
+    <div class="settings-modal-card" style="max-width: 440px;">
+      <div class="modal-header" style="border-bottom: 2px solid #f59e0b;">
+        <h3
+          style="display: flex; align-items: center; gap: 8px; color: #b45309; font-size: 16px; margin: 0; font-weight: 700;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+            <line x1="12" y1="9" x2="12" y2="13"></line>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
+          <span>Peringatan: Belum Check-In!</span>
+        </h3>
+        <button id="btn-close-anomaly-modal" class="btn-close" aria-label="Tutup">✕</button>
+      </div>
+      <div style="padding: 16px 20px 20px;">
+        <p style="font-size: 13.5px; color: var(--text-color); margin-bottom: 14px; line-height: 1.5;">
+          Peserta <strong id="anomaly-attendee-name">-</strong> (<span id="anomaly-ticket-id"
+            style="font-family: monospace; font-weight: 600;">-</span>) <strong>belum tercatat melakukan
+            Check-In</strong> untuk sesi ini.
+        </p>
+        <div class="form-group" style="margin-bottom: 16px;">
+          <label class="form-label" for="anomaly-reason-select" style="font-weight: 600; font-size: 12.5px;">Keterangan
+            / Alasan:</label>
+          <select id="anomaly-reason-select" class="input-box" style="font-size: 13px;">
+            <option value="Lolos gate masuk / terlambat">Lolos gate masuk / terlambat</option>
+            <option value="Hadir sesi penutupan saja">Hadir sesi penutupan saja</option>
+            <option value="Kendala teknis scanner pagi">Kendala teknis scanner pagi</option>
+            <option value="Izin khusus panitia">Izin khusus panitia</option>
+            <option value="Lainnya">Lainnya</option>
+          </select>
+        </div>
+        <div class="modal-btn-row" style="display: flex; gap: 10px; margin-top: 14px;">
+          <button type="button" id="btn-cancel-anomaly" class="ctrl-btn-outline" style="flex: 1;">Batal / Tolak</button>
+          <button type="button" id="btn-force-checkout" class="btn-primary"
+            style="flex: 1.3; background: #d97706; border-color: #d97706;">Tetap Check-Out</button>
+        </div>
       </div>
     </div>
   </div>

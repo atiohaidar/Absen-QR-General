@@ -231,8 +231,34 @@ Untuk mencegah kecurangan dan mempermudah investigasi salah scan di lapangan, se
 
 ---
 
+## 9. Arsitektur Check-In & Check-Out Dinamis dengan Deteksi Anomali
+
+Tidak semua kepanitiaan membutuhkan sistem Check-In dan Check-Out (banyak acara hanya memerlukan sekali scan). Sistem didesain **hybrid & backward-compatible**:
+
+### A. Konfigurasi di Sheet "Master Sesi"
+* Kolom ke-5: `Tipe Presensi`.
+* Nilai:
+  * `SINGLE` (atau kosong): Sesi biasa (1x scan masuk langsung tercatat hadir).
+  * `CHECK_IN_OUT`: Mengaktifkan mode presensi 2 fase (Masuk & Keluar).
+* Jika bertipe `CHECK_IN_OUT`, backend secara dinamis mengelola 2 kolom:
+  * `Sesi: Nama (Masuk) [SESI-ID_IN]`
+  * `Sesi: Nama (Keluar) [SESI-ID_OUT]`
+
+### B. Proteksi Total Hadir
+* Formula Total Hadir di Google Sheets: `=IF(A2=""; ""; COUNTIF(D2:ZZ2; "HADIR*"))`.
+* Status masuk dicatat sebagai `HADIR - <waktu>`, sedangkan status kepulangan dicatat sebagai `CHECKOUT - <waktu>`.
+* Dengan demikian, kolom keluar **tidak akan menduplikasi hitungan kehadiran total peserta** di dashboard Google Sheets!
+
+### C. Alur Deteksi Anomali (Checkout Tanpa Check-In)
+1. **Pre-Check di Client (0.05s)**: Ketika operator berada di mode `CHECK-OUT`, sistem memeriksa apakah tiket memiliki data kehadiran di sesi `[SESI-ID_IN]`.
+2. **Warning Dialog**: Jika peserta belum check-in, scanner memunculkan dialog peringatan: *"Peserta belum Check-In! Tetap Check-Out?"*
+3. **Audit Trail**: Jika operator menekan "Tetap Check-Out", sistem mencatat status `CHECKOUT_ANOMALI` di sheet `Log Kehadiran` lengkap dengan alasan panitia (misal: "Lolos gate masuk / terlambat").
+
+---
+
 ## 🎯 Kesimpulan
 Dengan memadukan **Google Sheets sebagai reactive database** dan **Web App Frontend sebagai edge-cache scanner**, kita mendapatkan sistem yang menggabungkan:
 1. **Kecepatan ekstrim (0.05s)** layaknya sistem enterprise berbasis Redis/Postgres.
 2. **Kemudahan operasional & nol biaya server** khas Google Sheets.
 3. **Ketahanan offline** yang aman dari gangguan koneksi internet di lapangan.
+4. **Fleksibilitas sesi**: Bebas memilih sesi `SINGLE` atau `CHECK_IN_OUT` per pertemuan tanpa saling bentrok.

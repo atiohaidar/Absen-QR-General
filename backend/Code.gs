@@ -29,18 +29,27 @@ const CONFIG = {
     QR_FONT_SIZE: 18,
     QR_FONT_COLOR: "1e293b",
     
+    // Integrasi Realtime ke Google Spreadsheet Eksternal (Enriched Audit Log)
+    EXTERNAL_SYNC: {
+      ENABLED: false, // Ubah ke true untuk mengaktifkan sinkronisasi realtime
+      SPREADSHEET_ID: "", // Masukkan ID atau Link Spreadsheet target (misal: "1abcXYZ...")
+      SHEET_NAME: "Log Kehadiran Lengkap", // Nama tab di spreadsheet target
+      ONLY_SUCCESSFUL_SCANS: false // Jika true, hanya mencatat scan BERHASIL/CHECKOUT (abaikan duplikat / gagal)
+    },
+    
     SHEETS: {
       RAW_FORM: "Form Responses 1",
       RAW_FORM_ID: "Jawaban Formulir 1",
       MASTER_SESI: "Master Sesi",
       DATA_PESERTA: "Data Peserta",
-      LOG_KEHADIRAN: "Log Kehadiran"
+      LOG_KEHADIRAN: "Log Kehadiran",
+      LOG_EKSEKUSI: "Log Eksekusi"
     }
   };
 
   /**
   * ==============================================================================
-  * HELPER: INISIALISASI STRUKTUR 4 SHEET
+  * HELPER: INISIALISASI STRUKTUR SHEET & LOG EXECUTION
   * ==============================================================================
   */
   function getSpreadsheet() {
@@ -65,12 +74,34 @@ const CONFIG = {
     // 1. Sheet Master Sesi
     const sheetSesi = getOrCreateSheet(CONFIG.SHEETS.MASTER_SESI);
     if (sheetSesi.getLastRow() === 0) {
-      sheetSesi.appendRow(["ID Sesi", "Nama Sesi", "Tanggal Pelaksanaan", "Status"]);
-      sheetSesi.getRange(1, 1, 1, 4).setFontWeight("bold").setBackground("#e2e8f0");
+      sheetSesi.appendRow(["ID Sesi", "Nama Sesi", "Tanggal Pelaksanaan", "Status", "Tipe Presensi"]);
+      sheetSesi.getRange(1, 1, 1, 5).setFontWeight("bold").setBackground("#e2e8f0");
       // Tambahkan 3 contoh sesi awal
-      sheetSesi.appendRow(["SESI-01", "Pertemuan 1 - Pembukaan & Onboarding", formatDateOnly(new Date()), "AKTIF"]);
-      sheetSesi.appendRow(["SESI-02", "Pertemuan 2 - Workshop Inti", formatDateOnly(new Date(Date.now() + 86400000)), "AKTIF"]);
-      sheetSesi.appendRow(["SESI-03", "Pertemuan 3 - Evaluasi & Penutupan", formatDateOnly(new Date(Date.now() + 172800000)), "AKTIF"]);
+      sheetSesi.appendRow(["SESI-01", "Pertemuan 1 - Pembukaan & Onboarding", formatDateOnly(new Date()), "AKTIF", "SINGLE"]);
+      sheetSesi.appendRow(["SESI-02", "Pertemuan 2 - Workshop Inti", formatDateOnly(new Date(Date.now() + 86400000)), "AKTIF", "CHECK_IN_OUT"]);
+      sheetSesi.appendRow(["SESI-03", "Pertemuan 3 - Evaluasi & Penutupan", formatDateOnly(new Date(Date.now() + 172800000)), "AKTIF", "SINGLE"]);
+    } else {
+      // Auto-migration: Tambahkan kolom Tipe Presensi jika belum ada
+      const lastCol = sheetSesi.getLastColumn();
+      if (lastCol > 0) {
+        const currentHeaders = sheetSesi.getRange(1, 1, 1, lastCol).getValues()[0];
+        const hasTypeCol = currentHeaders.some(h => {
+          const s = String(h).toLowerCase();
+          return s.includes("tipe") || s.includes("mode");
+        });
+        if (!hasTypeCol) {
+          sheetSesi.getRange(1, lastCol + 1).setValue("Tipe Presensi").setFontWeight("bold").setBackground("#e2e8f0");
+        }
+      }
+
+      // Auto-validation: Pasang dropdown opsi Status (AKTIF, RUTIN, NONAKTIF, SELESAI)
+      try {
+        const rule = SpreadsheetApp.newDataValidation()
+          .requireValueInList(["AKTIF", "RUTIN", "NONAKTIF", "SELESAI"], true)
+          .setAllowInvalid(true)
+          .build();
+        sheetSesi.getRange("D2:D100").setDataValidation(rule);
+      } catch (valErr) {}
     }
 
     // 2. Sheet Data Peserta
@@ -128,6 +159,158 @@ const CONFIG = {
         if (!currentHeaders.includes("Link Lokasi (Maps)")) {
           sheetLog.getRange(1, 1, 1, logHeaders.length).setValues([logHeaders]).setFontWeight("bold").setBackground("#e2e8f0");
         }
+      }
+    }
+
+    // 4. Sheet Log Eksekusi (Audit Trail Lifecycle Eksekusi Sistem - Model A)
+    const sheetLogEksekusi = getOrCreateSheet(CONFIG.SHEETS.LOG_EKSEKUSI);
+    ensureLogEksekusiHeaders(sheetLogEksekusi);
+  }
+
+  /**
+   * Helper: Inisialisasi Header & Format Sheet Log Eksekusi (Model A: 1 Baris per Eksekusi)
+   */
+  function ensureLogEksekusiHeaders(sheet) {
+    if (sheet.getLastRow() === 0) {
+      const headers = [
+        "Timestamp",
+        "Execution ID",
+        "Context / Action",
+        "Status",
+        "Durasi (ms)",
+        "User / Client",
+        "Ringkasan",
+        "Detail Log"
+      ];
+      sheet.appendRow(headers);
+      sheet.getRange(1, 1, 1, headers.length).setFontWeight("bold").setBackground("#e2e8f0");
+      sheet.setFrozenRows(1);
+
+      try {
+        sheet.setColumnWidth(1, 155); // Timestamp
+        sheet.setColumnWidth(2, 175); // Execution ID
+        sheet.setColumnWidth(3, 140); // Context / Action
+        sheet.setColumnWidth(4, 90);  // Status
+        sheet.setColumnWidth(5, 90);  // Durasi (ms)
+        sheet.setColumnWidth(6, 130); // User / Client
+        sheet.setColumnWidth(7, 240); // Ringkasan
+        sheet.setColumnWidth(8, 400); // Detail Log
+      } catch (wErr) {}
+    }
+  }
+
+  /**
+   * Helper: Mencegah spreadsheet membengkak dengan auto-pruning baris log lama jika melebihi batas
+   */
+  function pruneOldLogsIfNeeded(sheet, maxRows) {
+    try {
+      const limit = maxRows || 1000;
+      const lastRow = sheet.getLastRow();
+      if (lastRow > limit + 100) {
+        const deleteCount = lastRow - limit;
+        if (deleteCount > 0) {
+          sheet.deleteRows(2, deleteCount);
+        }
+      }
+    } catch (e) {
+      Logger.log("Prune log error: " + e.message);
+    }
+  }
+
+  /**
+   * ==============================================================================
+   * SYSTEM EXECUTION LOGGER (MODEL A: 1 ROW PER EXECUTION)
+   * ==============================================================================
+   * Mengumpulkan step logs selama eksekusi di memory, lalu menuliskan tepat 1 baris
+   * ke tab 'Log Eksekusi' saat flush() dipanggil (di blok finally).
+   */
+  class ExecutionLogger {
+    constructor(context, meta) {
+      this.id = "EXE-" + Utilities.formatDate(new Date(), "GMT+7", "yyMMdd-HHmmss") + "-" + Math.floor(Math.random() * 900 + 100);
+      this.startTime = new Date();
+      this.context = context || "UNKNOWN";
+      this.meta = meta || {};
+      this.logs = [];
+      this.status = "SUCCESS";
+      this.summary = "";
+      this.log("START", `Starting [${this.id}] Context: ${this.context}`);
+    }
+
+    log(level, message, data) {
+      const elapsed = new Date().getTime() - this.startTime.getTime();
+      let entry = `[+${elapsed}ms] [${level.toUpperCase()}] ${message}`;
+      if (data !== undefined && data !== null) {
+        try {
+          entry += " " + (typeof data === "object" ? JSON.stringify(data) : String(data));
+        } catch (e) {
+          entry += " [Unserializable data]";
+        }
+      }
+      this.logs.push(entry);
+      try {
+        Logger.log(`[${this.context}] ${entry}`);
+      } catch (e) {}
+    }
+
+    info(msg, data) { this.log("INFO", msg, data); }
+    warn(msg, data) {
+      this.log("WARN", msg, data);
+      if (this.status !== "ERROR") this.status = "WARNING";
+    }
+    error(msg, data) {
+      this.log("ERROR", msg, data);
+      this.status = "ERROR";
+    }
+    success(msg, data) { this.log("SUCCESS", msg, data); }
+
+    setSummary(summary) {
+      this.summary = summary;
+    }
+
+    setStatus(status) {
+      this.status = status;
+    }
+
+    flush() {
+      try {
+        const endTime = new Date();
+        const durationMs = endTime.getTime() - this.startTime.getTime();
+        this.log("END", `Finished with status=${this.status} in ${durationMs}ms`);
+
+        const ss = getSpreadsheet();
+        const sheet = getOrCreateSheet(CONFIG.SHEETS.LOG_EKSEKUSI);
+        ensureLogEksekusiHeaders(sheet);
+
+        const timestampStr = formatFullDateTime(this.startTime);
+        const actionStr = this.meta.action || this.context;
+        const userStr = this.meta.user || this.meta.scannedBy || this.meta.client || "-";
+        const summaryStr = this.summary || (this.status === "SUCCESS" ? "OK" : (this.status === "ERROR" ? "Failed" : "Completed"));
+        const fullLogText = this.logs.join("\n");
+
+        sheet.appendRow([
+          timestampStr,
+          this.id,
+          actionStr,
+          this.status,
+          durationMs,
+          userStr,
+          summaryStr,
+          fullLogText
+        ]);
+
+        const lastRow = sheet.getLastRow();
+        const statusCell = sheet.getRange(lastRow, 4);
+        if (this.status === "SUCCESS") {
+          statusCell.setBackground("#dcfce7").setFontColor("#15803d").setFontWeight("bold");
+        } else if (this.status === "ERROR") {
+          statusCell.setBackground("#fee2e2").setFontColor("#b91c1c").setFontWeight("bold");
+        } else if (this.status === "WARNING") {
+          statusCell.setBackground("#fef9c3").setFontColor("#a16207").setFontWeight("bold");
+        }
+
+        pruneOldLogsIfNeeded(sheet, 1000);
+      } catch (flushErr) {
+        Logger.log("[ExecutionLogger flush error]: " + flushErr.message);
       }
     }
   }
@@ -370,6 +553,7 @@ const CONFIG = {
   * ==============================================================================
   */
   function onFormSubmit(e) {
+    const logger = new ExecutionLogger("onFormSubmit");
     try {
       ensureAllSheetsSetup();
       const ss = getSpreadsheet();
@@ -392,7 +576,11 @@ const CONFIG = {
         targetRow = sheetRaw.getLastRow();
       }
       
-      if (!sheetRaw || targetRow <= 1) return;
+      if (!sheetRaw || targetRow <= 1) {
+        logger.warn("Form sheet not found or empty targetRow");
+        logger.setSummary("Form Kosong / Baris Tidak Valid");
+        return;
+      }
 
       const rawHeaders = sheetRaw.getRange(1, 1, 1, sheetRaw.getLastColumn()).getValues()[0];
       const rawData = sheetRaw.getRange(targetRow, 1, 1, sheetRaw.getLastColumn()).getValues()[0];
@@ -410,7 +598,8 @@ const CONFIG = {
       });
 
       if (nameIdx === -1 || emailIdx === -1) {
-        Logger.log("Kolom Nama atau Email tidak ditemukan di Form Responses!");
+        logger.error("Kolom Nama atau Email tidak ditemukan di Form Responses");
+        logger.setSummary("Error: Header Form Kurang Nama/Email");
         return;
       }
 
@@ -418,7 +607,13 @@ const CONFIG = {
       const email = String(rawData[emailIdx] || "").trim();
       const regTimestamp = rawData[timeIdx] ? formatFullDateTime(new Date(rawData[timeIdx])) : formatFullDateTime(new Date());
 
-      if (!email || !name) return;
+      logger.meta.user = `${name} (${email})`;
+
+      if (!email || !name) {
+        logger.warn("Form submission missing name or email", { name, email });
+        logger.setSummary("Submit Dilewati: Nama/Email Kosong");
+        return;
+      }
 
       // 2. Cek apakah peserta sudah pernah ada di sheet "Data Peserta" (berdasarkan email)
       const sheetPeserta = getOrCreateSheet(CONFIG.SHEETS.DATA_PESERTA);
@@ -427,7 +622,8 @@ const CONFIG = {
       
       for (let r = 1; r < pesertaData.length; r++) {
         if (String(pesertaData[r][emailCol]).trim().toLowerCase() === email.toLowerCase()) {
-          Logger.log("Peserta dengan email " + email + " sudah terdaftar di Data Peserta.");
+          logger.warn(`Email ${email} sudah terdaftar sebelumnya di Data Peserta`);
+          logger.setSummary(`Dilewati (Duplikat Email): ${name}`);
           return;
         }
       }
@@ -453,74 +649,270 @@ const CONFIG = {
           // 5. SESUAI CONSTRAINT: Share akses file ke peserta secara SILENT tanpa kirim email notifikasi!
           try {
             grantDriveViewerSilent(fileId, email);
-            Logger.log("✅ Drive file viewer granted to: " + email);
+            logger.info("Drive file viewer granted to: " + email);
           } catch (shareErr) {
-            Logger.log("⚠️ Drive viewer error: " + shareErr.message);
+            logger.warn("Drive viewer warning: " + shareErr.message);
           }
         }
       } catch (qrErr) {
-        Logger.log("QR generation warning: " + qrErr.message);
+        logger.warn("QR generation warning: " + qrErr.message);
       }
 
-      // 6. Masukkan data ke sheet "Data Peserta" dengan lock singkat
+      // 6. Masukkan data ke sheet "Data Peserta" dengan Smart Dynamic Column Mapping
       const nextRow = sheetPeserta.getLastRow() + 1;
       const formulaTotal = `=IF(A${nextRow}=""; ""; COUNTIF(D${nextRow}:ZZ${nextRow}; "HADIR*"))`;
-      const attendeeRowData = [
-        ticketId,
-        name,
-        formulaTotal,
-        email,
-        fileId,
-        fileUrl,
-        regTimestamp
-      ];
+
+      // Kumpulkan seluruh jawaban form dalam map (lowercase key)
+      const formAnswers = {};
+      rawHeaders.forEach((h, idx) => {
+        const title = String(h || "").trim();
+        if (title) {
+          formAnswers[title.toLowerCase()] = String(rawData[idx] || "").trim();
+        }
+      });
+
+      const lastCol = sheetPeserta.getLastColumn();
+      const pHeaders = sheetPeserta.getRange(1, 1, 1, lastCol).getValues()[0];
+      const attendeeRowData = new Array(pHeaders.length).fill("");
+
+      pHeaders.forEach((h, idx) => {
+        const headerStr = String(h || "").trim();
+        const lower = headerStr.toLowerCase();
+
+        if (lower.includes("ticket") || lower === "id" || lower.includes("id tiket")) {
+          attendeeRowData[idx] = ticketId;
+        } else if (lower.includes("nama")) {
+          attendeeRowData[idx] = name;
+        } else if (lower.includes("total") || lower.includes("jumlah")) {
+          attendeeRowData[idx] = formulaTotal;
+        } else if (lower.includes("email")) {
+          attendeeRowData[idx] = email;
+        } else if (lower.includes("drive file id") || lower === "file id") {
+          attendeeRowData[idx] = fileId;
+        } else if (lower.includes("drive file url") || lower === "file url") {
+          attendeeRowData[idx] = fileUrl;
+        } else if (lower.includes("waktu daftar") || lower === "timestamp" || lower.includes("tanggal")) {
+          attendeeRowData[idx] = regTimestamp;
+        } else if (lower.startsWith("sesi:") || (lower.includes("[") && lower.includes("]"))) {
+          attendeeRowData[idx] = "";
+        } else {
+          // Kolom custom (misal Fakultas, Jenis Kelamin, No HP, dll)
+          let matchedAns = formAnswers[lower];
+          if (matchedAns === undefined) {
+            const foundKey = Object.keys(formAnswers).find(k => k.includes(lower) || lower.includes(k));
+            if (foundKey && formAnswers[foundKey] !== undefined) {
+              matchedAns = formAnswers[foundKey];
+            }
+          }
+          attendeeRowData[idx] = matchedAns || "";
+        }
+      });
 
       const lock = LockService.getScriptLock();
       if (lock.tryLock(8000)) {
         try {
           sheetPeserta.appendRow(attendeeRowData);
-          Logger.log("✅ Sukses menambahkan peserta baru: " + name + " (" + ticketId + ")");
+          logger.success("Sukses mendaftarkan peserta baru via Form: " + name + " (" + ticketId + ")");
+          logger.setSummary(`Form Sukses: ${name} (${ticketId})`);
         } finally {
           lock.releaseLock();
         }
       } else {
-        Logger.log("⚠️ Lock timeout saat append row peserta baru, mengabaikan lock.");
+        logger.warn("Lock timeout saat append row peserta baru, append tanpa lock");
         sheetPeserta.appendRow(attendeeRowData);
+        logger.setSummary(`Form Sukses (No Lock): ${name} (${ticketId})`);
       }
 
     } catch (err) {
-      Logger.log("Error onFormSubmit: " + err.message);
+      logger.error("Error onFormSubmit: " + err.message, err.stack);
+      logger.setSummary("Form Error: " + err.message);
+    } finally {
+      logger.flush();
     }
   }
 
   /**
   * ==============================================================================
-  * HELPER: AMBIL ATAU BUAT KOLOM SESI DI SHEET "DATA PESERTA"
+  * HELPER: SESI RUTIN & MANAJEMEN KOLOM SESI DI SHEET "DATA PESERTA"
   * ==============================================================================
   */
-  function getOrCreateSessionColumn(sheetPeserta, sessionId, sessionName) {
-    const headers = sheetPeserta.getRange(1, 1, 1, sheetPeserta.getLastColumn()).getValues()[0];
-    const colHeaderTitle = `Sesi: ${sessionName} [${sessionId}]`;
 
-    // Cari apakah kolom ini sudah ada
+  let _routineSessionsCache = null;
+
+  /**
+   * Helper: Mengambil ID murni sesi tanpa embel-embel tanggal (_2026-10-25) atau mode (_IN / _OUT)
+   */
+  function extractBaseSessionId(sessionId) {
+    if (!sessionId) return "";
+    let id = String(sessionId).trim();
+    // Hapus suffix tanggal (_2026-10-25 atau _20261025)
+    id = id.replace(/_\d{4}-?\d{2}-?\d{2}.*$/i, "");
+    // Hapus suffix mode (_IN atau _OUT)
+    id = id.replace(/_(IN|OUT)$/i, "");
+    return id.trim().toUpperCase();
+  }
+
+  /**
+   * Helper: Mengambil daftar ID Sesi yang berstatus 'RUTIN' di sheet Master Sesi (In-memory cached)
+   */
+  function getRoutineSessionIds() {
+    if (_routineSessionsCache !== null) return _routineSessionsCache;
+    const set = new Set();
+    try {
+      const sheetSesi = getOrCreateSheet(CONFIG.SHEETS.MASTER_SESI);
+      const data = sheetSesi.getDataRange().getValues();
+      for (let i = 1; i < data.length; i++) {
+        const rowId = String(data[i][0] || "").trim().toUpperCase();
+        const status = String(data[i][3] || "").trim().toUpperCase();
+        if (rowId && status === "RUTIN") {
+          set.add(rowId);
+        }
+      }
+    } catch (e) {
+      Logger.log("getRoutineSessionIds notice: " + e.message);
+    }
+    _routineSessionsCache = set;
+    return set;
+  }
+
+  /**
+   * Helper: Cek apakah ID Sesi merupakan sesi berstatus RUTIN (mendukung format baseId, baseId_IN, baseId_2026-10-25, dll)
+   */
+  function checkIsRoutineSession(sessionId) {
+    if (!sessionId) return false;
+    const baseId = extractBaseSessionId(sessionId);
+    return getRoutineSessionIds().has(baseId);
+  }
+
+  /**
+   * Helper: Resolusi ID & Nama Sesi Efektif
+   * - Mode RUTIN:
+   *     - Jika ada tag _IN / _OUT: [BASEID_YYYY-MM-DD_IN] / [BASEID_YYYY-MM-DD_OUT]
+   *     - Jika mode SINGLE: [BASEID_YYYY-MM-DD]
+   *     - Nama sesi menyematkan mode dan tanggal, e.g. "Workshop Inti (Masuk) (25/10/2026)"
+   * - Mode REGULER:
+   *     - Jika ada tag _IN / _OUT: [BASEID_IN] / [BASEID_OUT]
+   *     - Nama sesi menyematkan mode, e.g. "Workshop Inti (Masuk)"
+   */
+  function resolveEffectiveSession(rawSessionId, rawSessionName) {
+    const sId = (rawSessionId || "SESI-01").trim();
+    const sName = (rawSessionName || sId).trim();
+    const baseId = extractBaseSessionId(sId);
+
+    // Deteksi jika ada tag _IN atau _OUT
+    const isOut = /_OUT$/i.test(sId);
+    const isIn = /_IN$/i.test(sId);
+    const modeSuffix = isOut ? "_OUT" : (isIn ? "_IN" : "");
+    const modeLabel = isOut ? " (Keluar)" : (isIn ? " (Masuk)" : "");
+
+    if (checkIsRoutineSession(sId)) {
+      const todayIso = Utilities.formatDate(new Date(), "GMT+7", "yyyy-MM-dd");
+      const todayDisplay = Utilities.formatDate(new Date(), "GMT+7", "dd/MM/yyyy");
+
+      // Target ID untuk Mode Rutin selalu menyematkan tanggal hari ini
+      let effectiveId = sId;
+      if (!sId.includes(todayIso)) {
+        effectiveId = modeSuffix ? `${baseId}_${todayIso}${modeSuffix}` : `${baseId}_${todayIso}`;
+      }
+
+      let cleanName = sName.replace(/\s*\(\d{1,2}\/\d{1,2}\/\d{4}\)/g, "").replace(/\s*\((Masuk|Keluar)\)/gi, "").trim();
+      const effectiveName = `${cleanName}${modeLabel} (${todayDisplay})`;
+
+      return {
+        id: effectiveId,
+        name: effectiveName,
+        isRoutine: true,
+        baseId: baseId,
+        modeSuffix: modeSuffix,
+        todayIso: todayIso,
+        todayDisplay: todayDisplay
+      };
+    }
+
+    let cleanName = sName.replace(/\s*\((Masuk|Keluar)\)/gi, "").trim();
+    const effectiveName = `${cleanName}${modeLabel}`;
+
+    return {
+      id: sId,
+      name: effectiveName,
+      isRoutine: false,
+      baseId: baseId,
+      modeSuffix: modeSuffix
+    };
+  }
+
+  /**
+   * Helper: Mencari index kolom sesi di sheet "Data Peserta" (1-based, atau -1 jika tidak ada).
+   * Operasi READ-ONLY (aman untuk pencarian peserta, pembatalan, validasi) tanpa pernah membuat kolom baru secara tidak sengaja.
+   */
+  function findSessionColumn(sheetPeserta, sessionId, sessionName) {
+    const resolved = resolveEffectiveSession(sessionId, sessionName);
+    const targetId = resolved.id;
+    const isRoutine = resolved.isRoutine;
+    const baseId = resolved.baseId;
+    const todayIso = resolved.todayIso;
+    const modeSuffix = resolved.modeSuffix;
+
+    const lastCol = Math.max(1, sheetPeserta.getLastColumn());
+    const headers = sheetPeserta.getRange(1, 1, 1, lastCol).getValues()[0];
+
+    // Prioritas 1: Cari yang persis mengandung [targetId]
     for (let c = 0; c < headers.length; c++) {
-      if (String(headers[c]).includes(`[${sessionId}]`)) {
-        return c + 1; // 1-based index
+      const h = String(headers[c] || "");
+      if (h.includes(`[${targetId}]`)) {
+        return c + 1;
       }
     }
 
-    // Jika belum ada, buat kolom sesi baru
-    const newColIdx = sheetPeserta.getLastColumn() + 1;
+    // Prioritas 2: Khusus untuk sesi Rutin SINGLE (tanpa _IN / _OUT), cek jika ada kolom [BASEID_YYYY-MM-DD]
+    if (isRoutine && !modeSuffix) {
+      const combinedRoutineId = `${baseId}_${todayIso}`;
+      for (let c = 0; c < headers.length; c++) {
+        const h = String(headers[c] || "");
+        if (h.includes(`[${combinedRoutineId}]`)) {
+          return c + 1;
+        }
+      }
+    }
+
+    return -1;
+  }
+
+  /**
+   * Helper: Ambil atau buat kolom sesi di sheet "Data Peserta".
+   * UNTUK MODE RUTIN:
+   * 1. Jika mode IN/OUT: Dipisah menjadi 2 kolom harian: [BASEID_YYYY-MM-DD_IN] dan [BASEID_YYYY-MM-DD_OUT].
+   * 2. Jika mode SINGLE: Kolom harian [BASEID_YYYY-MM-DD].
+   * 3. TIDAK AKAN PERNAH salah masuk ke kolom sesi biasa lama (e.g. [SESI-02] atau [SESI-02_IN])!
+   * 4. Jika belum ada kolom untuk hari/mode ini, otomatis buat kolom baru ke samping kanan dengan warna kuning lembut (#fef08a).
+   */
+  function getOrCreateSessionColumn(sheetPeserta, sessionId, sessionName) {
+    const existingColIdx = findSessionColumn(sheetPeserta, sessionId, sessionName);
+    if (existingColIdx > 0) {
+      return existingColIdx;
+    }
+
+    const resolved = resolveEffectiveSession(sessionId, sessionName);
+    const targetId = resolved.id;
+    const targetName = resolved.name;
+    const isRoutine = resolved.isRoutine;
+
+    // Jika belum ada, buat kolom baru di samping kanan
+    const lastCol = Math.max(1, sheetPeserta.getLastColumn());
+    const newColIdx = lastCol + 1;
+    const colHeaderTitle = `Sesi: ${targetName} [${targetId}]`;
+    const bgColor = isRoutine ? "#fef08a" : "#dbeafe"; // Soft yellow untuk rutin, soft blue untuk reguler
+
     sheetPeserta.getRange(1, newColIdx)
       .setValue(colHeaderTitle)
       .setFontWeight("bold")
-      .setBackground("#dbeafe"); // Soft blue header
-    
+      .setBackground(bgColor);
+
     return newColIdx;
   }
 
   /**
-  * Helper: Ambil sesi berstatus AKTIF dari sheet "Master Sesi"
+  * Helper: Ambil sesi berstatus AKTIF atau RUTIN dari sheet "Master Sesi"
   */
   function getActiveSessions() {
     const sheetSesi = getOrCreateSheet(CONFIG.SHEETS.MASTER_SESI);
@@ -533,14 +925,25 @@ const CONFIG = {
       const name = String(row[1] || "").trim();
       const date = row[2] ? formatDateOnly(new Date(row[2])) : "";
       const status = String(row[3] || "AKTIF").trim().toUpperCase();
+      const rawType = String(row[4] || "SINGLE").trim().toUpperCase();
+      const type = (rawType.includes("OUT") || rawType.includes("CHECK_IN_OUT") || rawType.includes("IN_OUT")) 
+        ? "CHECK_IN_OUT" 
+        : "SINGLE";
 
-      if (id && status === "AKTIF") {
+      if (id && (status === "AKTIF" || status === "RUTIN")) {
+        const isRoutine = (status === "RUTIN");
+        const todayDateStr = formatDateOnly(new Date());
+        const effectiveDate = isRoutine ? todayDateStr : date;
+        const label = `${name} (${effectiveDate || id})`;
+
         sessions.push({
           id: id,
           name: name,
-          date: date,
+          date: effectiveDate,
           status: status,
-          label: `${name} (${date || id})`
+          isRoutine: isRoutine,
+          type: type,
+          label: label
         });
       }
     }
@@ -566,7 +969,9 @@ const CONFIG = {
       }
     }
 
+    const todayIso = Utilities.formatDate(new Date(), "GMT+7", "yyyy-MM-dd");
     const attendees = [];
+
     for (let r = 1; r < pesertaData.length; r++) {
       const tId = String(pesertaData[r][ticketCol] || "").trim();
       if (!tId) continue;
@@ -574,8 +979,23 @@ const CONFIG = {
       const sessionsMap = {};
       sessionCols.forEach(sc => {
         const val = String(pesertaData[r][sc.colIdx] || "").trim();
-        if (val.startsWith("HADIR")) {
-          sessionsMap[sc.sessionId] = val.replace("HADIR - ", "").trim() || "HADIR";
+        if (val.startsWith("HADIR") || val.startsWith("CHECKOUT")) {
+          const parsedVal = val.replace(/^(HADIR|CHECKOUT)\s*-\s*/, "").trim() || val;
+          sessionsMap[sc.sessionId] = parsedVal;
+
+          // Jika kolom ini adalah kolom harian untuk sesi rutin pada hari ini, map juga ke base sessionId dan varian _IN/_OUT secara presisi
+          if (sc.sessionId.includes(todayIso)) {
+            const baseId = extractBaseSessionId(sc.sessionId);
+            const isOutCol = /_OUT$/i.test(sc.sessionId);
+            const isInCol = /_IN$/i.test(sc.sessionId);
+            if (isOutCol) {
+              sessionsMap[`${baseId}_OUT`] = parsedVal;
+            } else if (isInCol) {
+              sessionsMap[`${baseId}_IN`] = parsedVal;
+            } else {
+              sessionsMap[baseId] = parsedVal;
+            }
+          }
         }
       });
 
@@ -596,15 +1016,20 @@ const CONFIG = {
   * ==============================================================================
   */
   function doGet(e) {
+    const logger = new ExecutionLogger("doGet");
     try {
       ensureAllSheetsSetup();
       const action = (e && e.parameter && e.parameter.action) || "status";
+      logger.meta.action = action;
 
       if (action === "getSessions") {
+        const sessions = getActiveSessions();
+        logger.info(`getSessions returned ${sessions.length} sessions`);
+        logger.setSummary(`getSessions: ${sessions.length} sessions`);
         return createJsonResponse({
           success: true,
           status: "OK",
-          sessions: getActiveSessions(),
+          sessions: sessions,
           timestamp: new Date().toISOString()
         });
       }
@@ -612,6 +1037,8 @@ const CONFIG = {
       if (action === "getAttendees") {
         const sheetPeserta = getOrCreateSheet(CONFIG.SHEETS.DATA_PESERTA);
         const attendees = buildAttendeesList(sheetPeserta);
+        logger.info(`getAttendees returned ${attendees.length} attendees`);
+        logger.setSummary(`getAttendees: ${attendees.length} attendees`);
         return createJsonResponse({
           success: true,
           attendees: attendees,
@@ -620,6 +1047,8 @@ const CONFIG = {
         });
       }
 
+      logger.info("Health check ping: ONLINE");
+      logger.setSummary("Health check: ONLINE");
       return createJsonResponse({
         success: true,
         status: "ONLINE",
@@ -629,11 +1058,15 @@ const CONFIG = {
         timestamp: new Date().toISOString()
       });
     } catch (err) {
+      logger.error("doGet error: " + err.message);
+      logger.setSummary("doGet Error: " + err.message);
       return createJsonResponse({
         success: false,
         status: "ERROR",
         message: "Health check error: " + err.message
       });
+    } finally {
+      logger.flush();
     }
   }
 
@@ -643,6 +1076,7 @@ const CONFIG = {
   * ==============================================================================
   */
   function doPost(e) {
+    const logger = new ExecutionLogger("doPost");
     try {
       ensureAllSheetsSetup();
 
@@ -650,12 +1084,20 @@ const CONFIG = {
       if (e && e.postData && e.postData.contents) {
         try {
           payload = JSON.parse(e.postData.contents);
+          logger.info("Payload received", { action: payload.action, ticketId: payload.ticketId, sessionId: payload.sessionId });
         } catch (jsonErr) {
+          logger.error("Invalid JSON payload: " + jsonErr.message);
+          logger.setSummary("Invalid JSON payload");
           return createJsonResponse({ success: false, message: "Invalid JSON payload" });
         }
+      } else {
+        logger.warn("No postData contents received");
       }
 
       const action = payload.action || "checkIn";
+      logger.meta.action = action;
+      logger.meta.user = payload.scannedBy || payload.operator || "-";
+
       const sheetPeserta = getOrCreateSheet(CONFIG.SHEETS.DATA_PESERTA);
       const sheetLog = getOrCreateSheet(CONFIG.SHEETS.LOG_KEHADIRAN);
 
@@ -665,15 +1107,20 @@ const CONFIG = {
 
       // ACTION A: GET ACTIVE SESSIONS
       if (action === "getSessions") {
+        const sessions = getActiveSessions();
+        logger.info(`getSessions returned ${sessions.length} sessions`);
+        logger.setSummary(`getSessions: ${sessions.length} sessions`);
         return createJsonResponse({
           success: true,
-          sessions: getActiveSessions()
+          sessions: sessions
         });
       }
 
       // ACTION A2: GET ALL ATTENDEES (For Offline Local Pre-Caching & Instant Mode)
       if (action === "getAttendees") {
         const attendees = buildAttendeesList(sheetPeserta);
+        logger.info(`getAttendees returned ${attendees.length} attendees`);
+        logger.setSummary(`getAttendees: ${attendees.length} attendees`);
         return createJsonResponse({
           success: true,
           attendees: attendees,
@@ -685,32 +1132,58 @@ const CONFIG = {
       // ACTION B: SEARCH PESERTA (Manual Search by Name/Email/Ticket)
       if (action === "search") {
         const query = (payload.query || "").toLowerCase().trim();
-        const sessionId = (payload.sessionId || "SESI-01").trim();
-        const sessionName = (payload.sessionName || sessionId).trim();
+        const rawSessionId = (payload.sessionId || "SESI-01").trim();
+        const rawSessionName = (payload.sessionName || rawSessionId).trim();
+        const resolvedSession = resolveEffectiveSession(rawSessionId, rawSessionName);
+        const sessionId = resolvedSession.id;
+        const sessionName = resolvedSession.name;
 
         if (!query) {
+          logger.info("Search empty query");
+          logger.setSummary("Search: query kosong");
           return createJsonResponse({ success: true, results: [] });
         }
 
         const pesertaData = sheetPeserta.getDataRange().getValues();
-        const sessionColIdx = getOrCreateSessionColumn(sheetPeserta, sessionId, sessionName);
+        const { ticketCol, nameCol, emailCol } = getPesertaFieldIndices(sheetPeserta);
+        const baseId = extractBaseSessionId(rawSessionId);
+        
+        // Cek kolom IN, OUT, dan Single secara presisi agar status hadir/keluar akurat
+        const inColIdx = findSessionColumn(sheetPeserta, `${baseId}_IN`, rawSessionName);
+        const outColIdx = findSessionColumn(sheetPeserta, `${baseId}_OUT`, rawSessionName);
+        const singleColIdx = findSessionColumn(sheetPeserta, baseId, rawSessionName);
         const results = [];
 
         for (let r = 1; r < pesertaData.length; r++) {
           const row = pesertaData[r];
-          const tId = String(row[0] || "");
-          const tName = String(row[1] || "");
-          const tEmail = String(row[2] || "");
-          const currentSessionStatus = String(row[sessionColIdx - 1] || "");
+          const tId = String(row[ticketCol] || "");
+          const tName = String(row[nameCol] || "");
+          const tEmail = String(row[emailCol] || "");
 
           if (tId.toLowerCase().includes(query) || tName.toLowerCase().includes(query) || tEmail.toLowerCase().includes(query)) {
-            const isHadir = currentSessionStatus.startsWith("HADIR");
+            const inVal = inColIdx > 0 ? String(row[inColIdx - 1] || "").trim() : "";
+            const outVal = outColIdx > 0 ? String(row[outColIdx - 1] || "").trim() : "";
+            const singleVal = singleColIdx > 0 ? String(row[singleColIdx - 1] || "").trim() : "";
+
+            const hasIn = inVal.startsWith("HADIR") || singleVal.startsWith("HADIR");
+            const hasOut = outVal.startsWith("CHECKOUT") || singleVal.startsWith("CHECKOUT");
+
+            let status = "BELUM_HADIR";
+            if (hasOut) status = "CHECKOUT";
+            else if (hasIn) status = "HADIR";
+
+            const statusDetail = hasOut ? outVal : (hasIn ? inVal : (singleVal || "Belum Absen"));
+
             results.push({
               ticketId: tId,
               name: tName,
               email: tEmail,
-              status: isHadir ? "HADIR" : "BELUM_HADIR",
-              statusDetail: currentSessionStatus || "Belum Absen",
+              hasIn: hasIn,
+              hasOut: hasOut,
+              inTime: inVal.replace(/^HADIR\s*-\s*/, "") || "",
+              outTime: outVal.replace(/^CHECKOUT\s*-\s*/, "") || "",
+              status: status,
+              statusDetail: statusDetail,
               sessionId: sessionId,
               sessionName: sessionName
             });
@@ -718,6 +1191,8 @@ const CONFIG = {
           if (results.length >= 20) break; // Limit 20 hasil teratas
         }
 
+        logger.info(`Search "${query}" matched ${results.length} rows`);
+        logger.setSummary(`Search "${query}": ${results.length} hasil`);
         return createJsonResponse({ success: true, results: results });
       }
 
@@ -726,6 +1201,8 @@ const CONFIG = {
       // ============================================================================
       const lock = LockService.getScriptLock();
       if (!lock.tryLock(15000)) {
+        logger.warn("ScriptLock busy / timeout after 15s");
+        logger.setSummary("Server Busy (Lock Timeout)");
         return createJsonResponse({
           success: false,
           status: "SERVER_BUSY",
@@ -743,8 +1220,11 @@ const CONFIG = {
         // -------------------------------------------------------------
         if (action === "checkIn" || action === "scan") {
           const ticketId = (payload.ticketId || "").trim();
-          const sessionId = (payload.sessionId || "SESI-01").trim();
-          const sessionName = (payload.sessionName || sessionId).trim();
+          const rawSessionId = (payload.sessionId || "SESI-01").trim();
+          const rawSessionName = (payload.sessionName || rawSessionId).trim();
+          const resolvedSession = resolveEffectiveSession(rawSessionId, rawSessionName);
+          const sessionId = resolvedSession.id;
+          const sessionName = resolvedSession.name;
           const scannedBy = (payload.scannedBy || "Panitia").trim();
           const gate = (payload.gate || "Pintu Masuk").trim();
           const nowStr = formatFullDateTime(new Date());
@@ -757,6 +1237,7 @@ const CONFIG = {
           let foundRow = -1;
           let attendeeName = "";
           let attendeeEmail = "";
+          let attendeeRowData = null;
           const { ticketCol, nameCol, emailCol } = getPesertaFieldIndices(sheetPeserta);
 
           for (let r = 1; r < pesertaData.length; r++) {
@@ -764,6 +1245,7 @@ const CONFIG = {
               foundRow = r + 1; // 1-based row index
               attendeeName = pesertaData[r][nameCol] || "Peserta";
               attendeeEmail = pesertaData[r][emailCol] || "-";
+              attendeeRowData = pesertaData[r];
               break;
             }
           }
@@ -771,6 +1253,22 @@ const CONFIG = {
           // Skenario 1: Tiket Tidak Ditemukan
           if (foundRow === -1) {
             sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, "-", "TIDAK_VALID", scannedBy, gate, mapsUrl, deviceInfo, "ID tidak terdaftar di sistem"]);
+            forwardLogToExternalSpreadsheet({
+              timestamp: nowStr,
+              sessionId: sessionId,
+              sessionName: sessionName,
+              ticketId: ticketId,
+              attendeeName: "-",
+              status: "TIDAK_VALID",
+              scannedBy: scannedBy,
+              gate: gate,
+              mapsUrl: mapsUrl,
+              deviceInfo: deviceInfo,
+              notes: "ID tidak terdaftar di sistem"
+            }, null, pesertaData[0]);
+
+            logger.warn(`Ticket not registered: ${ticketId}`);
+            logger.setSummary(`Tiket Tidak Terdaftar: ${ticketId}`);
             return createJsonResponse({
               success: false,
               status: "NOT_FOUND",
@@ -782,35 +1280,101 @@ const CONFIG = {
           const sessionColIdx = getOrCreateSessionColumn(sheetPeserta, sessionId, sessionName);
           const existingStatus = String(sheetPeserta.getRange(foundRow, sessionColIdx).getValue() || "").trim();
 
+          const scanMode = (payload.scanMode || (sessionId.endsWith("_OUT") ? "OUT" : "IN")).toUpperCase();
+          const isAnomaly = !!payload.isAnomaly;
+          const anomalyReason = (payload.anomalyReason || "").trim();
+
           // Skenario 2: Tiket Sudah Pernah Di-scan di Sesi Ini (Double Scan)
-          if (existingStatus.startsWith("HADIR")) {
-            sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, attendeeName, "DUPLIKAT", scannedBy, gate, mapsUrl, deviceInfo, `Sudah absen sebelumnya: ${existingStatus}`]);
+          const isAlreadyIn = existingStatus.startsWith("HADIR");
+          const isAlreadyOut = existingStatus.startsWith("CHECKOUT");
+
+          if ((scanMode === "OUT" && isAlreadyOut) || (scanMode !== "OUT" && isAlreadyIn)) {
+            const dupType = (scanMode === "OUT") ? "DUPLIKAT_CHECKOUT" : "DUPLIKAT";
+            const dupMsg = (scanMode === "OUT") 
+              ? `TIKET SUDAH CHECK-OUT untuk sesi "${sessionName}"!`
+              : `TIKET SUDAH DIGUNAKAN untuk sesi "${sessionName}"!`;
+
+            sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, attendeeName, dupType, scannedBy, gate, mapsUrl, deviceInfo, `Sudah absen sebelumnya: ${existingStatus}`]);
+            forwardLogToExternalSpreadsheet({
+              timestamp: nowStr,
+              sessionId: sessionId,
+              sessionName: sessionName,
+              ticketId: ticketId,
+              attendeeName: attendeeName,
+              status: dupType,
+              scannedBy: scannedBy,
+              gate: gate,
+              mapsUrl: mapsUrl,
+              deviceInfo: deviceInfo,
+              notes: `Sudah absen sebelumnya: ${existingStatus}`
+            }, attendeeRowData, pesertaData[0]);
+
+            logger.warn(`Duplicate scan: ${ticketId} (${attendeeName}) mode=${scanMode}`);
+            logger.setSummary(`Duplikat: ${attendeeName} (${ticketId})`);
             return createJsonResponse({
               success: false,
-              status: "ALREADY_CHECKED_IN",
-              message: `TIKET SUDAH DIGUNAKAN untuk sesi "${sessionName}"!`,
+              status: (scanMode === "OUT") ? "ALREADY_CHECKED_OUT" : "ALREADY_CHECKED_IN",
+              message: dupMsg,
               attendee: {
                 ticketId: ticketId,
                 name: attendeeName,
                 email: attendeeEmail,
                 sessionName: sessionName,
-                firstCheckInTime: existingStatus.replace("HADIR - ", "").trim() || "Sebelumnya",
+                firstCheckInTime: existingStatus.replace(/^(HADIR|CHECKOUT)\s*-\s*/, "").trim() || "Sebelumnya",
                 scannedBy: scannedBy
               }
             });
           }
 
-          // Skenario 3: Check-In Berhasil!
-          const statusValue = `HADIR - ${nowStr}`;
+          // Skenario 3: Presensi Berhasil (Check-In atau Check-Out)!
+          let statusValue = "";
+          let logStatus = "";
+          let logDesc = "";
+          let resStatus = "";
+          let resMsg = "";
+
+          if (scanMode === "OUT") {
+            statusValue = isAnomaly ? `CHECKOUT (ANOMALI${anomalyReason ? ': ' + anomalyReason : ''}) - ${nowStr}` : `CHECKOUT - ${nowStr}`;
+            logStatus = isAnomaly ? "CHECKOUT_ANOMALI" : "CHECKOUT";
+            logDesc = isAnomaly ? `Checkout: ${anomalyReason || "Tanpa Check-in"}` : "Presensi kepulangan tercatat";
+            resStatus = "CHECKED_OUT";
+            resMsg = isAnomaly ? `Check-out berhasil dicatat (Anomali: ${anomalyReason || "Tanpa Check-In"})!` : `Check-out berhasil dicatat untuk ${sessionName}!`;
+          } else {
+            statusValue = `HADIR - ${nowStr}`;
+            logStatus = "BERHASIL";
+            logDesc = "Presensi tercatat";
+            resStatus = "CHECKED_IN";
+            resMsg = `Presensi berhasil dicatat untuk ${sessionName}!`;
+          }
+
           sheetPeserta.getRange(foundRow, sessionColIdx).setValue(statusValue);
           
           // Catat di sheet Log Kehadiran dengan Link Google Maps & Device Info
-          sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, attendeeName, "BERHASIL", scannedBy, gate, mapsUrl, deviceInfo, "Presensi tercatat"]);
+          sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, attendeeName, logStatus, scannedBy, gate, mapsUrl, deviceInfo, logDesc]);
+
+          forwardLogToExternalSpreadsheet({
+            timestamp: nowStr,
+            sessionId: sessionId,
+            sessionName: sessionName,
+            ticketId: ticketId,
+            attendeeName: attendeeName,
+            status: logStatus,
+            scannedBy: scannedBy,
+            gate: gate,
+            mapsUrl: mapsUrl,
+            deviceInfo: deviceInfo,
+            notes: logDesc
+          }, attendeeRowData, pesertaData[0]);
+
+          logger.success(`Presensi sukses: ${ticketId} (${attendeeName}) -> ${resStatus} on ${sessionName}`);
+          logger.setSummary(`${resStatus}: ${attendeeName} (${ticketId})`);
 
           return createJsonResponse({
             success: true,
-            status: "CHECKED_IN",
-            message: `Presensi berhasil dicatat untuk ${sessionName}!`,
+            status: resStatus,
+            isAnomaly: isAnomaly,
+            scanMode: scanMode,
+            message: resMsg,
             attendee: {
               ticketId: ticketId,
               name: attendeeName,
@@ -836,6 +1400,7 @@ const CONFIG = {
           const { ticketCol, nameCol, emailCol } = getPesertaFieldIndices(sheetPeserta);
           const results = [];
           const logRowsToAppend = [];
+          const externalLogsToForward = [];
           const nowStr = formatFullDateTime(new Date());
 
           // Build in-memory index map for O(1) lightning lookup
@@ -846,7 +1411,8 @@ const CONFIG = {
               ticketMap.set(tId, {
                 row: r + 1,
                 name: pesertaData[r][nameCol] || "Peserta",
-                email: pesertaData[r][emailCol] || "-"
+                email: pesertaData[r][emailCol] || "-",
+                rowData: pesertaData[r]
               });
             }
           }
@@ -858,12 +1424,19 @@ const CONFIG = {
             const scan = scans[i];
             const ticketId = String(scan.ticketId || "").trim();
             const upperTicketId = ticketId.toUpperCase();
-            const sessionId = (scan.sessionId || "SESI-01").trim();
-            const sessionName = (scan.sessionName || sessionId).trim();
+            const rawSessionId = (scan.sessionId || "SESI-01").trim();
+            const rawSessionName = (scan.sessionName || rawSessionId).trim();
+            const resolvedSession = resolveEffectiveSession(rawSessionId, rawSessionName);
+            const sessionId = resolvedSession.id;
+            const sessionName = resolvedSession.name;
             const scannedBy = (scan.scannedBy || "Panitia").trim();
             const gate = (scan.gate || "Pintu Masuk").trim();
-            const mapsUrl = (scan.mapsUrl || mapsUrl || "-").trim();
+            const scanMapsUrl = (scan.mapsUrl || mapsUrl || "-").trim();
             const scanDevice = (scan.deviceInfo || deviceInfo || "-").trim();
+            const scanMode = (scan.scanMode || (sessionId.endsWith("_OUT") ? "OUT" : "IN")).toUpperCase();
+            const isAnomaly = !!scan.isAnomaly;
+            const anomalyReason = (scan.anomalyReason || "").trim();
+
             let scanTime = (scan.clientTime || "").trim();
             if (!scanTime) {
               scanTime = nowStr;
@@ -878,7 +1451,23 @@ const CONFIG = {
 
             if (!ticketMap.has(upperTicketId)) {
               // Tiket Tidak Ditemukan / Sudah Dihapus Admin di Sheets!
-              logRowsToAppend.push([scanTime, sessionId, sessionName, ticketId, "-", "TIDAK_VALID", scannedBy, gate, mapsUrl, scanDevice, "ID tidak terdaftar / dihapus"]);
+              logRowsToAppend.push([scanTime, sessionId, sessionName, ticketId, "-", "TIDAK_VALID", scannedBy, gate, scanMapsUrl, scanDevice, "ID tidak terdaftar / dihapus"]);
+              externalLogsToForward.push({
+                logEntry: {
+                  timestamp: scanTime,
+                  sessionId: sessionId,
+                  sessionName: sessionName,
+                  ticketId: ticketId,
+                  attendeeName: "-",
+                  status: "TIDAK_VALID",
+                  scannedBy: scannedBy,
+                  gate: gate,
+                  mapsUrl: scanMapsUrl,
+                  deviceInfo: scanDevice,
+                  notes: "ID tidak terdaftar / dihapus"
+                },
+                attendeeRowData: null
+              });
               results.push({
                 ticketId: ticketId,
                 status: "NOT_FOUND",
@@ -893,30 +1482,86 @@ const CONFIG = {
             const attendeeEmail = attendeeInfo.email;
 
             const existingStatus = String(sheetPeserta.getRange(foundRow, sessionColIdx).getValue() || "").trim();
+            const isAlreadyIn = existingStatus.startsWith("HADIR");
+            const isAlreadyOut = existingStatus.startsWith("CHECKOUT");
 
-            if (existingStatus.startsWith("HADIR")) {
-              logRowsToAppend.push([scanTime, sessionId, sessionName, ticketId, attendeeName, "DUPLIKAT", scannedBy, gate, mapsUrl, scanDevice, `Sudah absen sebelumnya: ${existingStatus}`]);
+            if ((scanMode === "OUT" && isAlreadyOut) || (scanMode !== "OUT" && isAlreadyIn)) {
+              const dupType = (scanMode === "OUT") ? "DUPLIKAT_CHECKOUT" : "DUPLIKAT";
+              logRowsToAppend.push([scanTime, sessionId, sessionName, ticketId, attendeeName, dupType, scannedBy, gate, scanMapsUrl, scanDevice, `Sudah absen sebelumnya: ${existingStatus}`]);
+              externalLogsToForward.push({
+                logEntry: {
+                  timestamp: scanTime,
+                  sessionId: sessionId,
+                  sessionName: sessionName,
+                  ticketId: ticketId,
+                  attendeeName: attendeeName,
+                  status: dupType,
+                  scannedBy: scannedBy,
+                  gate: gate,
+                  mapsUrl: scanMapsUrl,
+                  deviceInfo: scanDevice,
+                  notes: `Sudah absen sebelumnya: ${existingStatus}`
+                },
+                attendeeRowData: attendeeInfo.rowData
+              });
               results.push({
                 ticketId: ticketId,
-                status: "ALREADY_CHECKED_IN",
-                message: `Tiket sudah terdata hadir di sesi ${sessionName}`,
+                status: (scanMode === "OUT") ? "ALREADY_CHECKED_OUT" : "ALREADY_CHECKED_IN",
+                message: (scanMode === "OUT") ? `Tiket sudah check-out di sesi ${sessionName}` : `Tiket sudah terdata hadir di sesi ${sessionName}`,
                 attendee: {
                   ticketId: ticketId,
                   name: attendeeName,
                   email: attendeeEmail,
                   sessionName: sessionName,
-                  firstCheckInTime: existingStatus.replace("HADIR - ", "").trim() || "Sebelumnya",
+                  firstCheckInTime: existingStatus.replace(/^(HADIR|CHECKOUT)\s*-\s*/, "").trim() || "Sebelumnya",
                   scannedBy: scannedBy
                 }
               });
             } else {
-              const statusValue = `HADIR - ${scanTime}`;
+              let statusValue = "";
+              let logStatus = "";
+              let logDesc = "";
+              let resStatus = "";
+              let resMsg = "";
+
+              if (scanMode === "OUT") {
+                statusValue = isAnomaly ? `CHECKOUT (ANOMALI${anomalyReason ? ': ' + anomalyReason : ''}) - ${scanTime}` : `CHECKOUT - ${scanTime}`;
+                logStatus = isAnomaly ? "CHECKOUT_ANOMALI" : "CHECKOUT";
+                logDesc = isAnomaly ? `Checkout: ${anomalyReason || "Tanpa Check-in"}` : "Presensi kepulangan tercatat";
+                resStatus = "CHECKED_OUT";
+                resMsg = `Check-out berhasil dicatat untuk ${sessionName}!`;
+              } else {
+                statusValue = `HADIR - ${scanTime}`;
+                logStatus = "BERHASIL";
+                logDesc = "Presensi tercatat";
+                resStatus = "CHECKED_IN";
+                resMsg = `Presensi berhasil dicatat untuk ${sessionName}!`;
+              }
+
               sheetPeserta.getRange(foundRow, sessionColIdx).setValue(statusValue);
-              logRowsToAppend.push([scanTime, sessionId, sessionName, ticketId, attendeeName, "BERHASIL", scannedBy, gate, mapsUrl, scanDevice, "Presensi tercatat"]);
+              logRowsToAppend.push([scanTime, sessionId, sessionName, ticketId, attendeeName, logStatus, scannedBy, gate, scanMapsUrl, scanDevice, logDesc]);
+              externalLogsToForward.push({
+                logEntry: {
+                  timestamp: scanTime,
+                  sessionId: sessionId,
+                  sessionName: sessionName,
+                  ticketId: ticketId,
+                  attendeeName: attendeeName,
+                  status: logStatus,
+                  scannedBy: scannedBy,
+                  gate: gate,
+                  mapsUrl: scanMapsUrl,
+                  deviceInfo: scanDevice,
+                  notes: logDesc
+                },
+                attendeeRowData: attendeeInfo.rowData
+              });
               results.push({
                 ticketId: ticketId,
-                status: "CHECKED_IN",
-                message: `Presensi berhasil dicatat untuk ${sessionName}!`,
+                status: resStatus,
+                isAnomaly: isAnomaly,
+                scanMode: scanMode,
+                message: resMsg,
                 attendee: {
                   ticketId: ticketId,
                   name: attendeeName,
@@ -936,6 +1581,14 @@ const CONFIG = {
             sheetLog.getRange(startRow, 1, logRowsToAppend.length, logRowsToAppend[0].length).setValues(logRowsToAppend);
           }
 
+          // Sinkronisasi realtime ke spreadsheet eksternal jika diaktifkan
+          if (externalLogsToForward.length > 0) {
+            forwardBatchLogsToExternalSpreadsheet(externalLogsToForward, pesertaData[0]);
+          }
+
+          logger.info(`Batch check-in processed ${scans.length} scans`);
+          logger.setSummary(`Batch Check-In: ${scans.length} data`);
+
           return createJsonResponse({
             success: true,
             processedCount: scans.length,
@@ -948,41 +1601,68 @@ const CONFIG = {
         // -------------------------------------------------------------
         if (action === "cancelCheckIn" || action === "undo") {
           const ticketId = (payload.ticketId || "").trim();
-          const sessionId = (payload.sessionId || "").trim();
-          const sessionName = (payload.sessionName || sessionId).trim();
+          const rawSessionId = (payload.sessionId || "").trim();
+          const rawSessionName = (payload.sessionName || rawSessionId).trim();
+          const resolvedSession = resolveEffectiveSession(rawSessionId, rawSessionName);
+          const sessionId = resolvedSession.id;
+          const sessionName = resolvedSession.name;
           const cancelledBy = (payload.cancelledBy || payload.scannedBy || "Panitia").trim();
           const reason = (payload.reason || "Dibatalkan oleh panitia").trim();
           const nowStr = formatFullDateTime(new Date());
 
           if (!ticketId || !sessionId) {
+            logger.warn("Cancel check-in missing ticketId or sessionId");
+            logger.setSummary("Cancel Gagal: Parameter Kurang");
             return createJsonResponse({ success: false, message: "Ticket ID dan Session ID wajib diisi untuk pembatalan." });
           }
 
           // Cari baris peserta
           let foundRow = -1;
           let attendeeName = "";
+          let attendeeRowData = null;
           const { ticketCol: cancelTicketCol, nameCol: cancelNameCol } = getPesertaFieldIndices(sheetPeserta);
 
           for (let r = 1; r < pesertaData.length; r++) {
             if (String(pesertaData[r][cancelTicketCol]).toUpperCase() === ticketId.toUpperCase()) {
               foundRow = r + 1;
               attendeeName = pesertaData[r][cancelNameCol] || "Peserta";
+              attendeeRowData = pesertaData[r];
               break;
             }
           }
 
           if (foundRow === -1) {
+            logger.warn(`Cancel failed, attendee not found: ${ticketId}`);
+            logger.setSummary(`Cancel Gagal: Tiket ${ticketId} Tidak Ditemukan`);
             return createJsonResponse({ success: false, message: "Peserta tidak ditemukan." });
           }
 
-          // Ambil kolom sesi
-          const sessionColIdx = getOrCreateSessionColumn(sheetPeserta, sessionId, sessionName);
-          
-          // Kosongkan status di sheet Data Peserta (Revert kembali)
-          sheetPeserta.getRange(foundRow, sessionColIdx).setValue("");
+          // Ambil kolom sesi jika ada (jangan buat kolom baru saat cancel)
+          const sessionColIdx = findSessionColumn(sheetPeserta, sessionId, sessionName);
+          if (sessionColIdx > 0) {
+            // Kosongkan status di sheet Data Peserta (Revert kembali)
+            sheetPeserta.getRange(foundRow, sessionColIdx).setValue("");
+          }
 
           // Catat event pembatalan di sheet Log Kehadiran dengan Link Google Maps & Device Info
           sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, attendeeName, "DIBATALKAN", cancelledBy, payload.gate || "-", mapsUrl, deviceInfo, reason]);
+
+          forwardLogToExternalSpreadsheet({
+            timestamp: nowStr,
+            sessionId: sessionId,
+            sessionName: sessionName,
+            ticketId: ticketId,
+            attendeeName: attendeeName,
+            status: "DIBATALKAN",
+            scannedBy: cancelledBy,
+            gate: payload.gate || "-",
+            mapsUrl: mapsUrl,
+            deviceInfo: deviceInfo,
+            notes: reason
+          }, attendeeRowData, pesertaData[0]);
+
+          logger.info(`Cancelled check-in for ${ticketId} (${attendeeName}) on ${sessionName}`);
+          logger.setSummary(`Batal: ${attendeeName} (${ticketId})`);
 
           return createJsonResponse({
             success: true,
@@ -1002,13 +1682,18 @@ const CONFIG = {
           const name = (payload.name || "").trim();
           const contact = (payload.contact || "").trim();
           const notes = (payload.notes || "Walk-In OTS").trim();
-          const sessionId = (payload.sessionId || "SESI-01").trim();
-          const sessionName = (payload.sessionName || sessionId).trim();
+          const rawSessionId = (payload.sessionId || "SESI-01").trim();
+          const rawSessionName = (payload.sessionName || rawSessionId).trim();
+          const resolvedSession = resolveEffectiveSession(rawSessionId, rawSessionName);
+          const sessionId = resolvedSession.id;
+          const sessionName = resolvedSession.name;
           const scannedBy = (payload.scannedBy || "Panitia").trim();
           const gate = (payload.gate || "Pintu Masuk").trim();
           const nowStr = formatFullDateTime(new Date());
 
           if (!name) {
+            logger.warn("OTS Registration missing participant name");
+            logger.setSummary("OTS Gagal: Nama Kosong");
             return createJsonResponse({ success: false, message: "Nama lengkap peserta wajib diisi." });
           }
 
@@ -1076,6 +1761,23 @@ const CONFIG = {
           // 4. Catat di Log Kehadiran dengan Link Google Maps & Device Info
           sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, name, "BERHASIL (OTS)", scannedBy, gate, mapsUrl, deviceInfo, notes]);
 
+          forwardLogToExternalSpreadsheet({
+            timestamp: nowStr,
+            sessionId: sessionId,
+            sessionName: sessionName,
+            ticketId: ticketId,
+            attendeeName: name,
+            status: "BERHASIL (OTS)",
+            scannedBy: scannedBy,
+            gate: gate,
+            mapsUrl: mapsUrl,
+            deviceInfo: deviceInfo,
+            notes: notes
+          }, newRow, sheetPeserta.getRange(1, 1, 1, sheetPeserta.getLastColumn()).getValues()[0]);
+
+          logger.success(`Registered OTS participant: ${ticketId} (${name}) on ${sessionName}`);
+          logger.setSummary(`OTS Baru: ${name} (${ticketId})`);
+
           return createJsonResponse({
             success: true,
             status: "CHECKED_IN",
@@ -1093,6 +1795,8 @@ const CONFIG = {
           });
         }
 
+        logger.warn(`Unknown action requested: ${action}`);
+        logger.setSummary(`Action Unknown: ${action}`);
         return createJsonResponse({ success: false, message: `Action "${action}" tidak dikenali.` });
 
       } finally {
@@ -1100,7 +1804,11 @@ const CONFIG = {
       }
 
     } catch (err) {
+      logger.error("Server error: " + err.message, err.stack);
+      logger.setSummary("Server Error: " + err.message);
       return createJsonResponse({ success: false, message: "Server error: " + err.message });
+    } finally {
+      logger.flush();
     }
   }
 
@@ -1139,7 +1847,30 @@ const CONFIG = {
       .addItem('📊 5. Periksa Status Sistem', 'showSystemStatus')
       .addSeparator()
       .addItem('🔄 6. Cek & Kirim Ulang Akses Drive Peserta', 'checkAndRetryDriveSharing')
+      .addSeparator()
+      .addItem('🛠️ 7. Rapikan Baris Data yang Bergeser (Auto-Fix Columns)', 'fixShiftedParticipantRows')
+      .addItem('📜 8. Bersihkan Log Eksekusi Lama', 'clearExecutionLogs')
+      .addSeparator()
+      .addItem('🌐 9. Hubungkan / Test Spreadsheet Eksternal', 'promptConfigureExternalSync')
       .addToUi();
+  }
+
+  /**
+   * Helper / Menu: Membersihkan baris data di sheet Log Eksekusi
+   */
+  function clearExecutionLogs() {
+    const ui = SpreadsheetApp.getUi();
+    const sheet = getSpreadsheet().getSheetByName(CONFIG.SHEETS.LOG_EKSEKUSI);
+    if (!sheet || sheet.getLastRow() <= 1) {
+      ui.alert("Log Kosong", "Sheet 'Log Eksekusi' masih kosong.", ui.ButtonSet.OK);
+      return;
+    }
+    const count = sheet.getLastRow() - 1;
+    const res = ui.alert("Bersihkan Log Eksekusi", `Apakah Anda yakin ingin menghapus seluruh riwayat log eksekusi (${count} baris)?`, ui.ButtonSet.YES_NO);
+    if (res === ui.Button.YES) {
+      sheet.deleteRows(2, count);
+      ui.alert("Selesai", "Seluruh data riwayat log eksekusi berhasil dibersihkan.", ui.ButtonSet.OK);
+    }
   }
 
   /**
@@ -1382,15 +2113,51 @@ const CONFIG = {
         const nextSyncRow = sheetPeserta.getLastRow() + 1;
         const syncFormulaTotal = `=IF(A${nextSyncRow}=""; ""; COUNTIF(D${nextSyncRow}:ZZ${nextSyncRow}; "HADIR*"))`;
 
-        sheetPeserta.appendRow([
-          ticketId,
-          name,
-          syncFormulaTotal,
-          email,
-          fileId,
-          fileUrl,
-          regTimestamp
-        ]);
+        // Kumpulkan seluruh jawaban form dalam map (lowercase key)
+        const rowFormAnswers = {};
+        rawHeaders.forEach((h, hIdx) => {
+          const title = String(h || "").trim();
+          if (title) {
+            rowFormAnswers[title.toLowerCase()] = String(row[hIdx] || "").trim();
+          }
+        });
+
+        const syncHeaders = sheetPeserta.getRange(1, 1, 1, sheetPeserta.getLastColumn()).getValues()[0];
+        const syncRowData = new Array(syncHeaders.length).fill("");
+
+        syncHeaders.forEach((h, sIdx) => {
+          const headerStr = String(h || "").trim();
+          const lower = headerStr.toLowerCase();
+
+          if (lower.includes("ticket") || lower === "id" || lower.includes("id tiket")) {
+            syncRowData[sIdx] = ticketId;
+          } else if (lower.includes("nama")) {
+            syncRowData[sIdx] = name;
+          } else if (lower.includes("total") || lower.includes("jumlah")) {
+            syncRowData[sIdx] = syncFormulaTotal;
+          } else if (lower.includes("email")) {
+            syncRowData[sIdx] = email;
+          } else if (lower.includes("drive file id") || lower === "file id") {
+            syncRowData[sIdx] = fileId;
+          } else if (lower.includes("drive file url") || lower === "file url") {
+            syncRowData[sIdx] = fileUrl;
+          } else if (lower.includes("waktu daftar") || lower === "timestamp" || lower.includes("tanggal")) {
+            syncRowData[sIdx] = regTimestamp;
+          } else if (lower.startsWith("sesi:") || (lower.includes("[") && lower.includes("]"))) {
+            syncRowData[sIdx] = "";
+          } else {
+            let matchedAns = rowFormAnswers[lower];
+            if (matchedAns === undefined) {
+              const foundKey = Object.keys(rowFormAnswers).find(k => k.includes(lower) || lower.includes(k));
+              if (foundKey && rowFormAnswers[foundKey] !== undefined) {
+                matchedAns = rowFormAnswers[foundKey];
+              }
+            }
+            syncRowData[sIdx] = matchedAns || "";
+          }
+        });
+
+        sheetPeserta.appendRow(syncRowData);
 
         existingEmails.add(email.toLowerCase());
         importedCount++;
@@ -1413,6 +2180,89 @@ const CONFIG = {
   function applyFreezeAndTotalHadir() {
     ensureAllSheetsSetup();
     SpreadsheetApp.getUi().alert("✅ Berhasil!", "3 kolom pertama (Ticket ID, Nama Lengkap, Total Hadir) dan baris header berhasil dibekukan (freeze).", SpreadsheetApp.getUi().ButtonSet.OK);
+  }
+
+  /**
+   * Helper / Tool: Memperbaiki otomatis baris di sheet Data Peserta yang kolomnya sempat bergeser
+   * Akibat penyisipan kolom custom manual (misal Email masuk ke kolom Fakultas / Jenis Kelamin).
+   */
+  function fixShiftedParticipantRows() {
+    const ui = SpreadsheetApp.getUi();
+    const sheetPeserta = getOrCreateSheet(CONFIG.SHEETS.DATA_PESERTA);
+    const lastRow = sheetPeserta.getLastRow();
+    const lastCol = sheetPeserta.getLastColumn();
+
+    if (lastRow <= 1 || lastCol === 0) {
+      ui.alert("Tidak Ada Data", "Sheet Data Peserta masih kosong.", ui.ButtonSet.OK);
+      return;
+    }
+
+    const headers = sheetPeserta.getRange(1, 1, 1, lastCol).getValues()[0];
+    const emailColIdx = headers.findIndex(h => String(h).toLowerCase().includes("email"));
+    const fileIdColIdx = headers.findIndex(h => String(h).toLowerCase().includes("drive file id") || String(h).toLowerCase() === "file id");
+    const fileUrlColIdx = headers.findIndex(h => String(h).toLowerCase().includes("drive file url") || String(h).toLowerCase() === "file url");
+    const regTimeColIdx = headers.findIndex(h => String(h).toLowerCase().includes("waktu daftar") || String(h).toLowerCase().includes("timestamp"));
+
+    if (emailColIdx === -1 || fileIdColIdx === -1) {
+      ui.alert("Gagal", "Kolom 'Email' atau 'Drive File ID' tidak ditemukan di header.", ui.ButtonSet.OK);
+      return;
+    }
+
+    const dataRange = sheetPeserta.getRange(2, 1, lastRow - 1, lastCol);
+    const values = dataRange.getValues();
+    let fixedCount = 0;
+
+    for (let r = 0; r < values.length; r++) {
+      const row = values[r];
+      const actualEmail = String(row[emailColIdx] || "").trim();
+
+      // Deteksi apakah kolom email saat ini bukan berisi email (misal berisi link drive atau timestamp)
+      // DAN cari apakah email tersasar di kolom sebelumnya (misal kolom D atau E)
+      if (!actualEmail.includes("@")) {
+        let misplacedEmailIdx = -1;
+        let misplacedEmailVal = "";
+
+        for (let c = 2; c < lastCol; c++) {
+          const cellVal = String(row[c] || "").trim();
+          if (cellVal.includes("@") && cellVal.includes(".")) {
+            misplacedEmailIdx = c;
+            misplacedEmailVal = cellVal;
+            break;
+          }
+        }
+
+        if (misplacedEmailIdx !== -1 && misplacedEmailIdx !== emailColIdx) {
+          const misplacedFileId = String(row[misplacedEmailIdx + 1] || "").trim();
+          const misplacedFileUrl = String(row[misplacedEmailIdx + 2] || "").trim();
+          const misplacedRegTime = String(row[misplacedEmailIdx + 3] || "").trim();
+
+          // Pindahkan ke kolom yang benar
+          row[emailColIdx] = misplacedEmailVal;
+          if (fileIdColIdx !== -1 && misplacedFileId) row[fileIdColIdx] = misplacedFileId;
+          if (fileUrlColIdx !== -1 && misplacedFileUrl) row[fileUrlColIdx] = misplacedFileUrl;
+          if (regTimeColIdx !== -1 && misplacedRegTime) row[regTimeColIdx] = misplacedRegTime;
+
+          // Kosongkan kolom yang tadinya salah terisi jika posisinya sebelum kolom email
+          if (misplacedEmailIdx < emailColIdx) row[misplacedEmailIdx] = "";
+          if (misplacedEmailIdx + 1 < emailColIdx) row[misplacedEmailIdx + 1] = "";
+          if (misplacedEmailIdx + 2 < emailColIdx) row[misplacedEmailIdx + 2] = "";
+          if (misplacedEmailIdx + 3 < emailColIdx) row[misplacedEmailIdx + 3] = "";
+
+          // Pastikan formula Total Hadir di kolom C
+          const rowNum = r + 2;
+          row[2] = `=IF(A${rowNum}=""; ""; COUNTIF(D${rowNum}:ZZ${rowNum}; "HADIR*"))`;
+
+          fixedCount++;
+        }
+      }
+    }
+
+    if (fixedCount > 0) {
+      dataRange.setValues(values);
+      ui.alert("Berhasil Merapikan Data!", `✅ Sebanyak ${fixedCount} baris data peserta yang bergeser berhasil dirapikan kembali ke kolom aslinya.`, ui.ButtonSet.OK);
+    } else {
+      ui.alert("Data Sudah Rapi", "Seluruh baris peserta sudah berada di kolom yang sesuai.", ui.ButtonSet.OK);
+    }
   }
 
   /**
@@ -1807,92 +2657,442 @@ const CONFIG = {
     const endRow = Math.min(lastRow, startRow + batchCount - 1);
     const numRows = endRow - startRow + 1;
 
-    // Ambil data rentang [startRow .. endRow], minimal 6 kolom (A:F)
-    const rangeData = sheetPeserta.getRange(startRow, 1, numRows, 6).getValues();
+    let adminUser = "-";
+    try {
+      adminUser = Session.getActiveUser().getEmail() || "Admin";
+    } catch (e) {}
 
-    let alreadyCount = 0;
-    let newlySharedCount = 0;
-    let skippedCount = 0;
-    let failedCount = 0;
-    let hitLimit = false;
-    let lastProcessedRow = startRow;
+    const logger = new ExecutionLogger("checkAndRetryDriveSharing", {
+      action: "batchShareDrive",
+      user: adminUser
+    });
 
-    for (let i = 0; i < rangeData.length; i++) {
-      const currentRow = startRow + i;
-      lastProcessedRow = currentRow;
-      const row = rangeData[i];
+    try {
+      logger.info(`Starting batch share check: rows ${startRow} to ${endRow} (${numRows} rows)`);
 
-      const ticketId = String(row[0] || "").trim();
-      const name = String(row[1] || "").trim();
-      const email = String(row[3] || "").trim();
-      const rawFileId = String(row[4] || "").trim();
-      const rawFileUrl = String(row[5] || "").trim();
+      // Ambil data rentang [startRow .. endRow], minimal 6 kolom (A:F)
+      const rangeData = sheetPeserta.getRange(startRow, 1, numRows, 6).getValues();
 
-      const fileId = extractDriveFileId(rawFileId) || extractDriveFileId(rawFileUrl);
+      let alreadyCount = 0;
+      let newlySharedCount = 0;
+      let skippedCount = 0;
+      let failedCount = 0;
+      let hitLimit = false;
+      let lastProcessedRow = startRow;
 
-      // Jika email atau fileId tidak valid, lewati
-      if (!email || !email.includes("@") || !fileId || fileId === "-") {
-        skippedCount++;
-        continue;
-      }
+      for (let i = 0; i < rangeData.length; i++) {
+        const currentRow = startRow + i;
+        lastProcessedRow = currentRow;
+        const row = rangeData[i];
 
-      try {
-        const driveFile = DriveApp.getFileById(fileId);
-        const viewers = driveFile.getViewers().map(u => u.getEmail().toLowerCase());
-        const hasAccess = viewers.includes(email.toLowerCase());
+        const ticketId = String(row[0] || "").trim();
+        const name = String(row[1] || "").trim();
+        const email = String(row[3] || "").trim();
+        const rawFileId = String(row[4] || "").trim();
+        const rawFileUrl = String(row[5] || "").trim();
 
-        const emailCell = sheetPeserta.getRange(currentRow, 4);
+        const fileId = extractDriveFileId(rawFileId) || extractDriveFileId(rawFileUrl);
 
-        if (hasAccess) {
-          alreadyCount++;
-          emailCell.setNote("✅ Akses Drive: Sudah Aktif");
-        } else {
-          // Coba berikan akses viewer secara smart (dengan notif email jika ada kuota, atau silent jika mepet)
-          try {
-            const shareResult = grantDriveViewerSmart(fileId, email);
-            newlySharedCount++;
-            const noteText = (shareResult && shareResult.notified)
-              ? "✅ Akses Drive: Dibagikan + Notif Email (" + new Date().toLocaleDateString("id-ID") + ")"
-              : "✅ Akses Drive: Dibagikan (Silent / Drive Only) (" + new Date().toLocaleDateString("id-ID") + ")";
-            emailCell.setNote(noteText);
-            Logger.log(`[Batch Share] Baris ${currentRow} (${name} - ${email}): Berhasil di-share.`);
+        // Jika email atau fileId tidak valid, lewati
+        if (!email || !email.includes("@") || !fileId || fileId === "-") {
+          skippedCount++;
+          logger.info(`Row ${currentRow} skipped: invalid email or fileId`);
+          continue;
+        }
 
-            // Jeda 1.2 detik agar tidak kena burst rate limit Google Drive
-            Utilities.sleep(1200);
-          } catch (shareErr) {
-            failedCount++;
-            const errMsg = shareErr.message || "";
-            emailCell.setNote("⚠️ Akses Drive Gagal: " + errMsg);
+        try {
+          const driveFile = DriveApp.getFileById(fileId);
+          const viewers = driveFile.getViewers().map(u => u.getEmail().toLowerCase());
+          const hasAccess = viewers.includes(email.toLowerCase());
 
-            if (errMsg.toLowerCase().includes("limit") || errMsg.toLowerCase().includes("exceeded")) {
-              hitLimit = true;
-              Logger.log(`[Batch Share] STOP di baris ${currentRow} karena limit Drive: ${errMsg}`);
-              break; // Hentikan loop agar tidak menambah error spam
+          const emailCell = sheetPeserta.getRange(currentRow, 4);
+
+          if (hasAccess) {
+            alreadyCount++;
+            emailCell.setNote("✅ Akses Drive: Sudah Aktif");
+            logger.info(`Row ${currentRow} (${name}): Access already active`);
+          } else {
+            // Coba berikan akses viewer secara smart (dengan notif email jika ada kuota, atau silent jika mepet)
+            try {
+              const shareResult = grantDriveViewerSmart(fileId, email);
+              newlySharedCount++;
+              const noteText = (shareResult && shareResult.notified)
+                ? "✅ Akses Drive: Dibagikan + Notif Email (" + new Date().toLocaleDateString("id-ID") + ")"
+                : "✅ Akses Drive: Dibagikan (Silent / Drive Only) (" + new Date().toLocaleDateString("id-ID") + ")";
+              emailCell.setNote(noteText);
+              logger.info(`Row ${currentRow} (${name} - ${email}): Shared successfully`);
+
+              // Jeda 1.2 detik agar tidak kena burst rate limit Google Drive
+              Utilities.sleep(1200);
+            } catch (shareErr) {
+              failedCount++;
+              const errMsg = shareErr.message || "";
+              emailCell.setNote("⚠️ Akses Drive Gagal: " + errMsg);
+              logger.error(`Row ${currentRow} (${name}) share error: ${errMsg}`);
+
+              if (errMsg.toLowerCase().includes("limit") || errMsg.toLowerCase().includes("exceeded")) {
+                hitLimit = true;
+                logger.warn(`STOP at row ${currentRow} due to Drive quota limit`);
+                break; // Hentikan loop agar tidak menambah error spam
+              }
             }
           }
+        } catch (fileErr) {
+          failedCount++;
+          logger.error(`Row ${currentRow} read error: ${fileErr.message}`);
         }
-      } catch (fileErr) {
-        failedCount++;
-        Logger.log(`[Batch Share] Error baca file Drive baris ${currentRow}: ${fileErr.message}`);
       }
+
+      // Tampilkan rangkuman hasil
+      const summary = [
+        "📊 HASIL PENGECEKAN AKSES DRIVE",
+        "------------------------------------------",
+        `• Rentang Baris: ${startRow} s/d ${lastProcessedRow} (dari total ${lastRow})`,
+        `• Sudah Punya Akses Sebelumnya: ${alreadyCount} peserta`,
+        `• Baru Saja Berhasil Dibagikan: ${newlySharedCount} peserta`,
+        `• Dilewati (Email/File Kosong): ${skippedCount} peserta`,
+        `• Gagal / Tertahan: ${failedCount} peserta`,
+        "------------------------------------------",
+        hitLimit
+          ? `⚠️ PERHATIAN: Kuota Google Drive harian/burst limit tercapai di baris ${lastProcessedRow}.\nSilakan lanjutkan kembali nanti mulai dari baris ${lastProcessedRow}.`
+          : "✅ Selesai! Tidak ada kendala kuota pada rentang ini."
+      ].join("\n");
+
+      logger.setSummary(`Drive Share: Baris ${startRow}-${lastProcessedRow} (${newlySharedCount} baru, ${alreadyCount} aktif, ${skippedCount} dilewati, ${failedCount} gagal)`);
+      if (hitLimit) logger.warn("Drive quota limit reached");
+
+      ui.alert("Laporan Akses Drive", summary, ui.ButtonSet.OK);
+    } catch (err) {
+      logger.error("checkAndRetryDriveSharing exception: " + err.message);
+      logger.setSummary("Batch Share Error: " + err.message);
+    } finally {
+      logger.flush();
+    }
+  }
+
+  /**
+   * ==============================================================================
+   * INTEGRASI FORWARDING LOG REALTIME KE SPREADSHEET EKSTERNAL (DYNAMIC FIELDS)
+   * ==============================================================================
+   */
+
+  /**
+   * Helper: Ekstrak Spreadsheet ID dari ID murni ataupun URL lengkap Google Spreadsheet
+   */
+  function extractSpreadsheetId(input) {
+    if (!input || typeof input !== "string") return "";
+    const trimmed = input.trim();
+    const match = trimmed.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+    return match ? match[1] : trimmed;
+  }
+
+  /**
+   * Helper: Mengambil konfigurasi integrasi eksternal (dari CONFIG atau ScriptProperties)
+   */
+  function getExternalSyncConfig() {
+    const cfg = (CONFIG && CONFIG.EXTERNAL_SYNC) ? Object.assign({}, CONFIG.EXTERNAL_SYNC) : {};
+    try {
+      const props = PropertiesService.getScriptProperties();
+      const propId = props.getProperty("EXTERNAL_SPREADSHEET_ID");
+      const propSheet = props.getProperty("EXTERNAL_SHEET_NAME");
+      const propEnabled = props.getProperty("EXTERNAL_SYNC_ENABLED");
+      if (propId) cfg.SPREADSHEET_ID = propId;
+      if (propSheet) cfg.SHEET_NAME = propSheet;
+      if (propEnabled !== null && propEnabled !== undefined) {
+        cfg.ENABLED = propEnabled === "true";
+      } else if (cfg.SPREADSHEET_ID && String(cfg.SPREADSHEET_ID).trim().length > 5) {
+        // Jika SPREADSHEET_ID sudah diisi (misal di CONFIG), otomatis aktifkan
+        cfg.ENABLED = true;
+      }
+    } catch (e) {
+      Logger.log("getExternalSyncConfig notice: " + e.message);
+    }
+    return cfg;
+  }
+
+  /**
+   * Mengirimkan satu data log scan secara realtime ke Google Spreadsheet lain.
+   */
+  function forwardLogToExternalSpreadsheet(logEntry, attendeeRowData, pHeaders) {
+    if (!logEntry) return;
+    forwardBatchLogsToExternalSpreadsheet([{ logEntry: logEntry, attendeeRowData: attendeeRowData }], pHeaders);
+  }
+
+  /**
+   * Mengirimkan antrean log scan (batch / single) secara realtime ke Google Spreadsheet target,
+   * diperkaya (enriched) secara dinamis dengan kolom-kolom profil peserta dari sheet 'Data Peserta'.
+   * 
+   * FITUR UNGGULAN:
+   * 1. 100% Fail-safe: jika spreadsheet target error/offline/kuota habis, proses absen panitia tetap sukses tanpa delay.
+   * 2. High Performance Batch Write: membuka spreadsheet eksternal hanya 1 kali untuk seluruh antrean scan.
+   * 3. Dynamic Columns: Otomatis membaca semua kolom pertanyaan form dari 'Data Peserta' dan menyinkronkannya ke sheet target.
+   * 4. Auto Header Setup: Jika sheet target masih kosong atau baru, otomatis membuat header dan format tabel secara rapi.
+   */
+  function forwardBatchLogsToExternalSpreadsheet(items, pHeaders) {
+    if (!items || !items.length) return;
+    const cfg = getExternalSyncConfig();
+    if (!cfg || !cfg.ENABLED) {
+      return;
     }
 
-    // Tampilkan rangkuman hasil
-    const summary = [
-      "📊 HASIL PENGECEKAN AKSES DRIVE",
-      "------------------------------------------",
-      `• Rentang Baris: ${startRow} s/d ${lastProcessedRow} (dari total ${lastRow})`,
-      `• Sudah Punya Akses Sebelumnya: ${alreadyCount} peserta`,
-      `• Baru Saja Berhasil Dibagikan: ${newlySharedCount} peserta`,
-      `• Dilewati (Email/File Kosong): ${skippedCount} peserta`,
-      `• Gagal / Tertahan: ${failedCount} peserta`,
-      "------------------------------------------",
-      hitLimit
-        ? `⚠️ PERHATIAN: Kuota Google Drive harian/burst limit tercapai di baris ${lastProcessedRow}.\nSilakan lanjutkan kembali nanti mulai dari baris ${lastProcessedRow}.`
-        : "✅ Selesai! Tidak ada kendala kuota pada rentang ini."
-    ].join("\n");
+    const rawId = cfg.SPREADSHEET_ID || "";
+    const targetSpreadsheetId = extractSpreadsheetId(rawId);
+    if (!targetSpreadsheetId) {
+      Logger.log("[EXTERNAL SYNC] Diaktifkan tapi SPREADSHEET_ID masih kosong.");
+      return;
+    }
 
-    ui.alert("Laporan Akses Drive", summary, ui.ButtonSet.OK);
+    try {
+      const targetSs = SpreadsheetApp.openById(targetSpreadsheetId);
+      const targetSheetName = (cfg.SHEET_NAME || "Log Kehadiran Lengkap").trim();
+      let targetSheet = targetSs.getSheetByName(targetSheetName);
+
+      // Kumpulkan kolom profil dinamis dari sheet Data Peserta
+      const profileHeadersToAutoInclude = [];
+      if (pHeaders && Array.isArray(pHeaders)) {
+        pHeaders.forEach(h => {
+          const headerStr = String(h || "").trim();
+          if (!headerStr) return;
+          const lowerH = headerStr.toLowerCase();
+
+          // Filter: Kolom matriks sesi, file ID/URL Drive internal, dan rumus Total Hadir
+          const isSessionCol = lowerH.startsWith("sesi:") || (lowerH.includes("[") && lowerH.includes("]"));
+          const isInternalDrive = lowerH.includes("drive file id") || lowerH.includes("drive file url");
+          const isTotalFormula = lowerH.includes("total hadir") || lowerH.includes("jumlah hadir");
+
+          if (!isSessionCol && !isInternalDrive && !isTotalFormula) {
+            const isStandardLogCol = ["ticket id", "id tiket", "nomor tiket", "nama peserta", "nama lengkap", "nama"].includes(lowerH);
+            if (!isStandardLogCol && !profileHeadersToAutoInclude.includes(headerStr)) {
+              profileHeadersToAutoInclude.push(headerStr);
+            }
+          }
+        });
+      }
+
+      // Jika sheet target belum ada, buat sheet baru secara otomatis
+      if (!targetSheet) {
+        targetSheet = targetSs.insertSheet(targetSheetName);
+      }
+
+      const defaultBaseHeaders = [
+        "Timestamp Log",
+        "ID Sesi",
+        "Nama Sesi",
+        "Ticket ID",
+        "Nama Peserta",
+        "Status Scan",
+        "Petugas / Panitia",
+        "Gate",
+        "Link Lokasi (Maps)",
+        "Perangkat",
+        "Keterangan"
+      ];
+
+      // Jika sheet masih baru/kosong, buat header awal
+      if (targetSheet.getLastRow() === 0) {
+        const initialHeaders = defaultBaseHeaders.concat(profileHeadersToAutoInclude);
+        targetSheet.appendRow(initialHeaders);
+        targetSheet.getRange(1, 1, 1, initialHeaders.length).setFontWeight("bold").setBackground("#e2e8f0");
+        try { targetSheet.setFrozenRows(1); } catch (fErr) {}
+      }
+
+      // Baca header sheet target saat ini (Dynamic column mapping)
+      let targetLastCol = targetSheet.getLastColumn();
+      let targetHeaders = targetSheet.getRange(1, 1, 1, Math.max(1, targetLastCol)).getValues()[0];
+
+      // Auto-append kolom baru jika di Data Peserta ada kolom profil baru yang belum ada di targetHeaders
+      profileHeadersToAutoInclude.forEach(newColName => {
+        const exists = targetHeaders.some(th => String(th).trim().toLowerCase() === newColName.toLowerCase());
+        if (!exists) {
+          const nextCol = targetSheet.getLastColumn() + 1;
+          targetSheet.getRange(1, nextCol).setValue(newColName).setFontWeight("bold").setBackground("#e2e8f0");
+          targetHeaders.push(newColName);
+        }
+      });
+
+      const rowsToAppend = [];
+
+      items.forEach(item => {
+        const logEntry = item.logEntry;
+        const attendeeRowData = item.attendeeRowData;
+        if (!logEntry) return;
+
+        // Filter jika hanya ingin mencatat scan yang sukses
+        if (cfg.ONLY_SUCCESSFUL_SCANS) {
+          const statusUpper = String(logEntry.status || "").toUpperCase();
+          const isSuccess = statusUpper.startsWith("BERHASIL") || statusUpper.startsWith("CHECK") || statusUpper.startsWith("HADIR");
+          if (!isSuccess) return;
+        }
+
+        const dataMap = {};
+        const logFields = {
+          "timestamp": logEntry.timestamp,
+          "timestamp log": logEntry.timestamp,
+          "waktu": logEntry.timestamp,
+          "waktu scan": logEntry.timestamp,
+          "id sesi": logEntry.sessionId,
+          "kode sesi": logEntry.sessionId,
+          "nama sesi": logEntry.sessionName,
+          "sesi": logEntry.sessionName,
+          "ticket id": logEntry.ticketId,
+          "id tiket": logEntry.ticketId,
+          "nomor tiket": logEntry.ticketId,
+          "nama peserta": logEntry.attendeeName,
+          "nama lengkap": logEntry.attendeeName,
+          "nama": logEntry.attendeeName,
+          "status scan": logEntry.status,
+          "status": logEntry.status,
+          "petugas / panitia": logEntry.scannedBy,
+          "petugas": logEntry.scannedBy,
+          "panitia": logEntry.scannedBy,
+          "gate": logEntry.gate,
+          "pintu": logEntry.gate,
+          "link lokasi (maps)": logEntry.mapsUrl,
+          "lokasi": logEntry.mapsUrl,
+          "maps": logEntry.mapsUrl,
+          "perangkat": logEntry.deviceInfo,
+          "device": logEntry.deviceInfo,
+          "keterangan": logEntry.notes,
+          "catatan": logEntry.notes
+        };
+
+        Object.keys(logFields).forEach(k => {
+          dataMap[k.toLowerCase()] = (logFields[k] !== undefined && logFields[k] !== null) ? String(logFields[k]) : "";
+        });
+
+        if (attendeeRowData && pHeaders && Array.isArray(pHeaders)) {
+          pHeaders.forEach((h, idx) => {
+            const headerStr = String(h || "").trim();
+            if (!headerStr) return;
+            const val = (attendeeRowData[idx] !== undefined && attendeeRowData[idx] !== null) ? String(attendeeRowData[idx]) : "";
+            dataMap[headerStr.toLowerCase()] = val;
+          });
+        }
+
+        const rowValues = targetHeaders.map(h => {
+          const colKey = String(h || "").trim().toLowerCase();
+          if (dataMap[colKey] !== undefined) {
+            return dataMap[colKey];
+          }
+          const matchedKey = Object.keys(dataMap).find(k => k.includes(colKey) || colKey.includes(k));
+          return matchedKey ? dataMap[matchedKey] : "";
+        });
+
+        rowsToAppend.push(rowValues);
+      });
+
+      if (rowsToAppend.length > 0) {
+        const startRow = targetSheet.getLastRow() + 1;
+        targetSheet.getRange(startRow, 1, rowsToAppend.length, targetHeaders.length).setValues(rowsToAppend);
+        Logger.log(`[EXTERNAL SYNC] Berhasil mengirim ${rowsToAppend.length} baris log ke '${targetSheetName}'`);
+      }
+    } catch (err) {
+      Logger.log(`[EXTERNAL SYNC ERROR] Gagal sync ke spreadsheet eksternal: ${err.message}`);
+    }
+  }
+
+  /**
+   * Menu: Uji coba koneksi dan kirim sampel log ke Spreadsheet Eksternal
+   */
+  function testExternalSpreadsheetSync() {
+    const ui = SpreadsheetApp.getUi();
+    const cfg = getExternalSyncConfig();
+    const rawId = cfg.SPREADSHEET_ID || "";
+    const spreadsheetId = extractSpreadsheetId(rawId);
+
+    if (!spreadsheetId) {
+      ui.alert(
+        "Spreadsheet Belum Dikonfigurasi",
+        "ID Spreadsheet target belum diisi.\n\n" +
+        "Silakan masukkan ID atau Link Google Spreadsheet target via Menu '⚡ Presensi Event' -> '9. Hubungkan / Test Spreadsheet Eksternal' atau di CONFIG.EXTERNAL_SYNC.",
+        ui.ButtonSet.OK
+      );
+      return;
+    }
+
+    try {
+      const targetSs = SpreadsheetApp.openById(spreadsheetId);
+      const targetTitle = targetSs.getName();
+      const sheetPeserta = getOrCreateSheet(CONFIG.SHEETS.DATA_PESERTA);
+      const pHeaders = sheetPeserta.getRange(1, 1, 1, Math.max(1, sheetPeserta.getLastColumn())).getValues()[0];
+
+      let sampleRow = null;
+      if (sheetPeserta.getLastRow() > 1) {
+        sampleRow = sheetPeserta.getRange(2, 1, 1, pHeaders.length).getValues()[0];
+      }
+
+      forwardLogToExternalSpreadsheet({
+        timestamp: formatFullDateTime(new Date()),
+        sessionId: "TEST-01",
+        sessionName: "Test Integrasi Sesi",
+        ticketId: sampleRow ? sampleRow[0] : "TIC-TEST-999",
+        attendeeName: sampleRow ? sampleRow[1] : "Peserta Uji Coba",
+        status: "TEST_KONEKSI",
+        scannedBy: "Admin / Tester",
+        gate: "Pintu Utama",
+        mapsUrl: "https://maps.google.com",
+        deviceInfo: "Apps Script Diagnostic Test",
+        notes: "Baris uji coba integrasi log realtime dengan profil lengkap"
+      }, sampleRow, pHeaders);
+
+      ui.alert(
+        "✅ Koneksi Berhasil!",
+        `Berhasil terhubung ke spreadsheet:\n"${targetTitle}"\n\n` +
+        `Satu baris data tes berhasil dikirim ke tab '${cfg.SHEET_NAME || "Log Kehadiran Lengkap"}' beserta profil dinamis peserta dari sheet 'Data Peserta'.`,
+        ui.ButtonSet.OK
+      );
+    } catch (err) {
+      ui.alert(
+        "❌ Gagal Terhubung",
+        `Gagal mengakses spreadsheet target (${spreadsheetId}):\n\n${err.message}\n\n` +
+        "Pastikan:\n1. ID atau Link URL spreadsheet sudah benar.\n2. Akun Google Anda memiliki akses Edit ke spreadsheet target tersebut.",
+        ui.ButtonSet.OK
+      );
+    }
+  }
+
+  /**
+   * Menu UI: Dialog input untuk mengonfigurasi ID Spreadsheet target
+   */
+  function promptConfigureExternalSync() {
+    const ui = SpreadsheetApp.getUi();
+    const cfg = getExternalSyncConfig();
+    const currentId = cfg.SPREADSHEET_ID || "";
+    const currentSheet = cfg.SHEET_NAME || "Log Kehadiran Lengkap";
+
+    const promptRes = ui.prompt(
+      "🌐 Konfigurasi Integrasi Spreadsheet Eksternal",
+      `Masukkan URL atau ID Google Spreadsheet target:\n(Saat ini: ${currentId ? currentId.substring(0, 30) + "..." : "Belum disetel"})\n\nKetik 'OFF' untuk menonaktifkan sinkronisasi.`,
+      ui.ButtonSet.OK_CANCEL
+    );
+
+    if (promptRes.getSelectedButton() !== ui.Button.OK) return;
+
+    const inputVal = (promptRes.getResponseText() || "").trim();
+    if (!inputVal) return;
+
+    const props = PropertiesService.getScriptProperties();
+
+    if (inputVal.toUpperCase() === "OFF") {
+      props.setProperty("EXTERNAL_SYNC_ENABLED", "false");
+      ui.alert("Integrasi Dinonaktifkan", "Pengiriman log ke spreadsheet eksternal dinonaktifkan.", ui.ButtonSet.OK);
+      return;
+    }
+
+    const cleanId = extractSpreadsheetId(inputVal);
+    props.setProperty("EXTERNAL_SPREADSHEET_ID", cleanId);
+    props.setProperty("EXTERNAL_SHEET_NAME", currentSheet);
+    props.setProperty("EXTERNAL_SYNC_ENABLED", "true");
+
+    const testConfirm = ui.alert(
+      "Konfigurasi Berhasil Disimpan!",
+      `Target Spreadsheet ID: ${cleanId}\nTab Target: ${currentSheet}\nStatus: AKTIF (Realtime)\n\nApakah Anda ingin langsung mencoba tes koneksi sekarang?`,
+      ui.ButtonSet.YES_NO
+    );
+
+    if (testConfirm === ui.Button.YES) {
+      testExternalSpreadsheetSync();
+    }
   }
 
 

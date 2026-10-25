@@ -6,7 +6,7 @@
 
 window.EventPass = window.EventPass || {};
 
-(function(ns) {
+(function (ns) {
   'use strict';
 
   ns.UI = {
@@ -27,7 +27,7 @@ window.EventPass = window.EventPass || {};
     renderOperatorHeader() {
       if (ns.DOM.operatorBadge) {
         if (!ns.state.panitiaName) {
-          ns.DOM.operatorBadge.textContent = "⚠️ Isi Nama Petugas";
+          ns.DOM.operatorBadge.innerHTML = `<span style="display:inline-flex;align-items:center;gap:4px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>Isi Nama Petugas</span>`;
           if (ns.DOM.operatorBadgeBtn) {
             ns.DOM.operatorBadgeBtn.classList.add("needs-setup");
           }
@@ -51,8 +51,8 @@ window.EventPass = window.EventPass || {};
       if (!ns.DOM.sessionDropdownContainer || !ns.DOM.sessionMenu) return;
 
       const list = ns.state.sessions.length > 0 ? ns.state.sessions : [
-        { id: "SESI-01", name: "Pertemuan 1 - Pembukaan", label: "Pertemuan 1 - Pembukaan" },
-        { id: "SESI-02", name: "Pertemuan 2 - Workshop", label: "Pertemuan 2 - Workshop" }
+        { id: "SESI-01", name: "Pertemuan 1 - Pembukaan", label: "Pertemuan 1 - Pembukaan", type: "SINGLE" },
+        { id: "SESI-02", name: "Pertemuan 2 - Workshop", label: "Pertemuan 2 - Workshop", type: "CHECK_IN_OUT" }
       ];
 
       // Sinkronkan sesi yang aktif atau fallback ke sesi pertama
@@ -68,7 +68,11 @@ window.EventPass = window.EventPass || {};
       }
 
       if (ns.DOM.sessionLabel) {
-        ns.DOM.sessionLabel.textContent = current.label || current.name;
+        if (current.isRoutine) {
+          ns.DOM.sessionLabel.innerHTML = `<span class="badge-routine-inline"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>Rutin</span>${ns.escapeHtml(current.label || current.name)}`;
+        } else {
+          ns.DOM.sessionLabel.textContent = current.label || current.name;
+        }
       }
 
       ns.DOM.sessionMenu.innerHTML = "";
@@ -81,9 +85,12 @@ window.EventPass = window.EventPass || {};
         itemBtn.setAttribute("role", "option");
         itemBtn.setAttribute("aria-selected", isActive ? "true" : "false");
 
+        const typeBadge = sesi.type === "CHECK_IN_OUT" ? `<span class="badge-inout-chip">IN/OUT</span>` : "";
+        const routineBadge = sesi.isRoutine ? `<span class="badge-routine-chip"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>RUTIN</span>` : "";
+
         itemBtn.innerHTML = `
           <div class="dropdown-item-info">
-            <span class="dropdown-item-title">${ns.escapeHtml(sesi.name)}</span>
+            <span class="dropdown-item-title">${ns.escapeHtml(sesi.name)}${routineBadge}${typeBadge}</span>
             <span class="dropdown-item-date">${ns.escapeHtml(sesi.date || sesi.id)}</span>
           </div>
           <svg class="dropdown-item-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -102,11 +109,63 @@ window.EventPass = window.EventPass || {};
           ns.UI.closeSessionDropdown();
 
           ns.UI.showToast(`Sesi aktif: ${sesi.name}`);
-          ns.UI.updateScannerStatus("Siap Memindai", `Sesi: ${sesi.name}`);
         });
 
         ns.DOM.sessionMenu.appendChild(itemBtn);
       });
+
+      this.updateScanModeUI();
+    },
+
+    /**
+     * Update Scan Mode UI (Check-In vs Check-Out) toggle visibility and active state
+     */
+    updateScanModeUI() {
+      const current = (ns.state.sessions || []).find(s => s.id === ns.state.currentSessionId);
+      const isInOut = (current && current.type === "CHECK_IN_OUT");
+
+      if (ns.DOM.scanModeContainer) {
+        ns.DOM.scanModeContainer.style.display = isInOut ? "block" : "none";
+      }
+
+      const mode = ns.state.currentScanMode || "IN";
+      if (ns.DOM.btnModeIn) {
+        const isActive = (mode === "IN");
+        ns.DOM.btnModeIn.classList.toggle("active", isActive);
+        ns.DOM.btnModeIn.setAttribute("aria-checked", isActive ? "true" : "false");
+      }
+      if (ns.DOM.btnModeOut) {
+        const isActive = (mode === "OUT");
+        ns.DOM.btnModeOut.classList.toggle("active", isActive);
+        ns.DOM.btnModeOut.setAttribute("aria-checked", isActive ? "true" : "false");
+      }
+
+      // Update Manual Tab labels & button
+      if (ns.DOM.btnManualCheckin) {
+        if (isInOut && mode === "OUT") {
+          ns.DOM.btnManualCheckin.textContent = "Check Out";
+          ns.DOM.btnManualCheckin.style.background = "#d97706";
+          ns.DOM.btnManualCheckin.style.borderColor = "#b45309";
+        } else {
+          ns.DOM.btnManualCheckin.textContent = "Check In";
+          ns.DOM.btnManualCheckin.style.background = "";
+          ns.DOM.btnManualCheckin.style.borderColor = "";
+        }
+      }
+      if (ns.DOM.manualSectionTitle) {
+        ns.DOM.manualSectionTitle.textContent = (isInOut && mode === "OUT") ? "Manual Check-Out" : "Manual Check-In";
+      }
+
+      // Update status message if not currently processing
+      if (!ns.state.isProcessing) {
+        if (isInOut && mode === "OUT") {
+          this.updateScannerStatus("Siap Memindai (Check-Out)", `Sesi: ${current?.name || ""} • Verifikasi Keluar`);
+        } else if (isInOut && mode === "IN") {
+          this.updateScannerStatus("Siap Memindai (Check-In)", `Sesi: ${current?.name || ""} • Verifikasi Masuk`);
+        } else {
+          this.updateScannerStatus("Siap Memindai", `Sesi: ${current?.name || ns.state.currentSessionName}`);
+        }
+      }
     },
 
     toggleSessionDropdown() {
@@ -128,7 +187,7 @@ window.EventPass = window.EventPass || {};
 
     showResultModal(data) {
       ns.DOM.resultBanner.className = `result-banner ${data.type}`;
-      
+
       if (data.type === "success") {
         ns.DOM.resultIcon.innerHTML = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
       } else if (data.type === "warning") {
@@ -142,6 +201,9 @@ window.EventPass = window.EventPass || {};
       ns.DOM.detailName.textContent = data.name;
       ns.DOM.detailTicketId.textContent = data.ticketId;
       ns.DOM.detailEmail.textContent = data.email;
+      if (ns.DOM.detailTimeLabel) {
+        ns.DOM.detailTimeLabel.textContent = data.timeLabel || (data.scanMode === "OUT" ? "Waktu Keluar" : "Waktu Masuk");
+      }
       ns.DOM.detailTime.textContent = data.time;
       ns.DOM.detailOfficer.textContent = data.officer;
 
@@ -179,9 +241,9 @@ window.EventPass = window.EventPass || {};
 
     openOperatorModal(options = {}) {
       if (!ns.DOM.operatorModal) return;
-      
+
       const isForced = Boolean(options.force) || (!ns.state.panitiaName || !ns.state.panitiaName.trim());
-      
+
       if (ns.DOM.inputOpName) {
         ns.DOM.inputOpName.value = ns.state.panitiaName || "";
         ns.DOM.inputOpName.classList.remove("error-highlight");
@@ -320,6 +382,31 @@ window.EventPass = window.EventPass || {};
       }
     },
 
+    openAnomalyModal(options = {}) {
+      if (!ns.DOM.anomalyModal) return;
+      if (ns.DOM.anomalyAttendeeName) ns.DOM.anomalyAttendeeName.textContent = options.name || "Peserta";
+      if (ns.DOM.anomalyTicketId) ns.DOM.anomalyTicketId.textContent = options.ticketId || "-";
+      if (ns.DOM.anomalyReasonSelect) ns.DOM.anomalyReasonSelect.selectedIndex = 0;
+
+      this._anomalyCallbacks = {
+        onConfirm: options.onConfirm,
+        onCancel: options.onCancel
+      };
+
+      ns.DOM.anomalyModal.classList.add("show");
+      ns.DOM.anomalyModal.style.display = "flex";
+    },
+
+    closeAnomalyModal(triggerCancel = false) {
+      if (!ns.DOM.anomalyModal) return;
+      ns.DOM.anomalyModal.classList.remove("show");
+      ns.DOM.anomalyModal.style.display = "none";
+      if (triggerCancel && this._anomalyCallbacks && typeof this._anomalyCallbacks.onCancel === "function") {
+        this._anomalyCallbacks.onCancel();
+      }
+      this._anomalyCallbacks = null;
+    },
+
     recordHistory(entry) {
       ns.state.history.unshift(entry);
       if (ns.state.history.length > 50) ns.state.history.pop();
@@ -443,12 +530,13 @@ window.EventPass = window.EventPass || {};
           } else {
             syncTagHtml = `
               <span class="badge badge-synced" title="Telah tercatat permanen di Google Sheets">
-                ☁️ Tersinkron
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 3px; vertical-align: -1px;"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path></svg>Tersinkron
               </span>
             `;
             syncSubtextHtml = `
               <div style="font-size: 11px; color: #059669; margin-top: 3px; display: flex; align-items: center; gap: 4px;">
-                <span>✅ <strong>Masuk Spreadsheet</strong> (Aman)</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                <span><strong>Masuk Spreadsheet</strong> (Aman)</span>
               </div>
             `;
           }
@@ -458,12 +546,13 @@ window.EventPass = window.EventPass || {};
           showUndo = false;
           syncTagHtml = `
             <span class="badge badge-synced" title="Pembatalan telah tersinkron dan tercatat di spreadsheet">
-              ☁️ Tersinkron
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 3px; vertical-align: -1px;"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path></svg>Tersinkron
             </span>
           `;
           syncSubtextHtml = `
             <div style="font-size: 11px; color: #64748b; margin-top: 3px; display: flex; align-items: center; gap: 4px;">
-              <span>↩️ <strong>Dibatalkan</strong> • Status presensi dinonaktifkan</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+              <span><strong>Dibatalkan</strong> • Status presensi dinonaktifkan</span>
             </div>
           `;
         } else if (item.status === "DUPLICATE") {
@@ -473,24 +562,26 @@ window.EventPass = window.EventPass || {};
           if (isPendingInQueue) {
             syncTagHtml = `
               <span class="badge badge-pending-sync" title="Log duplikat dalam antrean sync">
-                ⏳ Antrean HP
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 3px; vertical-align: -1px;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>Antrean HP
               </span>
             `;
             syncSubtextHtml = `
               <div style="font-size: 11px; color: #b45309; margin-top: 3px; display: flex; align-items: center; gap: 4px;">
                 <span class="sync-mini-dot"></span>
-                <span>⚠️ <strong>Duplikat</strong> • Menunggu sync log audit</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#b45309" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                <span><strong>Duplikat</strong> • Menunggu sync log audit</span>
               </div>
             `;
           } else {
             syncTagHtml = `
               <span class="badge badge-synced" title="Tercatat di Google Sheets sebagai duplikat">
-                ☁️ Tersinkron
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 3px; vertical-align: -1px;"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path></svg>Tersinkron
               </span>
             `;
             syncSubtextHtml = `
               <div style="font-size: 11px; color: #d97706; margin-top: 3px; display: flex; align-items: center; gap: 4px;">
-                <span>⚠️ <strong>Sudah Pernah Absen</strong> • Tercatat di Log Sheet</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                <span><strong>Sudah Pernah Absen</strong> • Tercatat di Log Sheet</span>
               </div>
             `;
           }
@@ -500,12 +591,13 @@ window.EventPass = window.EventPass || {};
           showUndo = false;
           syncTagHtml = `
             <span class="badge badge-rejected" title="Tiket tidak ditemukan / dihapus admin di database">
-              ⚠️ Ditolak Sheet
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 3px; vertical-align: -1px;"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>Ditolak Sheet
             </span>
           `;
           syncSubtextHtml = `
             <div style="font-size: 11px; color: #dc2626; margin-top: 3px; display: flex; align-items: center; gap: 4px;">
-              <span>⚠️ <strong>Ditolak Database</strong>: Data tiket dihapus admin di spreadsheet</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+              <span><strong>Ditolak Database</strong>: Data tiket dihapus admin di spreadsheet</span>
             </div>
           `;
         } else {
@@ -514,12 +606,13 @@ window.EventPass = window.EventPass || {};
           showUndo = false;
           syncTagHtml = `
             <span class="badge badge-rejected">
-              ❌ Gagal
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 3px; vertical-align: -1px;"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>Gagal
             </span>
           `;
           syncSubtextHtml = `
             <div style="font-size: 11px; color: #dc2626; margin-top: 3px; display: flex; align-items: center; gap: 4px;">
-              <span>❌ <strong>${item.status === "INVALID" ? "Tiket Tidak Terdaftar" : "Gagal Diproses"}</strong>: ${ns.escapeHtml(item.name || "Error")}</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+              <span><strong>${item.status === "INVALID" ? "Tiket Tidak Terdaftar" : "Gagal Diproses"}</strong>: ${ns.escapeHtml(item.name || "Error")}</span>
             </div>
           `;
         }
@@ -560,19 +653,118 @@ window.EventPass = window.EventPass || {};
       });
     },
 
+    /**
+     * Smoothly animate and remove a checked-in attendee card from search results
+     */
+    removeSearchResultItem(ticketId) {
+      if (!ns.DOM.searchResultsList) return;
+      const cleanId = String(ticketId || "").trim();
+      const upperId = cleanId.toUpperCase();
+      const itemEl = ns.DOM.searchResultsList.querySelector(`[data-ticket="${cleanId}"]`) || 
+                     ns.DOM.searchResultsList.querySelector(`[data-ticket="${upperId}"]`) ||
+                     document.getElementById(`search-item-${cleanId}`) ||
+                     document.getElementById(`search-item-${upperId}`);
+      if (itemEl) {
+        itemEl.classList.add("item-completed");
+        setTimeout(() => {
+          if (itemEl.parentNode) itemEl.remove();
+          const remainingItems = ns.DOM.searchResultsList.querySelectorAll(".search-result-item");
+          if (remainingItems.length === 0) {
+            ns.DOM.searchResultsList.innerHTML = `
+              <div class="search-empty-state" style="text-align: center; color: var(--primary); padding: 16px; background: rgba(30, 86, 49, 0.06); border-radius: var(--radius-md); font-size: 13px; font-weight: 500; border: 1px dashed rgba(30, 86, 49, 0.25);">
+                ✓ Presensi berhasil dicatat. Layar siap untuk pencarian berikutnya.
+              </div>
+            `;
+            if (ns.DOM.inputManualSearch) {
+              ns.DOM.inputManualSearch.value = "";
+              ns.DOM.inputManualSearch.focus();
+            }
+          }
+        }, 350);
+      }
+    },
+
     renderSearchResults(results, query) {
       if (!ns.DOM.searchResultsList) return;
 
       if (results && results.length > 0) {
         ns.DOM.searchResultsList.innerHTML = "";
+
+        const current = (ns.state.sessions || []).find(s => s.id === ns.state.currentSessionId);
+        const isInOut = (current && current.type === "CHECK_IN_OUT");
+        const mode = isInOut ? (ns.state.currentScanMode || "IN") : "IN";
+        const isOut = (mode === "OUT");
+        const currentSessId = ns.state.currentSessionId || "SESI-01";
+        const inSessId = `${currentSessId}_IN`;
+        const outSessId = `${currentSessId}_OUT`;
+
         results.forEach(item => {
           const div = document.createElement("div");
           div.className = "search-result-item";
-          
-          const isHadir = item.status === "HADIR";
-          const statusBadge = isHadir 
-            ? `<span class="badge badge-warning">Sudah Hadir</span>` 
-            : `<span class="badge badge-success">Belum Hadir</span>`;
+          const uId = String(item.ticketId || "").toUpperCase().trim();
+          div.id = `search-item-${uId}`;
+          div.setAttribute("data-ticket", uId);
+
+          const cached = ns.state.cachedAttendees ? ns.state.cachedAttendees[uId] : null;
+
+          // Cek antrean offline lokal yang belum ter-flush ke server
+          const isPendingInQueue = Boolean(
+            ns.state.syncQueue && ns.state.syncQueue.some(
+              q => String(q.ticketId).toUpperCase() === uId && (q.sessionId === inSessId || q.sessionId === currentSessId) && !q.isDuplicate
+            )
+          );
+          const isPendingOutQueue = Boolean(
+            ns.state.syncQueue && ns.state.syncQueue.some(
+              q => String(q.ticketId).toUpperCase() === uId && q.sessionId === outSessId && !q.isDuplicate
+            )
+          );
+
+          // Sumber kebenaran live dari spreadsheet: item.hasIn & item.hasOut (atau item.status)
+          const hasIn = Boolean(item.hasIn || (item.status === "HADIR") || isPendingInQueue);
+          const hasOut = Boolean(item.hasOut || (item.status === "CHECKOUT") || isPendingOutQueue);
+
+          // Sinkronkan cache lokal dengan data aktual dari live server jika ada ketidaksesuaian
+          if (cached && cached.checkedInSessions) {
+            if (hasIn) {
+              cached.checkedInSessions[inSessId] = item.inTime || "Hadir";
+            } else if (!isPendingInQueue) {
+              delete cached.checkedInSessions[inSessId];
+              delete cached.checkedInSessions[currentSessId];
+            }
+
+            if (hasOut) {
+              cached.checkedInSessions[outSessId] = item.outTime || "Keluar";
+            } else if (!isPendingOutQueue) {
+              delete cached.checkedInSessions[outSessId];
+            }
+            localStorage.setItem("absen_cached_attendees", JSON.stringify(ns.state.cachedAttendees));
+          }
+
+          let statusBadge = "";
+          let actionBtnHtml = "";
+
+          if (isOut) {
+            // Mode Check-Out
+            if (hasOut) {
+              statusBadge = `<span class="badge badge-warning">Sudah Check-Out</span>`;
+              actionBtnHtml = `<button class="btn-checkin-sm btn-disabled" disabled>Sudah Keluar</button>`;
+            } else if (hasIn) {
+              statusBadge = `<span class="badge badge-success">Sudah Check-In</span>`;
+              actionBtnHtml = `<button class="btn-checkin-sm btn-checkout-action" data-id="${ns.escapeHtml(item.ticketId)}">Check Out</button>`;
+            } else {
+              statusBadge = `<span class="badge badge-error">Belum Check-In</span>`;
+              actionBtnHtml = `<button class="btn-checkin-sm btn-checkout-action btn-anomaly-action" data-id="${ns.escapeHtml(item.ticketId)}" title="Konfirmasi Checkout tanpa Check-In">Check Out (Anomali)</button>`;
+            }
+          } else {
+            // Mode Check-In / Single
+            if (hasIn) {
+              statusBadge = `<span class="badge badge-warning">Sudah Hadir</span>`;
+              actionBtnHtml = `<button class="btn-checkin-sm btn-disabled" disabled>Sudah Hadir</button>`;
+            } else {
+              statusBadge = `<span class="badge badge-success">Belum Hadir</span>`;
+              actionBtnHtml = `<button class="btn-checkin-sm" data-id="${ns.escapeHtml(item.ticketId)}">Check In</button>`;
+            }
+          }
 
           div.innerHTML = `
             <div>
@@ -580,15 +772,13 @@ window.EventPass = window.EventPass || {};
               <div class="attendee-sub">${ns.escapeHtml(item.ticketId)} • ${ns.escapeHtml(item.email)}</div>
             </div>
             <div>
-              <button class="btn-checkin-sm" data-id="${ns.escapeHtml(item.ticketId)}">
-                ${isHadir ? "Cek Status" : "Check In"}
-              </button>
+              ${actionBtnHtml}
             </div>
           `;
           ns.DOM.searchResultsList.appendChild(div);
         });
 
-        ns.DOM.searchResultsList.querySelectorAll(".btn-checkin-sm").forEach(btn => {
+        ns.DOM.searchResultsList.querySelectorAll(".btn-checkin-sm:not(.btn-disabled)").forEach(btn => {
           btn.addEventListener("click", (e) => {
             const tId = e.currentTarget.getAttribute("data-id");
             ns.App.processCheckIn(tId, e.currentTarget);
@@ -597,6 +787,40 @@ window.EventPass = window.EventPass || {};
       } else {
         ns.DOM.searchResultsList.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 20px;">Tidak ada peserta yang cocok dengan "${ns.escapeHtml(query)}"</div>`;
       }
+    },
+
+    /**
+     * Render dynamic form fields in OTS tab based on custom columns in Data Peserta sheet
+     */
+    renderOtsCustomFields(fields) {
+      if (!ns.DOM.otsCustomFieldsContainer) return;
+      ns.DOM.otsCustomFieldsContainer.innerHTML = "";
+      if (!fields || !Array.isArray(fields) || fields.length === 0) return;
+
+      fields.forEach(field => {
+        const group = document.createElement("div");
+        group.className = "form-group";
+        const fieldId = `ots-custom-${field.name.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+
+        if (field.type === "select" && field.options && field.options.length > 0) {
+          let optionsHtml = `<option value="">-- Pilih ${ns.escapeHtml(field.label)} --</option>`;
+          field.options.forEach(opt => {
+            optionsHtml += `<option value="${ns.escapeHtml(opt)}">${ns.escapeHtml(opt)}</option>`;
+          });
+          group.innerHTML = `
+            <label class="form-label" for="${fieldId}">${ns.escapeHtml(field.label)} (Opsional)</label>
+            <select id="${fieldId}" class="input-box ots-custom-field" data-field-name="${ns.escapeHtml(field.name)}" style="cursor: pointer; background: #ffffff;">
+              ${optionsHtml}
+            </select>
+          `;
+        } else {
+          group.innerHTML = `
+            <label class="form-label" for="${fieldId}">${ns.escapeHtml(field.label)} (Opsional)</label>
+            <input type="text" id="${fieldId}" class="input-box ots-custom-field" data-field-name="${ns.escapeHtml(field.name)}" placeholder="Masukkan ${ns.escapeHtml(field.label)}..." autocomplete="off">
+          `;
+        }
+        ns.DOM.otsCustomFieldsContainer.appendChild(group);
+      });
     }
   };
 
