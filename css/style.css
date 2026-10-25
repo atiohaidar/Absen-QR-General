@@ -1271,6 +1271,14 @@ body {
   background: #b45309;
 }
 
+.btn-checkin-sm.btn-checkout-action.btn-anomaly-action {
+  background: #b91c1c;
+}
+
+.btn-checkin-sm.btn-checkout-action.btn-anomaly-action:hover {
+  background: #991b1b;
+}
+
 .btn-checkin-sm.btn-disabled {
   background: #e2e8f0;
   color: #94a3b8;

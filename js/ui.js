@@ -719,18 +719,22 @@ window.EventPass = window.EventPass || {};
             )
           );
 
-          // Sumber kebenaran live dari spreadsheet: item.status
-          // Jika sheet live mengatakan BELUM_HADIR dan tidak ada antrean offline, jangan tertipu cache basi!
-          const hasIn = (item.status === "HADIR") || isPendingInQueue;
-          const hasOut = (item.status === "CHECKOUT") || isPendingOutQueue;
+          // Sumber kebenaran live dari spreadsheet: item.hasIn & item.hasOut (atau item.status)
+          const hasIn = Boolean(item.hasIn || (item.status === "HADIR") || isPendingInQueue);
+          const hasOut = Boolean(item.hasOut || (item.status === "CHECKOUT") || isPendingOutQueue);
 
           // Sinkronkan cache lokal dengan data aktual dari live server jika ada ketidaksesuaian
           if (cached && cached.checkedInSessions) {
-            if (!hasIn && !isPendingInQueue) {
+            if (hasIn) {
+              cached.checkedInSessions[inSessId] = item.inTime || "Hadir";
+            } else if (!isPendingInQueue) {
               delete cached.checkedInSessions[inSessId];
               delete cached.checkedInSessions[currentSessId];
             }
-            if (!hasOut && !isPendingOutQueue) {
+
+            if (hasOut) {
+              cached.checkedInSessions[outSessId] = item.outTime || "Keluar";
+            } else if (!isPendingOutQueue) {
               delete cached.checkedInSessions[outSessId];
             }
             localStorage.setItem("absen_cached_attendees", JSON.stringify(ns.state.cachedAttendees));
@@ -748,8 +752,8 @@ window.EventPass = window.EventPass || {};
               statusBadge = `<span class="badge badge-success">Sudah Check-In</span>`;
               actionBtnHtml = `<button class="btn-checkin-sm btn-checkout-action" data-id="${ns.escapeHtml(item.ticketId)}">Check Out</button>`;
             } else {
-              statusBadge = `<span class="badge badge-error">Belum Hadir</span>`;
-              actionBtnHtml = `<button class="btn-checkin-sm btn-checkout-action" data-id="${ns.escapeHtml(item.ticketId)}" title="Konfirmasi Checkout tanpa Check-In">Check Out</button>`;
+              statusBadge = `<span class="badge badge-error">Belum Check-In</span>`;
+              actionBtnHtml = `<button class="btn-checkin-sm btn-checkout-action btn-anomaly-action" data-id="${ns.escapeHtml(item.ticketId)}" title="Konfirmasi Checkout tanpa Check-In">Check Out (Anomali)</button>`;
             }
           } else {
             // Mode Check-In / Single

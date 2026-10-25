@@ -1146,7 +1146,12 @@ const CONFIG = {
 
         const pesertaData = sheetPeserta.getDataRange().getValues();
         const { ticketCol, nameCol, emailCol } = getPesertaFieldIndices(sheetPeserta);
-        const sessionColIdx = findSessionColumn(sheetPeserta, sessionId, sessionName);
+        const baseId = extractBaseSessionId(rawSessionId);
+        
+        // Cek kolom IN, OUT, dan Single secara presisi agar status hadir/keluar akurat
+        const inColIdx = findSessionColumn(sheetPeserta, `${baseId}_IN`, rawSessionName);
+        const outColIdx = findSessionColumn(sheetPeserta, `${baseId}_OUT`, rawSessionName);
+        const singleColIdx = findSessionColumn(sheetPeserta, baseId, rawSessionName);
         const results = [];
 
         for (let r = 1; r < pesertaData.length; r++) {
@@ -1154,21 +1159,31 @@ const CONFIG = {
           const tId = String(row[ticketCol] || "");
           const tName = String(row[nameCol] || "");
           const tEmail = String(row[emailCol] || "");
-          const currentSessionStatus = (sessionColIdx > 0) ? String(row[sessionColIdx - 1] || "") : "";
 
           if (tId.toLowerCase().includes(query) || tName.toLowerCase().includes(query) || tEmail.toLowerCase().includes(query)) {
-            const isHadir = currentSessionStatus.startsWith("HADIR");
-            const isCheckout = currentSessionStatus.startsWith("CHECKOUT");
+            const inVal = inColIdx > 0 ? String(row[inColIdx - 1] || "").trim() : "";
+            const outVal = outColIdx > 0 ? String(row[outColIdx - 1] || "").trim() : "";
+            const singleVal = singleColIdx > 0 ? String(row[singleColIdx - 1] || "").trim() : "";
+
+            const hasIn = inVal.startsWith("HADIR") || singleVal.startsWith("HADIR");
+            const hasOut = outVal.startsWith("CHECKOUT") || singleVal.startsWith("CHECKOUT");
+
             let status = "BELUM_HADIR";
-            if (isCheckout) status = "CHECKOUT";
-            else if (isHadir) status = "HADIR";
+            if (hasOut) status = "CHECKOUT";
+            else if (hasIn) status = "HADIR";
+
+            const statusDetail = hasOut ? outVal : (hasIn ? inVal : (singleVal || "Belum Absen"));
 
             results.push({
               ticketId: tId,
               name: tName,
               email: tEmail,
+              hasIn: hasIn,
+              hasOut: hasOut,
+              inTime: inVal.replace(/^HADIR\s*-\s*/, "") || "",
+              outTime: outVal.replace(/^CHECKOUT\s*-\s*/, "") || "",
               status: status,
-              statusDetail: currentSessionStatus || "Belum Absen",
+              statusDetail: statusDetail,
               sessionId: sessionId,
               sessionName: sessionName
             });
