@@ -102,7 +102,7 @@ window.EventPass = window.EventPass || {};
           this.updateSyncUI();
           this.updateCacheCountUI();
           if (isManual) {
-            ns.UI.showToast(`✅ Database peserta diperbarui (${data.count} peserta).`);
+            ns.UI.showToast(`Database peserta diperbarui (${data.count} peserta).`);
           }
         }
       } catch (err) {
@@ -222,7 +222,7 @@ window.EventPass = window.EventPass || {};
       if (ns.state.isSyncingQueue || ns.state.syncQueue.length === 0 || !navigator.onLine) {
         this.updateSyncUI();
         if (isManual && ns.state.syncQueue.length === 0) {
-          ns.UI.showToast("Semua data presensi sudah tersinkron ke cloud ✅");
+          ns.UI.showToast("Semua data presensi sudah tersinkron ke cloud.");
         }
         return;
       }
@@ -291,13 +291,13 @@ window.EventPass = window.EventPass || {};
             }
 
             if (isManual) {
-              ns.UI.showToast(`✅ Berhasil menyinkronkan ${batch.length} data ke spreadsheet.`);
+              ns.UI.showToast(`Berhasil menyinkronkan ${batch.length} data ke spreadsheet.`);
             }
           } else if (response && !response.success && response.message && (response.message.includes("tidak dikenali") || response.message.includes("batchCheckIn"))) {
-            // ⚠️ Backend Apps Script belum dideploy dengan New Version!
+            // Backend Apps Script belum dideploy dengan New Version!
             console.warn("Backend Apps Script belum mengenali 'batchCheckIn'. Melakukan fallback otomatis ke sequential check-in.");
             this.batchSupported = false;
-            ns.UI.showToast("🔄 Backend versi lama terdeteksi. Menyinkronkan antrean satu per satu...");
+            ns.UI.showToast("Backend versi lama terdeteksi. Menyinkronkan antrean satu per satu...");
           }
         }
 
@@ -323,7 +323,7 @@ window.EventPass = window.EventPass || {};
                 localStorage.setItem("absen_sync_queue", JSON.stringify(ns.state.syncQueue));
                 this.updateSyncUI();
                 ns.sounds.playError();
-                ns.UI.showToast(`⚠️ Tiket ${item.ticketId} Ditolak: Tidak ada di Google Sheets.`);
+                ns.UI.showToast(`Tiket ${item.ticketId} Ditolak: Tidak ada di Google Sheets.`);
               }
             } catch (singleErr) {
               console.warn("Single check-in fallback failed for", item.ticketId, singleErr);
@@ -332,7 +332,7 @@ window.EventPass = window.EventPass || {};
           }
 
           if (isManual && ns.state.syncQueue.length === 0) {
-            ns.UI.showToast("✅ Semua antrean berhasil disinkronkan ke database.");
+            ns.UI.showToast("Semua antrean berhasil disinkronkan ke database.");
           }
         }
       } catch (err) {

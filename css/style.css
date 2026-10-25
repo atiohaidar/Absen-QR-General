@@ -411,6 +411,50 @@ body {
   transition: var(--transition);
 }
 
+/* Routine & In-Out Session Badges */
+.badge-routine-chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  background: rgba(234, 179, 8, 0.15);
+  color: #b45309;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+  margin-left: 6px;
+  border: 1px solid rgba(234, 179, 8, 0.35);
+  vertical-align: middle;
+}
+
+.badge-routine-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10.5px;
+  background: rgba(234, 179, 8, 0.16);
+  color: #b45309;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+  margin-right: 6px;
+  border: 1px solid rgba(234, 179, 8, 0.35);
+  vertical-align: middle;
+}
+
+.badge-inout-chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  background: #e0e7ff;
+  color: #4338ca;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+  margin-left: 6px;
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  vertical-align: middle;
+}
+
 .btn-refresh-sm:hover {
   background: var(--bg-subtle);
 }

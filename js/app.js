@@ -275,7 +275,7 @@ window.EventPass = window.EventPass || {};
               DOM.btnRecheckServer.style.display = "none";
               if (DOM.btnCancelCheckin) DOM.btnCancelCheckin.style.display = "flex";
 
-              ns.UI.showToast("✅ Status berhasil diverifikasi ulang dari spreadsheet!");
+              ns.UI.showToast("Status berhasil diverifikasi ulang dari spreadsheet!");
             } else if (res && res.status === "NOT_FOUND") {
               // Tiket telah dihapus admin di spreadsheet
               ns.sounds.playError();
@@ -1614,7 +1614,7 @@ window.EventPass = window.EventPass || {};
           ns.state.isApiConnected = true;
           ns.state.apiErrorMessage = "";
           if (ns.Sync) ns.Sync.updateSyncUI();
-          ns.UI.showToast("✅ Koneksi Berhasil! API Online.");
+          ns.UI.showToast("Koneksi Berhasil! API Online.");
         } else {
           ns.UI.showToast("Respons diterima namun format berbeda.");
         }
@@ -1622,7 +1622,7 @@ window.EventPass = window.EventPass || {};
         ns.state.isApiConnected = false;
         ns.state.apiErrorMessage = e.message;
         if (ns.Sync) ns.Sync.updateSyncUI();
-        ns.UI.showToast(`❌ Gagal: ${e.message}`);
+        ns.UI.showToast(`Gagal: ${e.message}`);
       } finally {
         ns.DOM.btnTestConnection.textContent = "Test Koneksi";
       }

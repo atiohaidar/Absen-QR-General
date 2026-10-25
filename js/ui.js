@@ -27,7 +27,7 @@ window.EventPass = window.EventPass || {};
     renderOperatorHeader() {
       if (ns.DOM.operatorBadge) {
         if (!ns.state.panitiaName) {
-          ns.DOM.operatorBadge.textContent = "⚠️ Isi Nama Petugas";
+          ns.DOM.operatorBadge.innerHTML = `<span style="display:inline-flex;align-items:center;gap:4px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>Isi Nama Petugas</span>`;
           if (ns.DOM.operatorBadgeBtn) {
             ns.DOM.operatorBadgeBtn.classList.add("needs-setup");
           }
@@ -68,7 +68,11 @@ window.EventPass = window.EventPass || {};
       }
 
       if (ns.DOM.sessionLabel) {
-        ns.DOM.sessionLabel.textContent = current.label || current.name;
+        if (current.isRoutine) {
+          ns.DOM.sessionLabel.innerHTML = `<span class="badge-routine-inline"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>Rutin</span>${ns.escapeHtml(current.label || current.name)}`;
+        } else {
+          ns.DOM.sessionLabel.textContent = current.label || current.name;
+        }
       }
 
       ns.DOM.sessionMenu.innerHTML = "";
@@ -81,11 +85,12 @@ window.EventPass = window.EventPass || {};
         itemBtn.setAttribute("role", "option");
         itemBtn.setAttribute("aria-selected", isActive ? "true" : "false");
 
-        const typeBadge = sesi.type === "CHECK_IN_OUT" ? `<span style="font-size: 10px; background: #e0e7ff; color: #4338ca; padding: 1px 6px; border-radius: 4px; font-weight: 700; margin-left: 6px;">IN/OUT</span>` : "";
+        const typeBadge = sesi.type === "CHECK_IN_OUT" ? `<span class="badge-inout-chip">IN/OUT</span>` : "";
+        const routineBadge = sesi.isRoutine ? `<span class="badge-routine-chip"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>RUTIN</span>` : "";
 
         itemBtn.innerHTML = `
           <div class="dropdown-item-info">
-            <span class="dropdown-item-title">${ns.escapeHtml(sesi.name)}${typeBadge}</span>
+            <span class="dropdown-item-title">${ns.escapeHtml(sesi.name)}${routineBadge}${typeBadge}</span>
             <span class="dropdown-item-date">${ns.escapeHtml(sesi.date || sesi.id)}</span>
           </div>
           <svg class="dropdown-item-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -525,12 +530,13 @@ window.EventPass = window.EventPass || {};
           } else {
             syncTagHtml = `
               <span class="badge badge-synced" title="Telah tercatat permanen di Google Sheets">
-                ☁️ Tersinkron
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 3px; vertical-align: -1px;"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path></svg>Tersinkron
               </span>
             `;
             syncSubtextHtml = `
               <div style="font-size: 11px; color: #059669; margin-top: 3px; display: flex; align-items: center; gap: 4px;">
-                <span>✅ <strong>Masuk Spreadsheet</strong> (Aman)</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                <span><strong>Masuk Spreadsheet</strong> (Aman)</span>
               </div>
             `;
           }
@@ -540,12 +546,13 @@ window.EventPass = window.EventPass || {};
           showUndo = false;
           syncTagHtml = `
             <span class="badge badge-synced" title="Pembatalan telah tersinkron dan tercatat di spreadsheet">
-              ☁️ Tersinkron
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 3px; vertical-align: -1px;"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path></svg>Tersinkron
             </span>
           `;
           syncSubtextHtml = `
             <div style="font-size: 11px; color: #64748b; margin-top: 3px; display: flex; align-items: center; gap: 4px;">
-              <span>↩️ <strong>Dibatalkan</strong> • Status presensi dinonaktifkan</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+              <span><strong>Dibatalkan</strong> • Status presensi dinonaktifkan</span>
             </div>
           `;
         } else if (item.status === "DUPLICATE") {
@@ -555,24 +562,26 @@ window.EventPass = window.EventPass || {};
           if (isPendingInQueue) {
             syncTagHtml = `
               <span class="badge badge-pending-sync" title="Log duplikat dalam antrean sync">
-                ⏳ Antrean HP
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 3px; vertical-align: -1px;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>Antrean HP
               </span>
             `;
             syncSubtextHtml = `
               <div style="font-size: 11px; color: #b45309; margin-top: 3px; display: flex; align-items: center; gap: 4px;">
                 <span class="sync-mini-dot"></span>
-                <span>⚠️ <strong>Duplikat</strong> • Menunggu sync log audit</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#b45309" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                <span><strong>Duplikat</strong> • Menunggu sync log audit</span>
               </div>
             `;
           } else {
             syncTagHtml = `
               <span class="badge badge-synced" title="Tercatat di Google Sheets sebagai duplikat">
-                ☁️ Tersinkron
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 3px; vertical-align: -1px;"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path></svg>Tersinkron
               </span>
             `;
             syncSubtextHtml = `
               <div style="font-size: 11px; color: #d97706; margin-top: 3px; display: flex; align-items: center; gap: 4px;">
-                <span>⚠️ <strong>Sudah Pernah Absen</strong> • Tercatat di Log Sheet</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                <span><strong>Sudah Pernah Absen</strong> • Tercatat di Log Sheet</span>
               </div>
             `;
           }
@@ -582,12 +591,13 @@ window.EventPass = window.EventPass || {};
           showUndo = false;
           syncTagHtml = `
             <span class="badge badge-rejected" title="Tiket tidak ditemukan / dihapus admin di database">
-              ⚠️ Ditolak Sheet
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 3px; vertical-align: -1px;"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>Ditolak Sheet
             </span>
           `;
           syncSubtextHtml = `
             <div style="font-size: 11px; color: #dc2626; margin-top: 3px; display: flex; align-items: center; gap: 4px;">
-              <span>⚠️ <strong>Ditolak Database</strong>: Data tiket dihapus admin di spreadsheet</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+              <span><strong>Ditolak Database</strong>: Data tiket dihapus admin di spreadsheet</span>
             </div>
           `;
         } else {
@@ -596,12 +606,13 @@ window.EventPass = window.EventPass || {};
           showUndo = false;
           syncTagHtml = `
             <span class="badge badge-rejected">
-              ❌ Gagal
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 3px; vertical-align: -1px;"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>Gagal
             </span>
           `;
           syncSubtextHtml = `
             <div style="font-size: 11px; color: #dc2626; margin-top: 3px; display: flex; align-items: center; gap: 4px;">
-              <span>❌ <strong>${item.status === "INVALID" ? "Tiket Tidak Terdaftar" : "Gagal Diproses"}</strong>: ${ns.escapeHtml(item.name || "Error")}</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+              <span><strong>${item.status === "INVALID" ? "Tiket Tidak Terdaftar" : "Gagal Diproses"}</strong>: ${ns.escapeHtml(item.name || "Error")}</span>
             </div>
           `;
         }

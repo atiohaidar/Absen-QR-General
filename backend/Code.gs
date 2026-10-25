@@ -93,6 +93,15 @@ const CONFIG = {
           sheetSesi.getRange(1, lastCol + 1).setValue("Tipe Presensi").setFontWeight("bold").setBackground("#e2e8f0");
         }
       }
+
+      // Auto-validation: Pasang dropdown opsi Status (AKTIF, RUTIN, NONAKTIF, SELESAI)
+      try {
+        const rule = SpreadsheetApp.newDataValidation()
+          .requireValueInList(["AKTIF", "RUTIN", "NONAKTIF", "SELESAI"], true)
+          .setAllowInvalid(true)
+          .build();
+        sheetSesi.getRange("D2:D100").setDataValidation(rule);
+      } catch (valErr) {}
     }
 
     // 2. Sheet Data Peserta
@@ -724,32 +733,186 @@ const CONFIG = {
 
   /**
   * ==============================================================================
-  * HELPER: AMBIL ATAU BUAT KOLOM SESI DI SHEET "DATA PESERTA"
+  * HELPER: SESI RUTIN & MANAJEMEN KOLOM SESI DI SHEET "DATA PESERTA"
   * ==============================================================================
   */
-  function getOrCreateSessionColumn(sheetPeserta, sessionId, sessionName) {
-    const headers = sheetPeserta.getRange(1, 1, 1, sheetPeserta.getLastColumn()).getValues()[0];
-    const colHeaderTitle = `Sesi: ${sessionName} [${sessionId}]`;
 
-    // Cari apakah kolom ini sudah ada
+  let _routineSessionsCache = null;
+
+  /**
+   * Helper: Mengambil ID murni sesi tanpa embel-embel tanggal (_2026-10-25) atau mode (_IN / _OUT)
+   */
+  function extractBaseSessionId(sessionId) {
+    if (!sessionId) return "";
+    let id = String(sessionId).trim();
+    // Hapus suffix tanggal (_2026-10-25 atau _20261025)
+    id = id.replace(/_\d{4}-?\d{2}-?\d{2}.*$/i, "");
+    // Hapus suffix mode (_IN atau _OUT)
+    id = id.replace(/_(IN|OUT)$/i, "");
+    return id.trim().toUpperCase();
+  }
+
+  /**
+   * Helper: Mengambil daftar ID Sesi yang berstatus 'RUTIN' di sheet Master Sesi (In-memory cached)
+   */
+  function getRoutineSessionIds() {
+    if (_routineSessionsCache !== null) return _routineSessionsCache;
+    const set = new Set();
+    try {
+      const sheetSesi = getOrCreateSheet(CONFIG.SHEETS.MASTER_SESI);
+      const data = sheetSesi.getDataRange().getValues();
+      for (let i = 1; i < data.length; i++) {
+        const rowId = String(data[i][0] || "").trim().toUpperCase();
+        const status = String(data[i][3] || "").trim().toUpperCase();
+        if (rowId && status === "RUTIN") {
+          set.add(rowId);
+        }
+      }
+    } catch (e) {
+      Logger.log("getRoutineSessionIds notice: " + e.message);
+    }
+    _routineSessionsCache = set;
+    return set;
+  }
+
+  /**
+   * Helper: Cek apakah ID Sesi merupakan sesi berstatus RUTIN (mendukung format baseId, baseId_IN, baseId_2026-10-25, dll)
+   */
+  function checkIsRoutineSession(sessionId) {
+    if (!sessionId) return false;
+    const baseId = extractBaseSessionId(sessionId);
+    return getRoutineSessionIds().has(baseId);
+  }
+
+  /**
+   * Helper: Resolusi ID & Nama Sesi Efektif
+   * - Mode RUTIN:
+   *     - Jika ada tag _IN / _OUT: [BASEID_YYYY-MM-DD_IN] / [BASEID_YYYY-MM-DD_OUT]
+   *     - Jika mode SINGLE: [BASEID_YYYY-MM-DD]
+   *     - Nama sesi menyematkan mode dan tanggal, e.g. "Workshop Inti (Masuk) (25/10/2026)"
+   * - Mode REGULER:
+   *     - Jika ada tag _IN / _OUT: [BASEID_IN] / [BASEID_OUT]
+   *     - Nama sesi menyematkan mode, e.g. "Workshop Inti (Masuk)"
+   */
+  function resolveEffectiveSession(rawSessionId, rawSessionName) {
+    const sId = (rawSessionId || "SESI-01").trim();
+    const sName = (rawSessionName || sId).trim();
+    const baseId = extractBaseSessionId(sId);
+
+    // Deteksi jika ada tag _IN atau _OUT
+    const isOut = /_OUT$/i.test(sId);
+    const isIn = /_IN$/i.test(sId);
+    const modeSuffix = isOut ? "_OUT" : (isIn ? "_IN" : "");
+    const modeLabel = isOut ? " (Keluar)" : (isIn ? " (Masuk)" : "");
+
+    if (checkIsRoutineSession(sId)) {
+      const todayIso = Utilities.formatDate(new Date(), "GMT+7", "yyyy-MM-dd");
+      const todayDisplay = Utilities.formatDate(new Date(), "GMT+7", "dd/MM/yyyy");
+
+      // Target ID untuk Mode Rutin selalu menyematkan tanggal hari ini
+      let effectiveId = sId;
+      if (!sId.includes(todayIso)) {
+        effectiveId = modeSuffix ? `${baseId}_${todayIso}${modeSuffix}` : `${baseId}_${todayIso}`;
+      }
+
+      let cleanName = sName.replace(/\s*\(\d{1,2}\/\d{1,2}\/\d{4}\)/g, "").replace(/\s*\((Masuk|Keluar)\)/gi, "").trim();
+      const effectiveName = `${cleanName}${modeLabel} (${todayDisplay})`;
+
+      return {
+        id: effectiveId,
+        name: effectiveName,
+        isRoutine: true,
+        baseId: baseId,
+        modeSuffix: modeSuffix,
+        todayIso: todayIso,
+        todayDisplay: todayDisplay
+      };
+    }
+
+    let cleanName = sName.replace(/\s*\((Masuk|Keluar)\)/gi, "").trim();
+    const effectiveName = `${cleanName}${modeLabel}`;
+
+    return {
+      id: sId,
+      name: effectiveName,
+      isRoutine: false,
+      baseId: baseId,
+      modeSuffix: modeSuffix
+    };
+  }
+
+  /**
+   * Helper: Mencari index kolom sesi di sheet "Data Peserta" (1-based, atau -1 jika tidak ada).
+   * Operasi READ-ONLY (aman untuk pencarian peserta, pembatalan, validasi) tanpa pernah membuat kolom baru secara tidak sengaja.
+   */
+  function findSessionColumn(sheetPeserta, sessionId, sessionName) {
+    const resolved = resolveEffectiveSession(sessionId, sessionName);
+    const targetId = resolved.id;
+    const isRoutine = resolved.isRoutine;
+    const baseId = resolved.baseId;
+    const todayIso = resolved.todayIso;
+    const modeSuffix = resolved.modeSuffix;
+
+    const lastCol = Math.max(1, sheetPeserta.getLastColumn());
+    const headers = sheetPeserta.getRange(1, 1, 1, lastCol).getValues()[0];
+
+    // Prioritas 1: Cari yang persis mengandung [targetId]
     for (let c = 0; c < headers.length; c++) {
-      if (String(headers[c]).includes(`[${sessionId}]`)) {
-        return c + 1; // 1-based index
+      const h = String(headers[c] || "");
+      if (h.includes(`[${targetId}]`)) {
+        return c + 1;
       }
     }
 
-    // Jika belum ada, buat kolom sesi baru
-    const newColIdx = sheetPeserta.getLastColumn() + 1;
+    // Prioritas 2: Khusus untuk sesi Rutin SINGLE (tanpa _IN / _OUT), cek jika ada kolom [BASEID_YYYY-MM-DD]
+    if (isRoutine && !modeSuffix) {
+      const combinedRoutineId = `${baseId}_${todayIso}`;
+      for (let c = 0; c < headers.length; c++) {
+        const h = String(headers[c] || "");
+        if (h.includes(`[${combinedRoutineId}]`)) {
+          return c + 1;
+        }
+      }
+    }
+
+    return -1;
+  }
+
+  /**
+   * Helper: Ambil atau buat kolom sesi di sheet "Data Peserta".
+   * UNTUK MODE RUTIN:
+   * 1. Jika mode IN/OUT: Dipisah menjadi 2 kolom harian: [BASEID_YYYY-MM-DD_IN] dan [BASEID_YYYY-MM-DD_OUT].
+   * 2. Jika mode SINGLE: Kolom harian [BASEID_YYYY-MM-DD].
+   * 3. TIDAK AKAN PERNAH salah masuk ke kolom sesi biasa lama (e.g. [SESI-02] atau [SESI-02_IN])!
+   * 4. Jika belum ada kolom untuk hari/mode ini, otomatis buat kolom baru ke samping kanan dengan warna kuning lembut (#fef08a).
+   */
+  function getOrCreateSessionColumn(sheetPeserta, sessionId, sessionName) {
+    const existingColIdx = findSessionColumn(sheetPeserta, sessionId, sessionName);
+    if (existingColIdx > 0) {
+      return existingColIdx;
+    }
+
+    const resolved = resolveEffectiveSession(sessionId, sessionName);
+    const targetId = resolved.id;
+    const targetName = resolved.name;
+    const isRoutine = resolved.isRoutine;
+
+    // Jika belum ada, buat kolom baru di samping kanan
+    const lastCol = Math.max(1, sheetPeserta.getLastColumn());
+    const newColIdx = lastCol + 1;
+    const colHeaderTitle = `Sesi: ${targetName} [${targetId}]`;
+    const bgColor = isRoutine ? "#fef08a" : "#dbeafe"; // Soft yellow untuk rutin, soft blue untuk reguler
+
     sheetPeserta.getRange(1, newColIdx)
       .setValue(colHeaderTitle)
       .setFontWeight("bold")
-      .setBackground("#dbeafe"); // Soft blue header
-    
+      .setBackground(bgColor);
+
     return newColIdx;
   }
 
   /**
-  * Helper: Ambil sesi berstatus AKTIF dari sheet "Master Sesi"
+  * Helper: Ambil sesi berstatus AKTIF atau RUTIN dari sheet "Master Sesi"
   */
   function getActiveSessions() {
     const sheetSesi = getOrCreateSheet(CONFIG.SHEETS.MASTER_SESI);
@@ -767,14 +930,20 @@ const CONFIG = {
         ? "CHECK_IN_OUT" 
         : "SINGLE";
 
-      if (id && status === "AKTIF") {
+      if (id && (status === "AKTIF" || status === "RUTIN")) {
+        const isRoutine = (status === "RUTIN");
+        const todayDateStr = formatDateOnly(new Date());
+        const effectiveDate = isRoutine ? todayDateStr : date;
+        const label = `${name} (${effectiveDate || id})`;
+
         sessions.push({
           id: id,
           name: name,
-          date: date,
+          date: effectiveDate,
           status: status,
+          isRoutine: isRoutine,
           type: type,
-          label: `${name} (${date || id})`
+          label: label
         });
       }
     }
@@ -800,7 +969,9 @@ const CONFIG = {
       }
     }
 
+    const todayIso = Utilities.formatDate(new Date(), "GMT+7", "yyyy-MM-dd");
     const attendees = [];
+
     for (let r = 1; r < pesertaData.length; r++) {
       const tId = String(pesertaData[r][ticketCol] || "").trim();
       if (!tId) continue;
@@ -809,7 +980,22 @@ const CONFIG = {
       sessionCols.forEach(sc => {
         const val = String(pesertaData[r][sc.colIdx] || "").trim();
         if (val.startsWith("HADIR") || val.startsWith("CHECKOUT")) {
-          sessionsMap[sc.sessionId] = val.replace(/^(HADIR|CHECKOUT)\s*-\s*/, "").trim() || val;
+          const parsedVal = val.replace(/^(HADIR|CHECKOUT)\s*-\s*/, "").trim() || val;
+          sessionsMap[sc.sessionId] = parsedVal;
+
+          // Jika kolom ini adalah kolom harian untuk sesi rutin pada hari ini, map juga ke base sessionId dan varian _IN/_OUT secara presisi
+          if (sc.sessionId.includes(todayIso)) {
+            const baseId = extractBaseSessionId(sc.sessionId);
+            const isOutCol = /_OUT$/i.test(sc.sessionId);
+            const isInCol = /_IN$/i.test(sc.sessionId);
+            if (isOutCol) {
+              sessionsMap[`${baseId}_OUT`] = parsedVal;
+            } else if (isInCol) {
+              sessionsMap[`${baseId}_IN`] = parsedVal;
+            } else {
+              sessionsMap[baseId] = parsedVal;
+            }
+          }
         }
       });
 
@@ -946,8 +1132,11 @@ const CONFIG = {
       // ACTION B: SEARCH PESERTA (Manual Search by Name/Email/Ticket)
       if (action === "search") {
         const query = (payload.query || "").toLowerCase().trim();
-        const sessionId = (payload.sessionId || "SESI-01").trim();
-        const sessionName = (payload.sessionName || sessionId).trim();
+        const rawSessionId = (payload.sessionId || "SESI-01").trim();
+        const rawSessionName = (payload.sessionName || rawSessionId).trim();
+        const resolvedSession = resolveEffectiveSession(rawSessionId, rawSessionName);
+        const sessionId = resolvedSession.id;
+        const sessionName = resolvedSession.name;
 
         if (!query) {
           logger.info("Search empty query");
@@ -956,7 +1145,7 @@ const CONFIG = {
         }
 
         const pesertaData = sheetPeserta.getDataRange().getValues();
-        const sessionColIdx = getOrCreateSessionColumn(sheetPeserta, sessionId, sessionName);
+        const sessionColIdx = findSessionColumn(sheetPeserta, sessionId, sessionName);
         const results = [];
 
         for (let r = 1; r < pesertaData.length; r++) {
@@ -964,15 +1153,20 @@ const CONFIG = {
           const tId = String(row[0] || "");
           const tName = String(row[1] || "");
           const tEmail = String(row[2] || "");
-          const currentSessionStatus = String(row[sessionColIdx - 1] || "");
+          const currentSessionStatus = (sessionColIdx > 0) ? String(row[sessionColIdx - 1] || "") : "";
 
           if (tId.toLowerCase().includes(query) || tName.toLowerCase().includes(query) || tEmail.toLowerCase().includes(query)) {
             const isHadir = currentSessionStatus.startsWith("HADIR");
+            const isCheckout = currentSessionStatus.startsWith("CHECKOUT");
+            let status = "BELUM_HADIR";
+            if (isCheckout) status = "CHECKOUT";
+            else if (isHadir) status = "HADIR";
+
             results.push({
               ticketId: tId,
               name: tName,
               email: tEmail,
-              status: isHadir ? "HADIR" : "BELUM_HADIR",
+              status: status,
               statusDetail: currentSessionStatus || "Belum Absen",
               sessionId: sessionId,
               sessionName: sessionName
@@ -1010,8 +1204,11 @@ const CONFIG = {
         // -------------------------------------------------------------
         if (action === "checkIn" || action === "scan") {
           const ticketId = (payload.ticketId || "").trim();
-          const sessionId = (payload.sessionId || "SESI-01").trim();
-          const sessionName = (payload.sessionName || sessionId).trim();
+          const rawSessionId = (payload.sessionId || "SESI-01").trim();
+          const rawSessionName = (payload.sessionName || rawSessionId).trim();
+          const resolvedSession = resolveEffectiveSession(rawSessionId, rawSessionName);
+          const sessionId = resolvedSession.id;
+          const sessionName = resolvedSession.name;
           const scannedBy = (payload.scannedBy || "Panitia").trim();
           const gate = (payload.gate || "Pintu Masuk").trim();
           const nowStr = formatFullDateTime(new Date());
@@ -1211,8 +1408,11 @@ const CONFIG = {
             const scan = scans[i];
             const ticketId = String(scan.ticketId || "").trim();
             const upperTicketId = ticketId.toUpperCase();
-            const sessionId = (scan.sessionId || "SESI-01").trim();
-            const sessionName = (scan.sessionName || sessionId).trim();
+            const rawSessionId = (scan.sessionId || "SESI-01").trim();
+            const rawSessionName = (scan.sessionName || rawSessionId).trim();
+            const resolvedSession = resolveEffectiveSession(rawSessionId, rawSessionName);
+            const sessionId = resolvedSession.id;
+            const sessionName = resolvedSession.name;
             const scannedBy = (scan.scannedBy || "Panitia").trim();
             const gate = (scan.gate || "Pintu Masuk").trim();
             const scanMapsUrl = (scan.mapsUrl || mapsUrl || "-").trim();
@@ -1385,8 +1585,11 @@ const CONFIG = {
         // -------------------------------------------------------------
         if (action === "cancelCheckIn" || action === "undo") {
           const ticketId = (payload.ticketId || "").trim();
-          const sessionId = (payload.sessionId || "").trim();
-          const sessionName = (payload.sessionName || sessionId).trim();
+          const rawSessionId = (payload.sessionId || "").trim();
+          const rawSessionName = (payload.sessionName || rawSessionId).trim();
+          const resolvedSession = resolveEffectiveSession(rawSessionId, rawSessionName);
+          const sessionId = resolvedSession.id;
+          const sessionName = resolvedSession.name;
           const cancelledBy = (payload.cancelledBy || payload.scannedBy || "Panitia").trim();
           const reason = (payload.reason || "Dibatalkan oleh panitia").trim();
           const nowStr = formatFullDateTime(new Date());
@@ -1418,11 +1621,12 @@ const CONFIG = {
             return createJsonResponse({ success: false, message: "Peserta tidak ditemukan." });
           }
 
-          // Ambil kolom sesi
-          const sessionColIdx = getOrCreateSessionColumn(sheetPeserta, sessionId, sessionName);
-          
-          // Kosongkan status di sheet Data Peserta (Revert kembali)
-          sheetPeserta.getRange(foundRow, sessionColIdx).setValue("");
+          // Ambil kolom sesi jika ada (jangan buat kolom baru saat cancel)
+          const sessionColIdx = findSessionColumn(sheetPeserta, sessionId, sessionName);
+          if (sessionColIdx > 0) {
+            // Kosongkan status di sheet Data Peserta (Revert kembali)
+            sheetPeserta.getRange(foundRow, sessionColIdx).setValue("");
+          }
 
           // Catat event pembatalan di sheet Log Kehadiran dengan Link Google Maps & Device Info
           sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, attendeeName, "DIBATALKAN", cancelledBy, payload.gate || "-", mapsUrl, deviceInfo, reason]);
@@ -1462,8 +1666,11 @@ const CONFIG = {
           const name = (payload.name || "").trim();
           const contact = (payload.contact || "").trim();
           const notes = (payload.notes || "Walk-In OTS").trim();
-          const sessionId = (payload.sessionId || "SESI-01").trim();
-          const sessionName = (payload.sessionName || sessionId).trim();
+          const rawSessionId = (payload.sessionId || "SESI-01").trim();
+          const rawSessionName = (payload.sessionName || rawSessionId).trim();
+          const resolvedSession = resolveEffectiveSession(rawSessionId, rawSessionName);
+          const sessionId = resolvedSession.id;
+          const sessionName = resolvedSession.name;
           const scannedBy = (payload.scannedBy || "Panitia").trim();
           const gate = (payload.gate || "Pintu Masuk").trim();
           const nowStr = formatFullDateTime(new Date());

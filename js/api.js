@@ -222,11 +222,20 @@ window.EventPass = window.EventPass || {};
      * Search attendees by query in Data Peserta
      */
     async searchAttendees(query) {
+      const currentSessionId = ns.state.currentSessionId || "SESI-01";
+      const activeSessionObj = (ns.state.sessions || []).find(s => s.id === currentSessionId);
+      const isInOut = (activeSessionObj && activeSessionObj.type === "CHECK_IN_OUT");
+      const scanMode = isInOut ? (ns.state.currentScanMode || "IN") : "SINGLE";
+      const effectiveSessionId = isInOut ? `${currentSessionId}_${scanMode}` : currentSessionId;
+      const effectiveSessionName = isInOut 
+        ? `${ns.state.currentSessionName} (${scanMode === "IN" ? "Masuk" : "Keluar"})` 
+        : ns.state.currentSessionName;
+
       const payload = {
         action: 'search',
         query: query.trim(),
-        sessionId: ns.state.currentSessionId,
-        sessionName: ns.state.currentSessionName
+        sessionId: effectiveSessionId,
+        sessionName: effectiveSessionName
       };
 
       return await postJsonWithRetry(payload, 0);
@@ -238,6 +247,14 @@ window.EventPass = window.EventPass || {};
     async registerOts(name, contact, notes, customFields = {}) {
       const mapsUrl = (ns.state.location && ns.state.location.mapsUrl) ? ns.state.location.mapsUrl : "-";
       const deviceInfo = ns.state.deviceInfo || "-";
+      const currentSessionId = ns.state.currentSessionId || "SESI-01";
+      const activeSessionObj = (ns.state.sessions || []).find(s => s.id === currentSessionId);
+      const isInOut = (activeSessionObj && activeSessionObj.type === "CHECK_IN_OUT");
+      const scanMode = isInOut ? (ns.state.currentScanMode || "IN") : "SINGLE";
+      const effectiveSessionId = isInOut ? `${currentSessionId}_${scanMode}` : currentSessionId;
+      const effectiveSessionName = isInOut 
+        ? `${ns.state.currentSessionName} (${scanMode === "IN" ? "Masuk" : "Keluar"})` 
+        : ns.state.currentSessionName;
 
       const payload = {
         action: 'registerOts',
@@ -245,8 +262,8 @@ window.EventPass = window.EventPass || {};
         contact: contact.trim(),
         notes: notes.trim(),
         customFields: customFields,
-        sessionId: ns.state.currentSessionId,
-        sessionName: ns.state.currentSessionName,
+        sessionId: effectiveSessionId,
+        sessionName: effectiveSessionName,
         scannedBy: ns.state.panitiaName,
         gate: ns.state.gateName || "Pintu Masuk",
         mapsUrl: mapsUrl,
