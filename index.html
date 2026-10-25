@@ -308,9 +308,14 @@
             <h2 class="section-title" style="margin-bottom: 2px;">Riwayat Pemindaian</h2>
             <p class="section-desc" style="margin-bottom: 0;">Daftar aktivitas check-in pada perangkat ini.</p>
           </div>
-          <button id="btn-clear-history" class="btn-icon btn-clear-text" title="Bersihkan Riwayat">
-            <span>Bersihkan</span>
-          </button>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <button id="btn-clear-history" class="btn-icon btn-clear-text" title="Bersihkan Riwayat Pemindaian">
+              <span>Bersihkan Riwayat</span>
+            </button>
+            <button id="btn-clear-all-data" class="btn-icon btn-clear-text" style="color: #b91c1c; border-color: rgba(185, 28, 28, 0.25);" title="Hapus Cache Peserta Lokal">
+              <span>Hapus Cache</span>
+            </button>
+          </div>
         </div>
 
         <!-- Dynamic Sync Queue Status Banner in Riwayat Tab -->
@@ -612,17 +617,29 @@
           direkomendasikan saat antrean padat!
         </p>
         <div
-          style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(16, 185, 129, 0.15); padding-top: 8px;">
+          style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(16, 185, 129, 0.15); padding-top: 8px; flex-wrap: wrap; gap: 8px;">
           <span id="cache-status-text" style="font-size: 11px; color: var(--text-muted);">0 peserta tersimpan di
             HP</span>
-          <button type="button" id="btn-sync-attendees" class="ctrl-btn-outline"
-            style="font-size: 11px; padding: 4px 10px; gap: 4px; border-color: rgba(16, 185, 129, 0.4); color: #059669;">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-              stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
-            </svg>
-            <span>Sync Database</span>
-          </button>
+          <div style="display: flex; gap: 6px;">
+            <button type="button" id="btn-sync-attendees" class="ctrl-btn-outline"
+              style="font-size: 11px; padding: 4px 10px; gap: 4px; border-color: rgba(16, 185, 129, 0.4); color: #059669;"
+              title="Perbarui database lokal dari Spreadsheet">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+              </svg>
+              <span>Sync Database</span>
+            </button>
+            <button type="button" id="btn-clear-cache" class="ctrl-btn-outline"
+              style="font-size: 11px; padding: 4px 10px; gap: 4px; border-color: rgba(185, 28, 28, 0.35); color: #b91c1c;"
+              title="Hapus cache data peserta di perangkat ini">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              </svg>
+              <span>Hapus Cache</span>
+            </button>
+          </div>
         </div>
       </div>
 

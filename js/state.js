@@ -222,6 +222,7 @@ window.EventPass = window.EventPass || {};
     btnCloseSettings: document.getElementById("btn-close-settings"),
     cfgInstantMode: document.getElementById("cfg-instant-mode"),
     btnSyncAttendees: document.getElementById("btn-sync-attendees"),
+    btnClearCache: document.getElementById("btn-clear-cache"),
     cacheStatusText: document.getElementById("cache-status-text"),
     cloudSyncDot: document.getElementById("cloud-sync-dot"),
     syncQueueBadge: document.getElementById("sync-queue-badge"),
@@ -253,6 +254,7 @@ window.EventPass = window.EventPass || {};
     // History Tab
     historyList: document.getElementById("history-list"),
     btnClearHistory: document.getElementById("btn-clear-history"),
+    btnClearAllData: document.getElementById("btn-clear-all-data"),
     historySyncBanner: document.getElementById("history-sync-banner"),
     historySyncTitle: document.getElementById("history-sync-title"),
     historySyncDesc: document.getElementById("history-sync-desc"),

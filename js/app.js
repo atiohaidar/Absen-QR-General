@@ -476,13 +476,38 @@ window.EventPass = window.EventPass || {};
         });
       }
 
+      // Helper to clear local attendees cache safely
+      const handleClearCachePrompt = () => {
+        if (!confirm("Hapus seluruh cache database peserta di perangkat ini?\n\n(Data di Google Sheets tetap 100% AMAN. Anda dapat mengunduh data terbaru kapan saja dengan klik 'Sync Database').")) {
+          return;
+        }
+        ns.state.cachedAttendees = {};
+        localStorage.removeItem("absen_cached_attendees");
+        localStorage.removeItem("absen_last_sync_time");
+        ns.state.lastSyncTime = null;
+
+        if (ns.Sync) {
+          ns.Sync.updateCacheCountUI();
+          ns.Sync.updateSyncUI();
+        }
+        ns.UI.showToast("Cache data peserta lokal berhasil dibersihkan.");
+      };
+
+      if (DOM.btnClearCache) {
+        DOM.btnClearCache.addEventListener("click", handleClearCachePrompt);
+      }
+      if (DOM.btnClearAllData) {
+        DOM.btnClearAllData.addEventListener("click", handleClearCachePrompt);
+      }
+
       // 9. History Clear
       if (DOM.btnClearHistory) {
         DOM.btnClearHistory.addEventListener("click", () => {
+          if (!confirm("Bersihkan seluruh riwayat pemindaian pada perangkat ini?")) return;
           ns.state.history = [];
           localStorage.removeItem("absen_history");
           ns.UI.renderHistory();
-          ns.UI.showToast("Riwayat lokal telah dibersihkan.");
+          ns.UI.showToast("Riwayat pemindaian telah dibersihkan.");
         });
       }
 
