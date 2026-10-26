@@ -772,9 +772,10 @@
     const elAttendedSub = document.getElementById("kpi-attended-sub");
     if (elAttendedSub) {
       if (checkedOut > 0) {
-        elAttendedSub.innerHTML = `<strong>${inLocation}</strong> di lokasi • <strong>${checkedOut}</strong> sudah checkout`;
+        elAttendedSub.style.display = "block";
+        elAttendedSub.innerHTML = `<strong>${inLocation}</strong> di lokasi &bull; <strong>${checkedOut}</strong> checkout`;
       } else {
-        elAttendedSub.textContent = "Peserta sudah melewati scanner sesi ini";
+        elAttendedSub.style.display = "none";
       }
     }
 
@@ -817,7 +818,7 @@
       }
     }
 
-    // Gender Mini Pills in Hero Cards
+    // Gender Mini Pills in Hero Cards (Clean, no emojis)
     const gStats = calculateGenderStats(state.attendees, state.selectedSessionId);
     const elPillsTotal = document.getElementById("kpi-total-gender-pills");
     const elPillsAttended = document.getElementById("kpi-attended-gender-pills");
@@ -827,22 +828,22 @@
       if (elPillsTotal) {
         elPillsTotal.style.display = "flex";
         elPillsTotal.innerHTML = `
-          <span class="dash-gender-mini-pill neutral">👨 ${gStats.maleTotal} Laki-laki</span>
-          <span class="dash-gender-mini-pill neutral">👩 ${gStats.femaleTotal} Perempuan</span>
+          <span class="dash-gender-mini-pill neutral">L: ${gStats.maleTotal}</span>
+          <span class="dash-gender-mini-pill neutral">P: ${gStats.femaleTotal}</span>
         `;
       }
       if (elPillsAttended) {
         elPillsAttended.style.display = "flex";
         elPillsAttended.innerHTML = `
-          <span class="dash-gender-mini-pill male">👨 ${gStats.maleAttended} Laki-laki (${gStats.maleAttendedPct}%)</span>
-          <span class="dash-gender-mini-pill female">👩 ${gStats.femaleAttended} Perempuan (${gStats.femaleAttendedPct}%)</span>
+          <span class="dash-gender-mini-pill male">L: ${gStats.maleAttended} (${gStats.maleAttendedPct}%)</span>
+          <span class="dash-gender-mini-pill female">P: ${gStats.femaleAttended} (${gStats.femaleAttendedPct}%)</span>
         `;
       }
       if (elPillsAbsent) {
         elPillsAbsent.style.display = "flex";
         elPillsAbsent.innerHTML = `
-          <span class="dash-gender-mini-pill male">👨 ${gStats.maleAbsent} Laki-laki</span>
-          <span class="dash-gender-mini-pill female">👩 ${gStats.femaleAbsent} Perempuan</span>
+          <span class="dash-gender-mini-pill male">L: ${gStats.maleAbsent}</span>
+          <span class="dash-gender-mini-pill female">P: ${gStats.femaleAbsent}</span>
         `;
       }
     } else {
@@ -901,9 +902,9 @@
           <div class="dash-group-header">
             <span class="dash-group-name">${escapeHtml(cat)}</span>
             <div class="dash-group-badges">
-              <span class="dash-group-total">${g.total} Orang</span>
+              <span class="dash-group-total">${g.total} Peserta</span>
               <span class="dash-group-filter-pill ${isSelected ? 'active' : ''}">
-                ${isSelected ? 'Filter Aktif ✓' : 'Saring →'}
+                ${isSelected ? 'Aktif' : 'Filter'}
               </span>
             </div>
           </div>
@@ -1096,7 +1097,7 @@
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline>
               </svg>
-              <span>👨 Puncak L: <strong>${peakL.slot || '-'}</strong> (${peakL.count} org) &nbsp;&bull;&nbsp; 👩 P: <strong>${peakP.slot || '-'}</strong> (${peakP.count} org)</span>
+              <span>L: <strong>${peakL.slot || '-'}</strong> (${peakL.count}) &nbsp;&bull;&nbsp; P: <strong>${peakP.slot || '-'}</strong> (${peakP.count})</span>
             `;
           } else {
             peakBadge.style.display = "none";
@@ -1130,7 +1131,7 @@
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline>
             </svg>
-            <span>Puncak Kedatangan: <strong>Pukul ${maxAllSlot} WIB</strong> (${maxAllCount} orang)</span>
+            <span>Puncak: <strong>Pukul ${maxAllSlot} WIB</strong> (${maxAllCount} orang)</span>
           `;
         } else {
           peakBadge.style.display = "none";
@@ -1144,6 +1145,19 @@
       activeCategories.forEach(cat => {
         categoryBuckets[cat]["Belum ada waktu scan"] = 0;
       });
+    }
+
+    // Dynamic horizontal scroll support for large amount of time slots
+    const arrivalContainer = document.getElementById("chart-arrival-container");
+    if (arrivalContainer) {
+      if (labels.length > 12) {
+        const neededWidth = Math.max(labels.length * 48, 520);
+        arrivalContainer.style.width = `${neededWidth}px`;
+        arrivalContainer.style.minWidth = `${neededWidth}px`;
+      } else {
+        arrivalContainer.style.width = "100%";
+        arrivalContainer.style.minWidth = "100%";
+      }
     }
 
     const isDark = (state.theme === "dark");
@@ -1840,6 +1854,19 @@
     const isCategoryMode = hasCategory && activeCategories.length > 0;
     state.historyChartMode = isCategoryMode ? "CATEGORY" : "ALL";
 
+    // Dynamic horizontal scroll support when there are many sessions
+    const historyContainer = document.getElementById("chart-history-container");
+    if (historyContainer) {
+      if (sessionList.length > 5) {
+        const neededWidth = Math.max(sessionList.length * 85, 560);
+        historyContainer.style.width = `${neededWidth}px`;
+        historyContainer.style.minWidth = `${neededWidth}px`;
+      } else {
+        historyContainer.style.width = "100%";
+        historyContainer.style.minWidth = "100%";
+      }
+    }
+
     const chartSub = document.getElementById("history-chart-sub");
     if (chartSub) {
       if (isCategoryMode) {
@@ -1996,8 +2023,8 @@
                   const activeCats = s.activeCategories || Object.keys(s.categoryStats);
                   const lines = activeCats.map(cat => {
                     const st = s.categoryStats[cat] || { attended: 0, total: 0, rate: 0 };
-                    const icon = isGender ? (cat === "Laki-laki" ? "👨 " : (cat === "Perempuan" ? "👩 " : "")) : "• ";
-                    return `${icon}${cat}: ${st.attended} / ${st.total} hadir (${st.rate}%)`;
+                    const prefix = isGender ? (cat === "Laki-laki" ? "L: " : (cat === "Perempuan" ? "P: " : "")) : "";
+                    return `${prefix}${cat}: ${st.attended} / ${st.total} hadir (${st.rate}%)`;
                   });
                   lines.push(`Total Presensi: ${s.attended} / ${s.totalRegistered} (${s.rate}%)`);
                   return lines.join("\n");
@@ -2071,24 +2098,24 @@
         const diff = s.attended - prev.attended;
         const pctDiff = Math.round((diff / prev.attended) * 100);
         if (diff > 0) {
-          deltaBadge = `<span class="dash-history-delta-badge up">▲ +${pctDiff}% (+${diff} org) vs ${escapeHtml(prev.sessionName)}</span>`;
+          deltaBadge = `<span class="dash-history-delta-badge up">+${pctDiff}% (+${diff}) vs ${escapeHtml(prev.sessionName)}</span>`;
         } else if (diff < 0) {
-          deltaBadge = `<span class="dash-history-delta-badge down">▼ ${pctDiff}% (${diff} org) vs ${escapeHtml(prev.sessionName)}</span>`;
+          deltaBadge = `<span class="dash-history-delta-badge down">${pctDiff}% (${diff}) vs ${escapeHtml(prev.sessionName)}</span>`;
         } else {
-          deltaBadge = `<span class="dash-history-delta-badge neutral">● Stabil vs ${escapeHtml(prev.sessionName)}</span>`;
+          deltaBadge = `<span class="dash-history-delta-badge neutral">Stabil vs ${escapeHtml(prev.sessionName)}</span>`;
         }
       } else if (prev && prev.attended === 0 && s.attended > 0) {
-        deltaBadge = `<span class="dash-history-delta-badge up">▲ +${s.attended} org vs ${escapeHtml(prev.sessionName)}</span>`;
+        deltaBadge = `<span class="dash-history-delta-badge up">+${s.attended} vs ${escapeHtml(prev.sessionName)}</span>`;
       }
 
       const statusBadge = s.status === "AKTIF"
-        ? `<span class="dash-stat-badge badge-hadir">● Sesi Aktif</span>`
+        ? `<span class="dash-stat-badge badge-hadir">Sesi Aktif</span>`
         : `<span class="dash-stat-badge badge-neutral">Selesai</span>`;
 
       const rushHtml = (s.peakCount > 0 && s.peakSlot)
         ? `<span class="dash-history-rush" title="Puncak kedatangan">
              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-             Puncak: Pukul ${s.peakSlot} WIB (${s.peakCount} org)
+             Puncak: Pukul ${s.peakSlot} WIB (${s.peakCount} orang)
            </span>`
         : `<span class="dash-history-rush" style="color: var(--dash-text-dim);">Belum ada waktu scan</span>`;
 
@@ -2097,9 +2124,9 @@
         if (isGender) {
           categoryBreakdownHtml = (s.maleTotal > 0 || s.femaleTotal > 0)
             ? `<div class="dash-history-gender-split">
-                 <span class="male">👨 ${s.maleAttended}/${s.maleTotal} (${s.maleRate}%)</span>
+                 <span class="male">L: ${s.maleAttended}/${s.maleTotal} (${s.maleRate}%)</span>
                  <span>&bull;</span>
-                 <span class="female">👩 ${s.femaleAttended}/${s.femaleTotal} (${s.femaleRate}%)</span>
+                 <span class="female">P: ${s.femaleAttended}/${s.femaleTotal} (${s.femaleRate}%)</span>
                </div>`
             : '';
         } else {
@@ -2124,9 +2151,9 @@
 
       const checkoutInfoHtml = (s.checkedOut > 0)
         ? `<div style="font-size: 0.74rem; color: var(--dash-text-muted); margin-top: 4px; display: flex; align-items: center; gap: 5px;">
-             <span>📍 ${s.inLocation || (s.attended - s.checkedOut)} di lokasi</span>
+             <span>${s.inLocation || (s.attended - s.checkedOut)} di lokasi</span>
              <span>&bull;</span>
-             <span>🚪 ${s.checkedOut} sudah checkout</span>
+             <span>${s.checkedOut} checkout</span>
            </div>`
         : '';
 

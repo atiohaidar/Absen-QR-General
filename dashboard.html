@@ -38,7 +38,7 @@
       <div class="dash-header-actions">
         <!-- Live Status Pill -->
         <div class="dash-status-pill" title="Status Sinkronisasi Data">
-          <span class="dash-pulse-dot" id="sync-live-dot"></span>
+          <span class="dash-status-dot" id="sync-live-dot"></span>
           <span id="sync-live-text">Realtime</span>
         </div>
 
@@ -85,15 +85,11 @@
     <!-- PRIMARY TAB NAVIGATION (LIVE VS RIWAYAT) -->
     <div class="dash-view-switcher">
       <button id="tab-btn-live" class="dash-view-tab-btn active" type="button" onclick="EventPassSimple.switchTab('live')">
-        <span class="dash-pulse-dot" style="margin-right: 4px;"></span>
+        <span class="dash-status-dot"></span>
         <span>Live Presensi</span>
       </button>
       <button id="tab-btn-history" class="dash-view-tab-btn" type="button" onclick="EventPassSimple.switchTab('history')">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-          <circle cx="12" cy="12" r="10"></circle>
-          <polyline points="12 6 12 12 16 14"></polyline>
-        </svg>
-        <span>Riwayat Sesi & Rekap</span>
+        <span>Riwayat Sesi</span>
         <span id="badge-history-count" class="dash-view-badge">0 Sesi</span>
       </button>
     </div>
@@ -104,60 +100,31 @@
       <!-- SIMPLE CONTROLS BAR -->
       <section class="dash-simple-controls">
         <div class="dash-control-item">
-          <label for="select-session" class="dash-control-label">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-              <line x1="16" y1="2" x2="16" y2="6"></line>
-              <line x1="8" y1="2" x2="8" y2="6"></line>
-              <line x1="3" y1="10" x2="21" y2="10"></line>
-            </svg>
-            <span>Pilih Sesi Acara</span>
-          </label>
+          <label for="select-session" class="dash-control-label">Sesi Acara</label>
           <select id="select-session" class="dash-select">
             <option value="">Memuat daftar sesi...</option>
           </select>
         </div>
 
         <div class="dash-control-item">
-          <label for="select-dimension" class="dash-control-label">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-              <circle cx="9" cy="7" r="4"></circle>
-              <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-            </svg>
-            <span>Pecah Berdasarkan Kategori</span>
-          </label>
+          <label for="select-dimension" class="dash-control-label">Pecah Berdasarkan Kategori</label>
           <select id="select-dimension" class="dash-select">
             <option value="NONE">Semua Peserta (Tanpa Pemecahan)</option>
           </select>
         </div>
       </section>
 
-      <!-- 3 HERO KPI STATS (BESAR, JELAS, ELEGAN) -->
+      <!-- 3 HERO KPI STATS -->
       <section class="dash-hero-stats">
         <!-- 1. Total Peserta -->
         <div class="dash-stat-card card-total">
           <div class="dash-stat-header">
             <span class="dash-stat-title">Total Terdaftar</span>
-            <div class="dash-stat-badge badge-neutral">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                <circle cx="12" cy="7" r="4"></circle>
-              </svg>
-              <span>Semua Data</span>
-            </div>
           </div>
           <div class="dash-stat-num">
             <span id="kpi-total-registered">0</span>
-            <span class="dash-stat-unit">Orang</span>
+            <span class="dash-stat-unit">Peserta</span>
           </div>
-          <div class="dash-stat-progress-wrap">
-            <div class="dash-stat-progress-bar bar-total">
-              <div class="dash-stat-progress-fill fill-total" style="width: 100%;"></div>
-            </div>
-          </div>
-          <div class="dash-stat-sub">Seluruh peserta yang terdaftar di database</div>
           <div class="dash-stat-gender-row" id="kpi-total-gender-pills" style="display: none;"></div>
         </div>
 
@@ -165,24 +132,18 @@
         <div class="dash-stat-card card-hadir">
           <div class="dash-stat-header">
             <span class="dash-stat-title">Sudah Hadir</span>
-            <div class="dash-stat-badge badge-hadir">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8">
-                <polyline points="20 6 9 17 4 12"></polyline>
-              </svg>
-              <span>Terkonfirmasi</span>
-            </div>
+            <span class="dash-stat-pct-pill" id="kpi-attendance-pct">0%</span>
           </div>
           <div class="dash-stat-num stat-green">
             <span id="kpi-total-attended">0</span>
-            <span class="dash-stat-unit">Orang</span>
-            <span class="dash-stat-pct-pill" id="kpi-attendance-pct">0%</span>
+            <span class="dash-stat-unit">Hadir</span>
           </div>
           <div class="dash-stat-progress-wrap">
             <div class="dash-stat-progress-bar">
               <div id="kpi-progress-bar" class="dash-stat-progress-fill fill-green" style="width: 0%;"></div>
             </div>
           </div>
-          <div class="dash-stat-sub" id="kpi-attended-sub">Peserta sudah melewati scanner sesi ini</div>
+          <div class="dash-stat-sub" id="kpi-attended-sub" style="display: none;"></div>
           <div class="dash-stat-gender-row" id="kpi-attended-gender-pills" style="display: none;"></div>
         </div>
 
@@ -190,26 +151,17 @@
         <div class="dash-stat-card card-belum">
           <div class="dash-stat-header">
             <span class="dash-stat-title">Belum Hadir</span>
-            <div class="dash-stat-badge badge-belum">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <circle cx="12" cy="12" r="10"></circle>
-                <line x1="12" y1="8" x2="12" y2="12"></line>
-                <line x1="12" y1="16" x2="12.01" y2="16"></line>
-              </svg>
-              <span>Menunggu</span>
-            </div>
+            <span class="dash-stat-pct-pill pill-amber" id="kpi-absent-pct">0%</span>
           </div>
           <div class="dash-stat-num stat-amber">
             <span id="kpi-total-absent">0</span>
-            <span class="dash-stat-unit">Orang</span>
-            <span class="dash-stat-pct-pill pill-amber" id="kpi-absent-pct">0%</span>
+            <span class="dash-stat-unit">Menunggu</span>
           </div>
           <div class="dash-stat-progress-wrap">
             <div class="dash-stat-progress-bar bar-amber">
               <div id="kpi-absent-progress-bar" class="dash-stat-progress-fill fill-amber" style="width: 0%;"></div>
             </div>
           </div>
-          <div class="dash-stat-sub">Peserta belum hadir pada sesi ini</div>
           <div class="dash-stat-gender-row" id="kpi-absent-gender-pills" style="display: none;"></div>
         </div>
       </section>
@@ -219,7 +171,6 @@
         <div class="dash-section-header">
           <div>
             <h2 class="dash-section-title" id="breakdown-section-title">Rincian Kehadiran per Kategori</h2>
-            <span class="dash-section-sub">Klik salah satu kelompok untuk menyaring peserta di tabel</span>
           </div>
           <button id="btn-reset-breakdown-filter" class="dash-btn dash-btn-sm" style="display: none;">
             Tampilkan Semua
@@ -230,19 +181,11 @@
         <div id="category-cards-grid" class="dash-cards-grid"></div>
       </section>
 
-      <!-- GRAFIK ARUS KEDATANGAN (JAM PALING RAMAI) -->
+      <!-- GRAFIK ARUS KEDATANGAN -->
       <section class="dash-arrival-card">
         <div class="dash-arrival-header">
           <div>
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                style="color: var(--dash-green);">
-                <circle cx="12" cy="12" r="10"></circle>
-                <polyline points="12 6 12 12 16 14"></polyline>
-              </svg>
-              <h2 class="dash-section-title">Waktu & Arus Kedatangan</h2>
-            </div>
-            <span class="dash-section-sub" id="arrival-chart-sub">Melihat tren jam berapa peserta paling banyak datang dan memindai tiket</span>
+            <h2 class="dash-section-title">Waktu & Arus Kedatangan</h2>
           </div>
 
           <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
@@ -258,17 +201,15 @@
 
             <!-- Peak arrival badge -->
             <div id="peak-arrival-badge" class="dash-peak-badge" style="display: none;">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
-                <polyline points="17 6 23 6 23 12"></polyline>
-              </svg>
               <span id="peak-arrival-text">Puncak: <strong id="peak-arrival-time">-</strong></span>
             </div>
           </div>
         </div>
 
-        <div class="dash-chart-wrapper">
-          <canvas id="chart-arrival-hours"></canvas>
+        <div class="dash-chart-scroll-wrap">
+          <div class="dash-chart-container" id="chart-arrival-container" style="height: 220px;">
+            <canvas id="chart-arrival-hours"></canvas>
+          </div>
         </div>
       </section>
 
@@ -365,15 +306,7 @@
       <!-- SIMPLE CONTROLS BAR (KATEGORI RIWAYAT SESI) -->
       <section class="dash-simple-controls">
         <div class="dash-control-item" style="max-width: 360px;">
-          <label for="select-hist-dimension" class="dash-control-label">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-              <circle cx="9" cy="7" r="4"></circle>
-              <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-            </svg>
-            <span>Pecah Berdasarkan Kategori</span>
-          </label>
+          <label for="select-hist-dimension" class="dash-control-label">Pecah Berdasarkan Kategori</label>
           <select id="select-hist-dimension" class="dash-select">
             <option value="NONE">Semua Peserta (Tanpa Pemecahan)</option>
           </select>
@@ -385,81 +318,51 @@
         <!-- 1. Total Akumulasi Hadir -->
         <div class="dash-stat-card card-total">
           <div class="dash-stat-header">
-            <span class="dash-stat-title">Total Presensi Tercatat</span>
-            <div class="dash-stat-badge badge-neutral">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                <circle cx="9" cy="7" r="4"></circle>
-                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-              </svg>
-              <span>Semua Sesi</span>
-            </div>
+            <span class="dash-stat-title">Total Presensi</span>
           </div>
           <div class="dash-stat-num">
             <span id="hist-kpi-total-scans">0</span>
-            <span class="dash-stat-unit">Presensi</span>
+            <span class="dash-stat-unit">Scan</span>
           </div>
-          <div class="dash-stat-sub" id="hist-kpi-total-sub">Akumulasi kehadiran seluruh sesi acara</div>
+          <div class="dash-stat-sub" id="hist-kpi-total-sub">Seluruh sesi acara</div>
         </div>
 
         <!-- 2. Rata-rata Partisipasi -->
         <div class="dash-stat-card card-hadir">
           <div class="dash-stat-header">
             <span class="dash-stat-title">Rata-rata Partisipasi</span>
-            <div class="dash-stat-badge badge-hadir">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8">
-                <polyline points="20 6 9 17 4 12"></polyline>
-              </svg>
-              <span>Konsistensi</span>
-            </div>
+            <span class="dash-stat-pct-pill" id="hist-kpi-avg-pill">Konsistensi</span>
           </div>
           <div class="dash-stat-num stat-green">
             <span id="hist-kpi-avg-rate">0%</span>
-            <span class="dash-stat-pct-pill" id="hist-kpi-avg-pill">Tingkat Hadir</span>
           </div>
-          <div class="dash-stat-sub">Rata-rata persentase peserta hadir per sesi</div>
+          <div class="dash-stat-sub">Rata-rata kehadiran per sesi</div>
         </div>
 
         <!-- 3. Sesi Paling Ramai -->
         <div class="dash-stat-card card-belum">
           <div class="dash-stat-header">
-            <span class="dash-stat-title">Sesi Paling Ramai</span>
-            <div class="dash-stat-badge badge-neutral">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <polygon
-                  points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2">
-                </polygon>
-              </svg>
-              <span>Puncak</span>
-            </div>
+            <span class="dash-stat-title">Sesi Puncak</span>
           </div>
           <div class="dash-stat-num" style="color: var(--dash-text-main);">
             <span id="hist-kpi-peak-name" style="font-size: 1.45rem; line-height: 1.2; word-break: break-word;">-</span>
           </div>
-          <div class="dash-stat-sub" id="hist-kpi-peak-detail">Tingkat kehadiran tertinggi</div>
+          <div class="dash-stat-sub" id="hist-kpi-peak-detail">-</div>
         </div>
       </section>
 
-      <!-- GRAFIK TREN PERJALANAN ACARA (MULTI-SESSION JOURNEY) -->
+      <!-- GRAFIK TREN PERJALANAN ACARA -->
       <section class="dash-arrival-card">
         <div class="dash-arrival-header">
           <div>
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                style="color: var(--dash-green);">
-                <line x1="18" y1="20" x2="18" y2="10"></line>
-                <line x1="12" y1="20" x2="12" y2="4"></line>
-                <line x1="6" y1="20" x2="6" y2="14"></line>
-              </svg>
-              <h2 class="dash-section-title">Tren Perjalanan Kehadiran Antar Sesi</h2>
-            </div>
-            <span class="dash-section-sub" id="history-chart-sub">Melihat perbandingan jumlah peserta hadir dan persentase dari sesi ke sesi</span>
+            <h2 class="dash-section-title">Tren Kehadiran Antar Sesi</h2>
           </div>
         </div>
 
-        <div class="dash-chart-wrapper" style="height: 270px;">
-          <canvas id="chart-history-sessions"></canvas>
+        <div class="dash-chart-scroll-wrap">
+          <div class="dash-chart-container" id="chart-history-container" style="height: 270px;">
+            <canvas id="chart-history-sessions"></canvas>
+          </div>
         </div>
       </section>
 
@@ -467,18 +370,7 @@
       <section class="dash-history-section">
         <div class="dash-section-header">
           <div>
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                style="color: var(--dash-primary);">
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                <line x1="16" y1="2" x2="16" y2="6"></line>
-                <line x1="8" y1="2" x2="8" y2="6"></line>
-                <line x1="3" y1="10" x2="21" y2="10"></line>
-              </svg>
-              <h2 class="dash-section-title">Daftar Rekapitulasi Tiap Sesi</h2>
-            </div>
-            <span class="dash-section-sub">Ringkasan performa dan pertumbuhan peserta per sesi. Klik kartu untuk membuka
-              di Live</span>
+            <h2 class="dash-section-title">Rekapitulasi Tiap Sesi</h2>
           </div>
         </div>
 
