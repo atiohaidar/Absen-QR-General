@@ -173,19 +173,19 @@
     }
 
     const paletteList = isDark ? [
-      { line: "#34d399", bg: "rgba(52, 211, 153, 0.20)" }, // Emerald
+      { line: "#34d399", bg: "rgba(52, 211, 153, 0.20)" }, // Mint
       { line: "#60a5fa", bg: "rgba(96, 165, 250, 0.20)" }, // Blue
       { line: "#fb7185", bg: "rgba(251, 113, 133, 0.20)" }, // Rose
       { line: "#fbbf24", bg: "rgba(251, 191, 36, 0.20)" },  // Amber
       { line: "#a78bfa", bg: "rgba(167, 139, 250, 0.20)" }, // Purple
       { line: "#38bdf8", bg: "rgba(56, 189, 248, 0.20)" }   // Cyan
     ] : [
-      { line: "#059669", bg: "rgba(5, 150, 105, 0.12)" },   // Emerald
+      { line: "#0d532d", bg: "rgba(13, 83, 45, 0.12)" },   // Forest Green (Primary)
+      { line: "#62b32b", bg: "rgba(98, 179, 43, 0.12)" },   // Spring Leaf (Accent)
       { line: "#2563eb", bg: "rgba(37, 99, 235, 0.12)" },   // Blue
-      { line: "#e11d48", bg: "rgba(225, 29, 72, 0.12)" },   // Rose
       { line: "#d97706", bg: "rgba(217, 119, 6, 0.12)" },   // Amber
-      { line: "#7c3aed", bg: "rgba(124, 58, 237, 0.12)" },  // Purple
-      { line: "#0284c7", bg: "rgba(2, 132, 199, 0.12)" }    // Cyan
+      { line: "#e11d48", bg: "rgba(225, 29, 72, 0.12)" },   // Rose
+      { line: "#7c3aed", bg: "rgba(124, 58, 237, 0.12)" }   // Purple
     ];
 
     const map = {};
@@ -1223,17 +1223,17 @@
     // Palet Warna & Gradien Dinamis
     const isCategoryMode = (state.arrivalChartMode !== "ALL" && hasCategory && activeCategories.length > 0);
     const catPalette = getCategoryPalette(activeCategories, isDark, isGender);
-    const allLineColor = isDark ? "#4ade80" : "#0d532d";
+    const allLineColor = isDark ? "#34d399" : "#0d532d";
 
-    let allAreaBg = isDark ? "rgba(74, 222, 128, 0.18)" : "rgba(13, 83, 45, 0.12)";
+    let allAreaBg = isDark ? "rgba(52, 211, 153, 0.18)" : "rgba(13, 83, 45, 0.12)";
     const catGradients = {};
 
     try {
       const ctx2d = ctx.getContext('2d');
       const gradAll = ctx2d.createLinearGradient(0, 0, 0, 180);
       if (isDark) {
-        gradAll.addColorStop(0, 'rgba(74, 222, 128, 0.35)');
-        gradAll.addColorStop(1, 'rgba(74, 222, 128, 0.01)');
+        gradAll.addColorStop(0, 'rgba(52, 211, 153, 0.35)');
+        gradAll.addColorStop(1, 'rgba(52, 211, 153, 0.01)');
       } else {
         gradAll.addColorStop(0, 'rgba(13, 83, 45, 0.25)');
         gradAll.addColorStop(1, 'rgba(13, 83, 45, 0.01)');
@@ -1992,8 +1992,8 @@
       const attendedData = sessionList.map(s => s.attended);
       const absentData = sessionList.map(s => s.absent);
       const rateData = sessionList.map(s => s.rate);
-      const greenBar = isDark ? "#4ade80" : "#10b981";
-      const amberBar = isDark ? "rgba(245, 158, 11, 0.4)" : "rgba(245, 158, 11, 0.25)";
+      const greenBar = isDark ? "#34d399" : "#0d532d";
+      const amberBar = isDark ? "rgba(251, 191, 36, 0.35)" : "rgba(217, 119, 6, 0.22)";
 
       datasets = [
         {

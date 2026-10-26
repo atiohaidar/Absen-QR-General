@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
-    href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap"
     rel="stylesheet">
 
   <!-- Chart.js Library -->
@@ -383,6 +383,13 @@
 
   </main>
 
+  <!-- APPLICATION FOOTER (MATCHING SCANNER BRANDING) -->
+  <footer class="app-footer">
+    <div class="footer-container">
+      <span class="footer-optimized-text">Monitoring Kehadiran Realtime &bull; Terhubung Google Sheets</span>
+    </div>
+  </footer>
+
   <!-- MODAL: SETTINGS (HIDDEN COMPLEXITY) -->
   <div id="modal-settings" class="dash-modal-backdrop" aria-hidden="true">
     <div class="dash-modal" role="dialog" aria-modal="true" aria-labelledby="modal-settings-title"
@@ -403,7 +410,7 @@
               style="font-size: 0.8rem; font-weight: 600; display: block; margin-bottom: 5px;">
               URL Google Apps Script (Web App)
             </label>
-            <input type="url" id="cfg-api-url-input" class="dash-search-input" style="padding-left: 12px;"
+            <input type="url" id="cfg-api-url-input" class="dash-table-search-input" style="width: 100% !important; padding-left: 12px;"
               placeholder="https://script.google.com/macros/s/.../exec">
             <span style="font-size: 0.72rem; color: var(--dash-text-dim); display: block; margin-top: 4px;">
               Pastikan deployment Google Apps Script diatur ke "Anyone".
