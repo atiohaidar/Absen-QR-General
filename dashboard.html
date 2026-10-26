@@ -84,11 +84,11 @@
 
     <!-- PRIMARY TAB NAVIGATION (LIVE VS RIWAYAT) -->
     <div class="dash-view-switcher">
-      <button id="tab-btn-live" class="dash-view-tab-btn active" type="button">
+      <button id="tab-btn-live" class="dash-view-tab-btn active" type="button" onclick="EventPassSimple.switchTab('live')">
         <span class="dash-pulse-dot" style="margin-right: 4px;"></span>
         <span>Live Presensi</span>
       </button>
-      <button id="tab-btn-history" class="dash-view-tab-btn" type="button">
+      <button id="tab-btn-history" class="dash-view-tab-btn" type="button" onclick="EventPassSimple.switchTab('history')">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
           <circle cx="12" cy="12" r="10"></circle>
           <polyline points="12 6 12 12 16 14"></polyline>
@@ -362,6 +362,24 @@
     <!-- ===================================================================== -->
     <div id="view-history" class="dash-view-content" style="display: none;">
 
+      <!-- SIMPLE CONTROLS BAR (KATEGORI RIWAYAT SESI) -->
+      <section class="dash-simple-controls">
+        <div class="dash-control-item" style="max-width: 360px;">
+          <label for="select-hist-dimension" class="dash-control-label">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+              <circle cx="9" cy="7" r="4"></circle>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+            </svg>
+            <span>Pecah Berdasarkan Kategori</span>
+          </label>
+          <select id="select-hist-dimension" class="dash-select">
+            <option value="NONE">Semua Peserta (Tanpa Pemecahan)</option>
+          </select>
+        </div>
+      </section>
+
       <!-- 3 MACRO STAT CARDS -->
       <section class="dash-hero-stats">
         <!-- 1. Total Akumulasi Hadir -->
@@ -436,17 +454,16 @@
               </svg>
               <h2 class="dash-section-title">Tren Perjalanan Kehadiran Antar Sesi</h2>
             </div>
-            <span class="dash-section-sub">Melihat perbandingan jumlah peserta hadir dan persentase dari sesi ke
-              sesi</span>
+            <span class="dash-section-sub" id="history-chart-sub">Melihat perbandingan jumlah peserta hadir dan persentase dari sesi ke sesi</span>
           </div>
 
-          <!-- Toggle Mode: Total Sesi vs Gender -->
+          <!-- Toggle Mode: Total Sesi vs Pecah Kategori Aktif -->
           <div class="dash-chart-toggle-group" id="history-chart-toggle-group">
             <button id="btn-hist-mode-all" class="dash-chart-toggle-btn" data-mode="ALL" type="button" title="Tampilkan total keseluruhan per sesi">
               <span>Total Sesi</span>
             </button>
-            <button id="btn-hist-mode-gender" class="dash-chart-toggle-btn active" data-mode="GENDER" type="button" title="Pisah tren kehadiran antar sesi Laki-laki vs Perempuan">
-              <span>Pisah Gender (L / P)</span>
+            <button id="btn-hist-mode-gender" class="dash-chart-toggle-btn active" data-mode="CATEGORY" type="button" title="Pisah tren kehadiran antar sesi berdasarkan kategori aktif">
+              <span id="btn-hist-mode-label">Pisah Kategori</span>
             </button>
           </div>
         </div>

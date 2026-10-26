@@ -907,6 +907,44 @@ body.theme-dark .dash-history-gender-split .female {
   color: #fbcfe8;
 }
 
+/* History Card Dynamic Category Row */
+.dash-history-cat-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--dash-border-subtle);
+}
+
+.dash-hist-cat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  padding: 3px 8px;
+  border-radius: var(--dash-radius-full);
+  background: var(--dash-bg-subtle);
+  border: 1px solid var(--dash-border);
+  color: var(--dash-text-muted);
+  line-height: 1.3;
+}
+
+.dash-hist-cat-name {
+  font-weight: 600;
+  color: var(--dash-text-main);
+}
+
+.dash-hist-cat-val {
+  font-weight: 700;
+  color: var(--dash-green);
+}
+
+body.theme-dark .dash-hist-cat-pill {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
 .dash-chart-wrapper {
   position: relative;
   width: 100%;

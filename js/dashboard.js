@@ -44,7 +44,7 @@
     arrivalChart: null,
     historyChart: null,
     arrivalChartMode: "CATEGORY", // "ALL" or "CATEGORY" (supports gender & any active category)
-    historyChartMode: "GENDER", // "ALL" or "GENDER"
+    historyChartMode: "CATEGORY", // "ALL" or "CATEGORY"
     lastSessionList: [],
     sessionSummaries: {}
   };
@@ -361,18 +361,33 @@
       });
     }
 
-    // Category / Dimension dropdown
+    // Category / Dimension dropdowns (Live & Riwayat Sesi)
     const selectDimension = document.getElementById("select-dimension");
-    if (selectDimension) {
-      selectDimension.addEventListener("change", (e) => {
-        state.selectedDimension = e.target.value;
-        state.drilldownValue = ""; // reset drilldown
-        state.currentPage = 1;
+    const selectHistDimension = document.getElementById("select-hist-dimension");
+
+    function handleDimensionSelection(val) {
+      state.selectedDimension = val;
+      state.drilldownValue = ""; // reset drilldown
+      state.currentPage = 1;
+
+      if (selectDimension && selectDimension.value !== val) selectDimension.value = val;
+      if (selectHistDimension && selectHistDimension.value !== val) selectHistDimension.value = val;
+
+      if (state.activeTab === "history") {
+        renderHistoryView(true);
+      } else {
         updateView();
-      });
+      }
     }
 
-    // Toggle Mode Grafik Arus Kedatangan (Semua vs Pisah Gender)
+    if (selectDimension) {
+      selectDimension.addEventListener("change", (e) => handleDimensionSelection(e.target.value));
+    }
+    if (selectHistDimension) {
+      selectHistDimension.addEventListener("change", (e) => handleDimensionSelection(e.target.value));
+    }
+
+    // Toggle Mode Grafik Arus Kedatangan (Semua vs Pisah Kategori)
     const btnArrivalModeAll = document.getElementById("btn-arrival-mode-all");
     const btnArrivalModeGender = document.getElementById("btn-arrival-mode-gender");
     if (btnArrivalModeAll) {
@@ -390,7 +405,7 @@
       });
     }
 
-    // Toggle Mode Grafik Riwayat Sesi (Total Sesi vs Pisah Gender)
+    // Toggle Mode Grafik Riwayat Sesi (Total Sesi vs Pisah Kategori Aktif)
     const btnHistModeAll = document.getElementById("btn-hist-mode-all");
     const btnHistModeGender = document.getElementById("btn-hist-mode-gender");
     if (btnHistModeAll) {
@@ -402,8 +417,8 @@
     }
     if (btnHistModeGender) {
       btnHistModeGender.addEventListener("click", () => {
-        if (state.historyChartMode === "GENDER") return;
-        state.historyChartMode = "GENDER";
+        if (state.historyChartMode === "CATEGORY") return;
+        state.historyChartMode = "CATEGORY";
         renderHistoryTrendChart(state.lastSessionList || [], true);
       });
     }
@@ -655,49 +670,56 @@
   }
 
   function populateDimensionDropdown() {
-    const sel = document.getElementById("select-dimension");
-    if (!sel) return;
+    const selects = [
+      document.getElementById("select-dimension"),
+      document.getElementById("select-hist-dimension")
+    ].filter(Boolean);
+
+    if (selects.length === 0) return;
 
     const prev = state.selectedDimension;
-    sel.innerHTML = "";
-
-    // 1. Opsi Gender Otomatis jika ada
-    if (state.detectedGenderCol) {
-      const optGender = document.createElement("option");
-      optGender.value = "GENDER_AUTO";
-      optGender.textContent = `Jenis Kelamin (${state.detectedGenderCol})`;
-      sel.appendChild(optGender);
-    }
-
-    // 2. Dimensi Lainnya (Instansi, Divisi, dll)
-    state.dimensions.forEach(dim => {
-      if (dim.name !== state.detectedGenderCol) {
-        const opt = document.createElement("option");
-        opt.value = dim.name;
-        opt.textContent = dim.name;
-        sel.appendChild(opt);
-      }
-    });
-
-    // 3. Opsi Tanpa Pemecahan
-    const optNone = document.createElement("option");
-    optNone.value = "NONE";
-    optNone.textContent = "Semua Peserta (Tanpa Pemecahan)";
-    sel.appendChild(optNone);
 
     // Prioritaskan Gender jika ada, atau kembalikan pilihan sebelumnya
+    let activeVal = "NONE";
     if (prev && (prev === "NONE" || prev === "GENDER_AUTO" || state.dimensions.some(d => d.name === prev))) {
-      sel.value = prev;
+      activeVal = prev;
     } else if (state.detectedGenderCol) {
-      sel.value = "GENDER_AUTO";
-      state.selectedDimension = "GENDER_AUTO";
+      activeVal = "GENDER_AUTO";
     } else if (state.dimensions.length > 0) {
-      sel.value = state.dimensions[0].name;
-      state.selectedDimension = state.dimensions[0].name;
-    } else {
-      sel.value = "NONE";
-      state.selectedDimension = "NONE";
+      activeVal = state.dimensions[0].name;
     }
+
+    state.selectedDimension = activeVal;
+
+    selects.forEach(sel => {
+      sel.innerHTML = "";
+
+      // 1. Opsi Gender Otomatis jika ada
+      if (state.detectedGenderCol) {
+        const optGender = document.createElement("option");
+        optGender.value = "GENDER_AUTO";
+        optGender.textContent = `Jenis Kelamin (${state.detectedGenderCol})`;
+        sel.appendChild(optGender);
+      }
+
+      // 2. Dimensi Lainnya (Instansi, Divisi, dll)
+      state.dimensions.forEach(dim => {
+        if (dim.name !== state.detectedGenderCol) {
+          const opt = document.createElement("option");
+          opt.value = dim.name;
+          opt.textContent = dim.name;
+          sel.appendChild(opt);
+        }
+      });
+
+      // 3. Opsi Tanpa Pemecahan
+      const optNone = document.createElement("option");
+      optNone.value = "NONE";
+      optNone.textContent = "Semua Peserta (Tanpa Pemecahan)";
+      sel.appendChild(optNone);
+
+      sel.value = activeVal;
+    });
   }
 
   // ============================================================================
@@ -1611,11 +1633,35 @@
   }
 
   // ============================================================================
-  // RIWAYAT SESI (HISTORY & REKAPITULASI DENGAN TREN GENDER)
+  // RIWAYAT SESI (HISTORY & REKAPITULASI DENGAN TREN DINAMIS KATEGORI)
   // ============================================================================
   function calculateSessionSummaries() {
     const map = {};
     const totalReg = state.attendees.length;
+    const dimName = getEffectiveDimensionName();
+    const isGender = isGenderDimension(dimName);
+
+    // Kumpulkan seluruh kelompok kategori pada data peserta
+    const categoryTotals = {};
+    state.attendees.forEach(att => {
+      const val = getAttendeeCategoryValue(att, dimName);
+      categoryTotals[val] = (categoryTotals[val] || 0) + 1;
+    });
+
+    let activeCategories = [];
+    if (isGender) {
+      activeCategories = ["Laki-laki", "Perempuan"];
+      Object.keys(categoryTotals).forEach(k => {
+        if (k !== "Laki-laki" && k !== "Perempuan" && categoryTotals[k] > 0) {
+          activeCategories.push(k);
+        }
+      });
+    } else if (dimName) {
+      activeCategories = Object.keys(categoryTotals).sort((a, b) => (categoryTotals[b] || 0) - (categoryTotals[a] || 0));
+      if (activeCategories.length > 5) {
+        activeCategories = activeCategories.slice(0, 5);
+      }
+    }
 
     state.sessions.forEach(s => {
       let attended = 0;
@@ -1626,10 +1672,21 @@
       let femaleTotal = 0;
       const hourly = {};
 
+      // Inisialisasi statistik kategori aktif per sesi
+      const catStats = {};
+      activeCategories.forEach(cat => {
+        catStats[cat] = { total: 0, attended: 0, rate: 0 };
+      });
+
       state.attendees.forEach(att => {
         const g = getAttendeeGender(att);
         if (g === "Laki-laki") maleTotal++;
         else if (g === "Perempuan") femaleTotal++;
+
+        const cVal = getAttendeeCategoryValue(att, dimName);
+        if (catStats[cVal]) {
+          catStats[cVal].total++;
+        }
 
         const sess = att.sessions[s.id];
         if (sess && (sess.status === "HADIR" || sess.status === "CHECKOUT")) {
@@ -1637,6 +1694,10 @@
           if (sess.status === "CHECKOUT") checkouts++;
           if (g === "Laki-laki") maleAttended++;
           else if (g === "Perempuan") femaleAttended++;
+
+          if (catStats[cVal]) {
+            catStats[cVal].attended++;
+          }
 
           if (sess.checkInTime) {
             const match = String(sess.checkInTime).match(/(\d{1,2}):(\d{2})/);
@@ -1647,6 +1708,12 @@
             }
           }
         }
+      });
+
+      // Hitung persentase kehadiran per kategori
+      activeCategories.forEach(cat => {
+        const st = catStats[cat];
+        st.rate = st.total > 0 ? Math.round((st.attended / st.total) * 1000) / 10 : 0;
       });
 
       const absent = Math.max(0, totalReg - attended);
@@ -1681,12 +1748,17 @@
         femaleAttended: femaleAttended,
         maleRate: maleRate,
         femaleRate: femaleRate,
+        categoryStats: catStats,
+        activeCategories: activeCategories,
         peakSlot: peakSlot,
         peakCount: peakCount,
         hourlyArrivals: hourly
       };
     });
 
+    map._activeCategories = activeCategories;
+    map._dimName = dimName;
+    map._isGender = isGender;
     return map;
   }
 
@@ -1773,20 +1845,46 @@
       return;
     }
 
-    const hasGender = Boolean(getGenderCol());
-    if (!hasGender) {
+    const dimName = getEffectiveDimensionName();
+    const hasCategory = Boolean(dimName);
+    const isGender = isGenderDimension(dimName);
+
+    if (!hasCategory) {
       state.historyChartMode = "ALL";
     }
 
     // Toggle button UI
     const toggleGroup = document.getElementById("history-chart-toggle-group");
     const btnAll = document.getElementById("btn-hist-mode-all");
-    const btnGender = document.getElementById("btn-hist-mode-gender");
+    const btnCategory = document.getElementById("btn-hist-mode-gender");
+    const btnCategoryLabel = document.getElementById("btn-hist-mode-label");
+    const chartSub = document.getElementById("history-chart-sub");
+
     if (toggleGroup) {
-      toggleGroup.style.display = hasGender ? "inline-flex" : "none";
+      toggleGroup.style.display = hasCategory ? "inline-flex" : "none";
     }
-    if (btnAll) btnAll.classList.toggle("active", state.historyChartMode === "ALL");
-    if (btnGender) btnGender.classList.toggle("active", state.historyChartMode === "GENDER");
+
+    if (btnCategoryLabel) {
+      if (isGender) {
+        btnCategoryLabel.textContent = "Pisah: Jenis Kelamin";
+      } else if (dimName) {
+        btnCategoryLabel.textContent = `Pisah: ${dimName.length > 15 ? dimName.slice(0, 13) + '..' : dimName}`;
+      } else {
+        btnCategoryLabel.textContent = "Pisah Kategori";
+      }
+    }
+
+    const isCategoryMode = (state.historyChartMode === "CATEGORY" || state.historyChartMode === "GENDER") && hasCategory;
+    if (btnAll) btnAll.classList.toggle("active", !isCategoryMode);
+    if (btnCategory) btnCategory.classList.toggle("active", isCategoryMode);
+
+    if (chartSub) {
+      if (isCategoryMode) {
+        chartSub.textContent = `Membandingkan tren kehadiran peserta berdasarkan ${dimName} antar sesi`;
+      } else {
+        chartSub.textContent = "Melihat perbandingan jumlah peserta hadir dan persentase dari sesi ke sesi";
+      }
+    }
 
     const isDark = (state.theme === "dark");
     const textColor = isDark ? "#9eb5a5" : "#334d3d";
@@ -1797,72 +1895,50 @@
       return name.length > 20 ? name.slice(0, 18) + '...' : name;
     });
 
-    const isGenderMode = (state.historyChartMode === "GENDER" && hasGender);
     let datasets = [];
 
-    if (isGenderMode) {
-      const maleAttended = sessionList.map(s => s.maleAttended);
-      const femaleAttended = sessionList.map(s => s.femaleAttended);
-      const maleRate = sessionList.map(s => s.maleRate);
-      const femaleRate = sessionList.map(s => s.femaleRate);
+    if (isCategoryMode) {
+      const activeCategories = (sessionList[0] && sessionList[0].activeCategories && sessionList[0].activeCategories.length > 0)
+        ? sessionList[0].activeCategories
+        : (isGender ? ["Laki-laki", "Perempuan"] : []);
 
-      const maleBarColor = isDark ? "#60a5fa" : "#3b82f6";
-      const femaleBarColor = isDark ? "#fb7185" : "#ec4899";
-      const maleLineColor = isDark ? "#93c5fd" : "#1d4ed8";
-      const femaleLineColor = isDark ? "#fbcfe8" : "#be123c";
+      const palette = getCategoryPalette(activeCategories, isDark, isGender);
 
-      datasets = [
-        {
+      activeCategories.forEach((cat) => {
+        const pal = palette[cat] || { line: "#059669", bg: "rgba(5, 150, 105, 0.2)" };
+        const attendedArr = sessionList.map(s => (s.categoryStats && s.categoryStats[cat]) ? s.categoryStats[cat].attended : 0);
+
+        datasets.push({
           type: 'bar',
-          label: 'Laki-laki Hadir',
-          data: maleAttended,
-          backgroundColor: maleBarColor,
+          label: `${cat} Hadir`,
+          data: attendedArr,
+          backgroundColor: pal.line,
           borderRadius: 6,
           order: 2,
           yAxisID: 'y'
-        },
-        {
-          type: 'bar',
-          label: 'Perempuan Hadir',
-          data: femaleAttended,
-          backgroundColor: femaleBarColor,
-          borderRadius: 6,
-          order: 3,
-          yAxisID: 'y'
-        },
-        {
-          type: 'line',
-          label: 'Rasio Laki-laki (%)',
-          data: maleRate,
-          borderColor: maleLineColor,
-          backgroundColor: 'transparent',
-          borderWidth: 2.8,
-          pointBackgroundColor: maleLineColor,
-          pointBorderColor: '#ffffff',
-          pointBorderWidth: 2,
-          pointRadius: 5,
-          pointHoverRadius: 7,
-          tension: 0.25,
-          order: 1,
-          yAxisID: 'yRate'
-        },
-        {
-          type: 'line',
-          label: 'Rasio Perempuan (%)',
-          data: femaleRate,
-          borderColor: femaleLineColor,
-          backgroundColor: 'transparent',
-          borderWidth: 2.8,
-          pointBackgroundColor: femaleLineColor,
-          pointBorderColor: '#ffffff',
-          pointBorderWidth: 2,
-          pointRadius: 5,
-          pointHoverRadius: 7,
-          tension: 0.25,
-          order: 1,
-          yAxisID: 'yRate'
+        });
+
+        // Jika jumlah kategori <= 3, tampilkan garis persentase per kategori
+        if (activeCategories.length <= 3) {
+          const rateArr = sessionList.map(s => (s.categoryStats && s.categoryStats[cat]) ? s.categoryStats[cat].rate : 0);
+          datasets.push({
+            type: 'line',
+            label: `Rasio ${cat} (%)`,
+            data: rateArr,
+            borderColor: pal.line,
+            backgroundColor: 'transparent',
+            borderWidth: 2.5,
+            pointBackgroundColor: pal.line,
+            pointBorderColor: '#ffffff',
+            pointBorderWidth: 1.5,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+            tension: 0.25,
+            order: 1,
+            yAxisID: 'yRate'
+          });
         }
-      ];
+      });
     } else {
       const attendedData = sessionList.map(s => s.attended);
       const absentData = sessionList.map(s => s.absent);
@@ -1908,6 +1984,7 @@
       ];
     }
 
+    const hasRateAxis = datasets.some(ds => ds.yAxisID === 'yRate');
     const shouldRecreate = forceRecreate || !state.historyChart || (state.historyChart.data.datasets.length !== datasets.length);
 
     if (!shouldRecreate && state.historyChart) {
@@ -1956,8 +2033,15 @@
               afterBody: (items) => {
                 const idx = items[0].dataIndex;
                 const s = sessionList[idx];
-                if (isGenderMode) {
-                  return `👨 Laki-laki: ${s.maleAttended} / ${s.maleTotal} hadir (${s.maleRate}%)\n👩 Perempuan: ${s.femaleAttended} / ${s.femaleTotal} hadir (${s.femaleRate}%)\nTotal Presensi: ${s.attended} / ${s.totalRegistered} (${s.rate}%)`;
+                if (isCategoryMode && s.categoryStats) {
+                  const activeCats = s.activeCategories || Object.keys(s.categoryStats);
+                  const lines = activeCats.map(cat => {
+                    const st = s.categoryStats[cat] || { attended: 0, total: 0, rate: 0 };
+                    const icon = isGender ? (cat === "Laki-laki" ? "👨 " : (cat === "Perempuan" ? "👩 " : "")) : "• ";
+                    return `${icon}${cat}: ${st.attended} / ${st.total} hadir (${st.rate}%)`;
+                  });
+                  lines.push(`Total Presensi: ${s.attended} / ${s.totalRegistered} (${s.rate}%)`);
+                  return lines.join("\n");
                 }
                 return `Total Terdaftar: ${s.totalRegistered} orang\nRasio Hadir: ${s.rate}%`;
               }
@@ -1989,16 +2073,17 @@
             position: 'right',
             beginAtZero: true,
             max: 100,
+            display: hasRateAxis,
             grid: { display: false },
             ticks: {
-              color: isGenderMode ? '#1d4ed8' : '#0284c7',
+              color: '#0284c7',
               callback: (val) => `${val}%`,
-              font: { family: 'Inter', size: 11 }
+              font: { family: 'Inter', size: 10 }
             },
             title: {
-              display: true,
+              display: hasRateAxis,
               text: 'Rasio (%)',
-              color: isGenderMode ? '#1d4ed8' : '#0284c7',
+              color: '#0284c7',
               font: { size: 10, weight: '600' }
             }
           }
@@ -2015,6 +2100,9 @@
       grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: var(--dash-text-muted);">Belum ada riwayat sesi yang tersimpan.</div>`;
       return;
     }
+
+    const dimName = getEffectiveDimensionName();
+    const isGender = isGenderDimension(dimName);
 
     grid.innerHTML = sessionList.map((s, idx) => {
       const prev = idx > 0 ? sessionList[idx - 1] : null;
@@ -2045,13 +2133,35 @@
            </span>`
         : `<span class="dash-history-rush" style="color: var(--dash-text-dim);">Belum ada waktu scan</span>`;
 
-      const genderSplitHtml = (s.maleTotal > 0 || s.femaleTotal > 0)
-        ? `<div class="dash-history-gender-split">
-             <span class="male">👨 ${s.maleAttended}/${s.maleTotal} (${s.maleRate}%)</span>
-             <span>&bull;</span>
-             <span class="female">👩 ${s.femaleAttended}/${s.femaleTotal} (${s.femaleRate}%)</span>
-           </div>`
-        : '';
+      let categoryBreakdownHtml = '';
+      if (dimName && s.categoryStats) {
+        if (isGender) {
+          categoryBreakdownHtml = (s.maleTotal > 0 || s.femaleTotal > 0)
+            ? `<div class="dash-history-gender-split">
+                 <span class="male">👨 ${s.maleAttended}/${s.maleTotal} (${s.maleRate}%)</span>
+                 <span>&bull;</span>
+                 <span class="female">👩 ${s.femaleAttended}/${s.femaleTotal} (${s.femaleRate}%)</span>
+               </div>`
+            : '';
+        } else {
+          const catEntries = Object.entries(s.categoryStats)
+            .filter(([_, st]) => st.total > 0)
+            .sort((a, b) => b[1].attended - a[1].attended)
+            .slice(0, 4);
+
+          if (catEntries.length > 0) {
+            const pills = catEntries.map(([cName, st]) => {
+              const displayName = cName.length > 16 ? cName.slice(0, 14) + '..' : cName;
+              return `<span class="dash-hist-cat-pill" title="${escapeHtml(cName)}: ${st.attended} dari ${st.total} orang hadir (${st.rate}%)">
+                <span class="dash-hist-cat-name">${escapeHtml(displayName)}:</span>
+                <span class="dash-hist-cat-val">${st.attended}/${st.total} (${st.rate}%)</span>
+              </span>`;
+            }).join("");
+
+            categoryBreakdownHtml = `<div class="dash-history-cat-row">${pills}</div>`;
+          }
+        }
+      }
 
       const checkoutInfoHtml = (s.checkedOut > 0)
         ? `<div style="font-size: 0.74rem; color: var(--dash-text-muted); margin-top: 4px; display: flex; align-items: center; gap: 5px;">
@@ -2083,7 +2193,7 @@
               </div>
             </div>
 
-            ${genderSplitHtml}
+            ${categoryBreakdownHtml}
             ${checkoutInfoHtml}
 
             <div style="margin-top: 8px;">
@@ -2115,6 +2225,23 @@
 
   // Global namespace for HTML onclick handlers
   window.EventPassSimple = {
+    switchTab: (tabName) => {
+      switchActiveTab(tabName);
+    },
+    selectDimension: (dimName) => {
+      state.selectedDimension = dimName;
+      state.drilldownValue = "";
+      state.currentPage = 1;
+      const s1 = document.getElementById("select-dimension");
+      const s2 = document.getElementById("select-hist-dimension");
+      if (s1) s1.value = dimName;
+      if (s2) s2.value = dimName;
+      if (state.activeTab === "history") {
+        renderHistoryView(true);
+      } else {
+        updateView();
+      }
+    },
     selectGroup: (catName) => {
       state.drilldownValue = (state.drilldownValue === catName) ? "" : catName;
       state.currentPage = 1;
