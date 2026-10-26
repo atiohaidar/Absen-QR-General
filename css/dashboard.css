@@ -1129,16 +1129,36 @@ body.theme-dark .dash-history-card:hover {
   border-color: #315b3e;
 }
 
+.dash-history-card-top {
+  display: flex;
+  flex-direction: column;
+}
+
 .dash-history-card-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
+  margin-bottom: 6px;
+}
+
+.dash-history-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dash-history-badges-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .dash-history-card-title {
   margin: 0;
-  font-size: 1rem;
+  font-size: 1.05rem;
   font-weight: 700;
   color: var(--dash-text-main);
   line-height: 1.35;
@@ -1147,7 +1167,12 @@ body.theme-dark .dash-history-card:hover {
 .dash-history-card-date {
   font-size: 12px;
   color: var(--dash-text-dim);
-  margin-top: 2px;
+}
+
+.dash-badge-selesai {
+  background: var(--dash-bg-subtle);
+  border: 1px solid var(--dash-border);
+  color: var(--dash-text-dim);
 }
 
 .dash-history-card-stats {
@@ -1163,6 +1188,16 @@ body.theme-dark .dash-history-card:hover {
   font-weight: 800;
   color: var(--dash-primary);
   line-height: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.dash-history-card-total {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--dash-text-dim);
+  font-family: var(--dash-font-body);
 }
 
 .dash-history-card-pct {
@@ -1175,14 +1210,134 @@ body.theme-dark .dash-history-card:hover {
   border: 1px solid var(--dash-green-border);
 }
 
+/* Split Box: Di Lokasi vs Checkout */
+.dash-hist-split-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--dash-bg-subtle);
+  border: 1px solid var(--dash-border);
+  border-radius: var(--dash-radius-md);
+  padding: 8px 12px;
+  margin-top: 10px;
+}
+
+.dash-hist-split-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--dash-text-muted);
+}
+
+.dash-hist-split-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dash-hist-split-dot.in-loc {
+  background-color: var(--dash-primary);
+  box-shadow: 0 0 0 2px rgba(13, 83, 45, 0.15);
+}
+
+.dash-hist-split-dot.out {
+  background-color: var(--dash-amber);
+  box-shadow: 0 0 0 2px rgba(180, 83, 9, 0.15);
+}
+
+.dash-hist-split-val {
+  font-weight: 800;
+  color: var(--dash-text-main);
+  font-size: 13px;
+}
+
+.dash-hist-split-divider {
+  width: 1px;
+  height: 14px;
+  background: var(--dash-border);
+}
+
+/* Gender Row & Chips */
+.dash-hist-gender-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.dash-hist-gender-chip {
+  background: var(--dash-bg-subtle);
+  border: 1px solid var(--dash-border);
+  border-radius: var(--dash-radius-md);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dash-hist-gender-chip.male {
+  border-left: 3.5px solid var(--dash-blue);
+}
+
+.dash-hist-gender-chip.female {
+  border-left: 3.5px solid #db2777;
+}
+
+.dash-hist-chip-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.dash-hist-chip-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--dash-text-muted);
+}
+
+.dash-hist-chip-pct {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--dash-primary);
+}
+
+.dash-hist-chip-body {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+}
+
+.dash-hist-chip-num {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--dash-text-main);
+}
+
+.dash-hist-chip-of {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--dash-text-dim);
+}
+
+.dash-hist-chip-sub {
+  font-size: 11px;
+  color: var(--dash-text-dim);
+  margin-top: 2px;
+}
+
 .dash-history-delta-badge {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   font-size: 11.5px;
   font-weight: 600;
-  padding: 2px 8px;
-  border-radius: var(--dash-radius-sm);
+  padding: 3px 8px;
+  border-radius: var(--dash-radius-full);
   width: fit-content;
 }
 
@@ -1210,7 +1365,7 @@ body.theme-dark .dash-history-card:hover {
   justify-content: space-between;
   padding-top: 10px;
   border-top: 1px solid var(--dash-border-subtle);
-  margin-top: 2px;
+  margin-top: 10px;
 }
 
 .dash-history-rush {
@@ -1221,31 +1376,11 @@ body.theme-dark .dash-history-card:hover {
   gap: 5px;
 }
 
-.dash-history-gender-split {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  margin-top: 6px;
-  color: var(--dash-text-muted);
-}
-
-.dash-history-gender-split .male {
-  color: var(--dash-blue);
-}
-
-.dash-history-gender-split .female {
-  color: #db2777;
-}
-
 .dash-history-cat-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
-  margin-top: 6px;
-  padding-top: 6px;
-  border-top: 1px solid var(--dash-border-subtle);
+  gap: 6px;
+  margin-top: 10px;
 }
 
 .dash-hist-cat-pill {
@@ -1253,10 +1388,11 @@ body.theme-dark .dash-history-card:hover {
   align-items: center;
   gap: 4px;
   font-size: 11.5px;
-  padding: 3px 8px;
+  padding: 4px 9px;
   border-radius: var(--dash-radius-sm);
   background: var(--dash-bg-subtle);
   color: var(--dash-text-muted);
+  border: 1px solid var(--dash-border);
 }
 
 .dash-hist-cat-name {
@@ -1439,6 +1575,12 @@ body.theme-dark .footer-container {
   }
   .dash-stat-num {
     font-size: 2rem;
+  }
+  .dash-hist-gender-row {
+    grid-template-columns: 1fr;
+  }
+  .dash-hist-split-box {
+    justify-content: space-around;
   }
 }
 

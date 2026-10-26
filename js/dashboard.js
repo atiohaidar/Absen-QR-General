@@ -1739,17 +1739,23 @@
         const sess = att.sessions[s.id];
         if (sess && (sess.status === "HADIR" || sess.status === "CHECKOUT")) {
           attended++;
+          if (g === "Laki-laki") {
+            maleAttended++;
+            if (sess.status === "CHECKOUT") maleCheckedOut++;
+            else maleInLocation++;
+          } else if (g === "Perempuan") {
+            femaleAttended++;
+            if (sess.status === "CHECKOUT") femaleCheckedOut++;
+            else femaleInLocation++;
+          }
+
           if (sess.status === "CHECKOUT") {
             checkouts++;
-            if (g === "Laki-laki") maleCheckedOut++;
-            else if (g === "Perempuan") femaleCheckedOut++;
             if (catStats[cVal]) {
               catStats[cVal].attended++;
               catStats[cVal].checkedOut++;
             }
           } else {
-            if (g === "Laki-laki") maleInLocation++;
-            else if (g === "Perempuan") femaleInLocation++;
             if (catStats[cVal]) {
               catStats[cVal].attended++;
               catStats[cVal].inLocation++;
@@ -2161,45 +2167,78 @@
         const diff = s.attended - prev.attended;
         const pctDiff = Math.round((diff / prev.attended) * 100);
         if (diff > 0) {
-          deltaBadge = `<span class="dash-history-delta-badge up">+${pctDiff}% (+${diff}) vs ${escapeHtml(prev.sessionName)}</span>`;
+          deltaBadge = `<span class="dash-history-delta-badge up" title="Naik dibanding sesi sebelumnya">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="18 15 12 9 6 15"></polyline></svg>
+            +${pctDiff}% (+${diff} org)
+          </span>`;
         } else if (diff < 0) {
-          deltaBadge = `<span class="dash-history-delta-badge down">${pctDiff}% (${diff}) vs ${escapeHtml(prev.sessionName)}</span>`;
+          deltaBadge = `<span class="dash-history-delta-badge down" title="Turun dibanding sesi sebelumnya">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            ${pctDiff}% (${diff} org)
+          </span>`;
         } else {
-          deltaBadge = `<span class="dash-history-delta-badge neutral">Stabil vs ${escapeHtml(prev.sessionName)}</span>`;
+          deltaBadge = `<span class="dash-history-delta-badge neutral">Stabil</span>`;
         }
       } else if (prev && prev.attended === 0 && s.attended > 0) {
-        deltaBadge = `<span class="dash-history-delta-badge up">+${s.attended} vs ${escapeHtml(prev.sessionName)}</span>`;
+        deltaBadge = `<span class="dash-history-delta-badge up">+${s.attended} org</span>`;
       }
 
-      const statusBadge = s.status === "AKTIF"
-        ? `<span class="dash-stat-badge badge-hadir">Sesi Aktif</span>`
-        : `<span class="dash-stat-badge badge-neutral">Selesai</span>`;
+      const statusBadge = (s.status === "AKTIF")
+        ? `<span class="dash-badge dash-badge-hadir">Sesi Aktif</span>`
+        : `<span class="dash-badge dash-badge-selesai">Selesai</span>`;
 
-      const rushHtml = (s.peakCount > 0 && s.peakSlot)
-        ? `<span class="dash-history-rush" title="Puncak kedatangan">
-             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-             Puncak: Pukul ${s.peakSlot} WIB (${s.peakCount} orang)
-           </span>`
-        : `<span class="dash-history-rush" style="color: var(--dash-text-dim);">Belum ada waktu scan</span>`;
+      // Split Box Hadir (Di Lokasi) vs Checkout jika ada aktivitas checkout
+      let splitBoxHtml = '';
+      if (s.checkedOut > 0) {
+        splitBoxHtml = `
+          <div class="dash-hist-split-box">
+            <div class="dash-hist-split-item in-loc" title="Peserta yang masih berada di lokasi acara">
+              <span class="dash-hist-split-dot in-loc"></span>
+              <span class="dash-hist-split-label">Di Lokasi:</span>
+              <strong class="dash-hist-split-val">${s.inLocation}</strong>
+            </div>
+            <div class="dash-hist-split-divider"></div>
+            <div class="dash-hist-split-item out" title="Peserta yang sudah checkout kepulangan">
+              <span class="dash-hist-split-dot out"></span>
+              <span class="dash-hist-split-label">Checkout:</span>
+              <strong class="dash-hist-split-val">${s.checkedOut}</strong>
+            </div>
+          </div>
+        `;
+      }
 
+      // Rincian Berdasarkan Kategori / Gender
       let categoryBreakdownHtml = '';
       if (dimName && s.categoryStats) {
         if (isGender) {
           const hasCo = (s.maleCheckedOut > 0 || s.femaleCheckedOut > 0);
-          const maleDetail = hasCo
-            ? `L: ${s.maleAttended}/${s.maleTotal} (${s.maleInLocation} lokasi &bull; ${s.maleCheckedOut} out)`
-            : `L: ${s.maleAttended}/${s.maleTotal} (${s.maleRate}%)`;
-          const femaleDetail = hasCo
-            ? `P: ${s.femaleAttended}/${s.femaleTotal} (${s.femaleInLocation} lokasi &bull; ${s.femaleCheckedOut} out)`
-            : `P: ${s.femaleAttended}/${s.femaleTotal} (${s.femaleRate}%)`;
+          categoryBreakdownHtml = `
+            <div class="dash-hist-gender-row">
+              <div class="dash-hist-gender-chip male">
+                <div class="dash-hist-chip-header">
+                  <span class="dash-hist-chip-title">Laki-laki</span>
+                  <span class="dash-hist-chip-pct">${s.maleRate}%</span>
+                </div>
+                <div class="dash-hist-chip-body">
+                  <strong class="dash-hist-chip-num">${s.maleAttended}</strong>
+                  <span class="dash-hist-chip-of">/ ${s.maleTotal}</span>
+                </div>
+                ${hasCo ? `<div class="dash-hist-chip-sub">${s.maleInLocation} lokasi &bull; ${s.maleCheckedOut} out</div>` : ''}
+              </div>
 
-          categoryBreakdownHtml = (s.maleTotal > 0 || s.femaleTotal > 0)
-            ? `<div class="dash-history-gender-split">
-                 <span class="male">${maleDetail}</span>
-                 <span>&bull;</span>
-                 <span class="female">${femaleDetail}</span>
-               </div>`
-            : '';
+              <div class="dash-hist-gender-chip female">
+                <div class="dash-hist-chip-header">
+                  <span class="dash-hist-chip-title">Perempuan</span>
+                  <span class="dash-hist-chip-pct">${s.femaleRate}%</span>
+                </div>
+                <div class="dash-hist-chip-body">
+                  <strong class="dash-hist-chip-num">${s.femaleAttended}</strong>
+                  <span class="dash-hist-chip-of">/ ${s.femaleTotal}</span>
+                </div>
+                ${hasCo ? `<div class="dash-hist-chip-sub">${s.femaleInLocation} lokasi &bull; ${s.femaleCheckedOut} out</div>` : ''}
+              </div>
+            </div>
+          `;
         } else {
           const catEntries = Object.entries(s.categoryStats)
             .filter(([_, st]) => st.total > 0)
@@ -2207,20 +2246,17 @@
             .slice(0, 4);
 
           if (catEntries.length > 0) {
-            const hasAnyCoInSess = catEntries.some(([_, st]) => st.checkedOut > 0);
             const pills = catEntries.map(([cName, st]) => {
               const displayName = cName.length > 16 ? cName.slice(0, 14) + '..' : cName;
               const hasCo = (st.checkedOut > 0);
-              const tooltip = `${escapeHtml(cName)}: ${st.attended} dari ${st.total} orang hadir (${st.rate}%)${hasCo ? ` [Di Lokasi: ${st.inLocation}, Checkout: ${st.checkedOut}]` : ''}`;
-              const subPill = hasAnyCoInSess
-                ? `<span class="dash-hist-cat-sub">${st.inLocation} in &bull; ${st.checkedOut} out</span>`
-                : `<span class="dash-hist-cat-sub">${st.rate}%</span>`;
-
-              return `<span class="dash-hist-cat-pill" title="${tooltip}">
-                <span class="dash-hist-cat-name">${escapeHtml(displayName)}:</span>
-                <span class="dash-hist-cat-val">${st.attended}/${st.total}</span>
-                ${subPill}
-              </span>`;
+              const subText = hasCo ? `${st.inLocation} in &bull; ${st.checkedOut} out` : `${st.rate}%`;
+              return `
+                <div class="dash-hist-cat-pill" title="${escapeHtml(cName)}: ${st.attended} dari ${st.total} orang hadir (${st.rate}%)">
+                  <span class="dash-hist-cat-name">${escapeHtml(displayName)}:</span>
+                  <strong class="dash-hist-cat-val">${st.attended}/${st.total}</strong>
+                  <span class="dash-hist-cat-sub">(${subText})</span>
+                </div>
+              `;
             }).join("");
 
             categoryBreakdownHtml = `<div class="dash-history-cat-row">${pills}</div>`;
@@ -2228,48 +2264,53 @@
         }
       }
 
-      const checkoutInfoHtml = (s.checkedOut > 0)
-        ? `<div style="font-size: 0.74rem; color: var(--dash-text-muted); margin-top: 4px; display: flex; align-items: center; gap: 5px;">
-             <span>${s.inLocation || (s.attended - s.checkedOut)} di lokasi</span>
-             <span>&bull;</span>
-             <span>${s.checkedOut} checkout</span>
+      const rushHtml = (s.peakCount > 0 && s.peakSlot)
+        ? `<div class="dash-history-rush" title="Puncak kedatangan">
+             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+             <span>Puncak: <strong>Pukul ${s.peakSlot} WIB</strong> (${s.peakCount} org)</span>
            </div>`
+        : `<div class="dash-history-rush" style="color: var(--dash-text-dim);"><span>Belum ada waktu scan</span></div>`;
+
+      const dateHtml = (s.date && s.date !== "Sesi Acara")
+        ? `<div class="dash-history-card-date">${escapeHtml(s.date)}</div>`
         : '';
 
       return `
         <div class="dash-history-card">
-          <div>
+          <div class="dash-history-card-top">
             <div class="dash-history-card-header">
-              <div>
+              <div class="dash-history-title-wrap">
                 <h3 class="dash-history-card-title">${escapeHtml(s.sessionName)}</h3>
-                <div class="dash-history-card-date">${escapeHtml(s.date || 'Sesi Acara')}</div>
+                ${dateHtml}
               </div>
-              ${statusBadge}
+              <div class="dash-history-badges-top">
+                ${deltaBadge}
+                ${statusBadge}
+              </div>
             </div>
 
             <div class="dash-history-card-stats">
-              <div class="dash-history-card-num">${s.attended} <span style="font-size: 0.9rem; font-weight: 600; color: var(--dash-text-dim);">/ ${s.totalRegistered} hadir</span></div>
+              <div class="dash-history-card-num">
+                ${s.attended}
+                <span class="dash-history-card-total">/ ${s.totalRegistered} hadir</span>
+              </div>
               <span class="dash-history-card-pct">${s.rate}%</span>
             </div>
 
-            <div class="dash-stat-progress-wrap" style="margin: 8px 0 6px;">
+            <div class="dash-stat-progress-wrap" style="margin: 6px 0 10px;">
               <div class="dash-stat-progress-bar">
                 <div class="dash-stat-progress-fill fill-green" style="width: ${s.rate}%;"></div>
               </div>
             </div>
 
+            ${splitBoxHtml}
             ${categoryBreakdownHtml}
-            ${checkoutInfoHtml}
-
-            <div style="margin-top: 8px;">
-              ${deltaBadge}
-            </div>
           </div>
 
           <div class="dash-history-card-footer">
             ${rushHtml}
             <button class="dash-btn dash-btn-sm" onclick="EventPassSimple.openSessionInLive('${escapeJs(s.sessionId)}')">
-              <span>Buka di Live</span>
+              <span>Buka Sesi</span>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
             </button>
           </div>
