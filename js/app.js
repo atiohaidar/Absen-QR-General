@@ -527,6 +527,40 @@ window.EventPass = window.EventPass || {};
           ns.UI.openLocationModal("prompt");
         });
       }
+
+      // 11. Report Issue Link (Auto pre-fill with device & session context)
+      const linkReportIssue = document.getElementById("link-report-issue");
+      if (linkReportIssue) {
+        linkReportIssue.addEventListener("click", (e) => {
+          e.preventDefault();
+          const sess = ns.state.currentSessionName || "Sesi Tidak Diketahui";
+          const mode = ns.state.currentScanMode || "IN";
+          const op = ns.state.panitiaName || "Anonim";
+          const device = ns.state.deviceInfo || navigator.userAgent;
+          const urlStatus = ns.state.apiUrl ? "Tersambung" : "Belum Disetting";
+          const errLog = ns.state.apiErrorMessage || "-";
+
+          const title = encodeURIComponent("[Kendala Lapangan]: ");
+          const body = encodeURIComponent(
+`### 📝 Deskripsi Masalah
+Jelaskan kendala atau bug yang Anda alami di sini:
+
+
+---
+### 📱 Informasi Sistem & Lingkungan (Otomatis)
+- **Sesi Aktif**: ${sess} (${ns.state.currentSessionId || "-"})
+- **Mode Presensi**: ${mode === "OUT" ? "Keluar (Check-Out)" : "Masuk (Check-In)"}
+- **Petugas / Gate**: ${op} (${ns.state.gateName || "-"})
+- **Status API**: ${urlStatus}
+- **Pesan Error Terakhir**: ${errLog}
+- **Perangkat**: ${device}
+- **Waktu Laporan**: ${new Date().toLocaleString("id-ID")}
+`
+          );
+
+          window.open(`https://github.com/atiohaidar/Absen-QR-General/issues/new?title=${title}&body=${body}`, "_blank", "noopener,noreferrer");
+        });
+      }
     },
 
     /**

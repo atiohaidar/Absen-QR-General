@@ -287,8 +287,7 @@
         <div class="form-group">
           <label class="form-label" for="manual-search-query">Cari Berdasarkan Nama</label>
           <div class="input-action-row">
-            <input type="text" id="manual-search-query" class="input-box"
-              placeholder="Ketik nama atau email peserta...">
+            <input type="text" id="manual-search-query" class="input-box" placeholder="Ketik nama peserta...">
             <button id="btn-search-query" class="btn-primary" style="width: auto; padding: 0 22px;">Cari</button>
           </div>
         </div>
@@ -310,7 +309,8 @@
             <button id="btn-clear-history" class="btn-icon btn-clear-text" title="Bersihkan Riwayat Pemindaian">
               <span>Bersihkan Riwayat</span>
             </button>
-            <button id="btn-clear-all-data" class="btn-icon btn-clear-text" style="color: #b91c1c; border-color: rgba(185, 28, 28, 0.25);" title="Hapus Cache Peserta Lokal">
+            <button id="btn-clear-all-data" class="btn-icon btn-clear-text"
+              style="color: #b91c1c; border-color: rgba(185, 28, 28, 0.25);" title="Hapus Cache Peserta Lokal">
               <span>Hapus Cache</span>
             </button>
           </div>
@@ -398,13 +398,24 @@
 
   </main>
 
-  <!-- Application Footer (Optimization Badge) -->
+  <!-- Application Footer (Optimization Badge & Issue Report Link) -->
   <footer class="app-footer" aria-label="Informasi Optimasi Aplikasi">
     <div class="footer-container">
       <span class="footer-optimized-text">Dioptimalkan untuk</span>
       <img
         src="https://raw.githubusercontent.com/atiohaidar/wajihah-qr-generator/refs/heads/main/public/LOGO%20WAJIHAH/DKMSU.png"
         alt="Logo DKMSU" class="footer-brand-logo" loading="lazy">
+    </div>
+    <div class="footer-issue-wrap">
+      <span>Ada kendala atau masalah?</span>
+      <a href="https://github.com/atiohaidar/Absen-QR-General/issues/new" target="_blank" rel="noopener noreferrer" class="footer-issue-link" id="link-report-issue" title="Laporkan bug atau kendala teknis ke GitHub Issues">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+        <span>Klik di sini</span>
+      </a>
     </div>
   </footer>
 

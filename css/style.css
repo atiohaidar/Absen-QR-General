@@ -710,8 +710,10 @@ body {
   margin-top: auto;
   padding: 10px 16px max(24px, calc(env(safe-area-inset-bottom) + 16px));
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
+  gap: 8px;
   z-index: 10;
   position: relative;
 }
@@ -759,6 +761,37 @@ body {
 
 .footer-container:hover .footer-brand-logo {
   transform: scale(1.05);
+}
+
+.footer-issue-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.footer-issue-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--primary);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2.5px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.footer-issue-link:hover {
+  color: var(--primary-hover);
+  text-decoration: none;
+  transform: translateY(-0.5px);
+}
+
+.footer-issue-link svg {
+  flex-shrink: 0;
 }
 
 /* ==============================================================================
