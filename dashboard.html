@@ -92,42 +92,47 @@
     <!-- SIMPLE CONTROLS BAR -->
     <section class="dash-simple-controls">
       <div class="dash-control-item">
-        <label for="select-session" class="dash-control-label">Pilih Sesi Acara</label>
+        <label for="select-session" class="dash-control-label">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+          <span>Pilih Sesi Acara</span>
+        </label>
         <select id="select-session" class="dash-select">
           <option value="">Memuat daftar sesi...</option>
         </select>
       </div>
 
       <div class="dash-control-item">
-        <label for="select-dimension" class="dash-control-label">Pecah Berdasarkan Kategori</label>
+        <label for="select-dimension" class="dash-control-label">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+          <span>Pecah Berdasarkan Kategori</span>
+        </label>
         <select id="select-dimension" class="dash-select">
           <option value="NONE">Semua Peserta (Tanpa Pemecahan)</option>
         </select>
       </div>
-
-      <div class="dash-control-item dash-search-item">
-        <label for="dash-search-input" class="dash-control-label">Cari Peserta</label>
-        <div class="dash-search-box">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="11" cy="11" r="8"></circle>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-          </svg>
-          <input type="text" id="dash-search-input" class="dash-search-input"
-            placeholder="Ketik nama atau nomor tiket...">
-        </div>
-      </div>
     </section>
 
-    <!-- 3 HERO KPI STATS (BESAR & JELAS) -->
+    <!-- 3 HERO KPI STATS (BESAR, JELAS, ELEGAN) -->
     <section class="dash-hero-stats">
       <!-- 1. Total Peserta -->
-      <div class="dash-stat-card">
+      <div class="dash-stat-card card-total">
         <div class="dash-stat-header">
           <span class="dash-stat-title">Total Terdaftar</span>
-          <div class="dash-stat-badge">Peserta</div>
+          <div class="dash-stat-badge badge-neutral">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            <span>Semua Data</span>
+          </div>
         </div>
-        <div class="dash-stat-num" id="kpi-total-registered">0</div>
-        <div class="dash-stat-sub">Seluruh peserta yang ada di sheet</div>
+        <div class="dash-stat-num">
+          <span id="kpi-total-registered">0</span>
+          <span class="dash-stat-unit">Orang</span>
+        </div>
+        <div class="dash-stat-progress-wrap">
+          <div class="dash-stat-progress-bar bar-total">
+            <div class="dash-stat-progress-fill fill-total" style="width: 100%;"></div>
+          </div>
+        </div>
+        <div class="dash-stat-sub">Seluruh peserta yang terdaftar di database</div>
       </div>
 
       <!-- 2. Sudah Hadir -->
@@ -135,15 +140,21 @@
         <div class="dash-stat-header">
           <span class="dash-stat-title">Sudah Hadir</span>
           <div class="dash-stat-badge badge-hadir">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-            Terkonfirmasi
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            <span>Terkonfirmasi</span>
           </div>
         </div>
         <div class="dash-stat-num stat-green">
           <span id="kpi-total-attended">0</span>
-          <span class="dash-stat-pct" id="kpi-attendance-pct">0%</span>
+          <span class="dash-stat-unit">Orang</span>
+          <span class="dash-stat-pct-pill" id="kpi-attendance-pct">0%</span>
         </div>
-        <div class="dash-stat-sub" id="kpi-attended-sub">Peserta sudah melewati scanner</div>
+        <div class="dash-stat-progress-wrap">
+          <div class="dash-stat-progress-bar">
+            <div id="kpi-progress-bar" class="dash-stat-progress-fill fill-green" style="width: 0%;"></div>
+          </div>
+        </div>
+        <div class="dash-stat-sub" id="kpi-attended-sub">Peserta sudah melewati scanner sesi ini</div>
       </div>
 
       <!-- 3. Belum Hadir -->
@@ -151,26 +162,21 @@
         <div class="dash-stat-header">
           <span class="dash-stat-title">Belum Hadir</span>
           <div class="dash-stat-badge badge-belum">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-            Menunggu
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+            <span>Menunggu</span>
           </div>
         </div>
         <div class="dash-stat-num stat-amber">
           <span id="kpi-total-absent">0</span>
-          <span class="dash-stat-pct" id="kpi-absent-pct">0%</span>
+          <span class="dash-stat-unit">Orang</span>
+          <span class="dash-stat-pct-pill pill-amber" id="kpi-absent-pct">0%</span>
+        </div>
+        <div class="dash-stat-progress-wrap">
+          <div class="dash-stat-progress-bar bar-amber">
+            <div id="kpi-absent-progress-bar" class="dash-stat-progress-fill fill-amber" style="width: 0%;"></div>
+          </div>
         </div>
         <div class="dash-stat-sub">Peserta belum hadir pada sesi ini</div>
-      </div>
-    </section>
-
-    <!-- OVERALL PROGRESS BAR -->
-    <section class="dash-progress-card">
-      <div class="dash-progress-label-row">
-        <span>Rasio Kehadiran Sesi</span>
-        <strong id="progress-summary-text">0 dari 0 orang hadir</strong>
-      </div>
-      <div class="dash-main-progress-track">
-        <div id="main-progress-bar" class="dash-main-progress-bar" style="width: 0%;"></div>
       </div>
     </section>
 
@@ -220,25 +226,37 @@
         <!-- 3 Filter Tabs Sederhana -->
         <div class="dash-filter-tabs">
           <button class="dash-filter-tab active" data-status="ALL">
-            Semua Peserta (<span id="tab-count-all">0</span>)
+            Semua (<span id="tab-count-all">0</span>)
           </button>
           <button class="dash-filter-tab tab-hadir" data-status="HADIR">
-            Sudah Hadir (<span id="tab-count-hadir">0</span>)
+            Hadir (<span id="tab-count-hadir">0</span>)
           </button>
           <button class="dash-filter-tab tab-belum" data-status="BELUM_HADIR">
             Belum Hadir (<span id="tab-count-belum">0</span>)
           </button>
         </div>
 
-        <!-- Export CSV Button -->
-        <button id="btn-export-csv" class="dash-btn dash-btn-sm" title="Unduh data peserta ke Excel / CSV">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="7 10 12 15 17 10"></polyline>
-            <line x1="12" y1="15" x2="12" y2="3"></line>
-          </svg>
-          <span>Unduh CSV</span>
-        </button>
+        <div class="dash-table-actions">
+          <!-- Search Box Contextual to Table -->
+          <div class="dash-table-search-box">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" id="dash-search-input" class="dash-table-search-input"
+              placeholder="Cari nama, ID tiket, WA...">
+          </div>
+
+          <!-- Export CSV Button -->
+          <button id="btn-export-csv" class="dash-btn dash-btn-sm" title="Unduh data peserta ke Excel / CSV">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            <span>Unduh CSV</span>
+          </button>
+        </div>
       </div>
 
       <!-- Active Drilldown Notice -->

@@ -498,13 +498,20 @@
     const elAttPct = document.getElementById("kpi-attendance-pct");
     const elAbsPct = document.getElementById("kpi-absent-pct");
 
-    if (elTotal) elTotal.textContent = `${total} Orang`;
-    if (elAttended) elAttended.textContent = `${attended} Orang`;
-    if (elAbsent) elAbsent.textContent = `${absent} Orang`;
-    if (elAttPct) elAttPct.textContent = `(${attendedPct}%)`;
-    if (elAbsPct) elAbsPct.textContent = `(${absentPct}%)`;
+    if (elTotal) elTotal.textContent = total;
+    if (elAttended) elAttended.textContent = attended;
+    if (elAbsent) elAbsent.textContent = absent;
+    if (elAttPct) elAttPct.textContent = `${attendedPct}%`;
+    if (elAbsPct) elAbsPct.textContent = `${absentPct}%`;
 
-    // Progress Bar
+    // Progress Bars in Hero Cards
+    const kpiProgBar = document.getElementById("kpi-progress-bar");
+    if (kpiProgBar) kpiProgBar.style.width = `${attendedPct}%`;
+
+    const kpiAbsBar = document.getElementById("kpi-absent-progress-bar");
+    if (kpiAbsBar) kpiAbsBar.style.width = `${absentPct}%`;
+
+    // Legacy Fallback if element exists
     const progBar = document.getElementById("main-progress-bar");
     const progText = document.getElementById("progress-summary-text");
     if (progBar) progBar.style.width = `${attendedPct}%`;
@@ -564,10 +571,15 @@
       const isSelected = (state.drilldownValue === cat);
 
       return `
-        <div class="dash-group-card ${isSelected ? 'active-selected' : ''}" onclick="window.EventPassSimple.selectGroup('${escapeJs(cat)}')">
+        <div class="dash-group-card ${isSelected ? 'active-selected' : ''}" onclick="window.EventPassSimple.selectGroup('${escapeJs(cat)}')" title="${isSelected ? 'Klik untuk menghapus filter' : 'Klik untuk menyaring tabel'}">
           <div class="dash-group-header">
             <span class="dash-group-name">${escapeHtml(cat)}</span>
-            <span class="dash-group-total">${g.total} Orang</span>
+            <div class="dash-group-badges">
+              <span class="dash-group-total">${g.total} Orang</span>
+              <span class="dash-group-filter-pill ${isSelected ? 'active' : ''}">
+                ${isSelected ? 'Filter Aktif ✓' : 'Saring →'}
+              </span>
+            </div>
           </div>
 
           <div class="dash-group-stats-row">
