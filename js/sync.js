@@ -62,6 +62,7 @@ window.EventPass = window.EventPass || {};
         ns.DOM.btnSyncAttendees.disabled = true;
         ns.DOM.btnSyncAttendees.innerHTML = `<div class="spinner" style="width:10px;height:10px;border-width:1.5px;"></div> <span>Syncing...</span>`;
       }
+      if (ns.DOM.globalLoadingBar) ns.DOM.globalLoadingBar.classList.add("active");
 
       try {
         const data = await ns.API.fetchAttendees();
@@ -119,6 +120,7 @@ window.EventPass = window.EventPass || {};
           ns.UI.showToast(`Gagal sync database: ${err.message}`);
         }
       } finally {
+        if (ns.DOM.globalLoadingBar) ns.DOM.globalLoadingBar.classList.remove("active");
         if (isManual && ns.DOM.btnSyncAttendees) {
           ns.DOM.btnSyncAttendees.disabled = false;
           ns.DOM.btnSyncAttendees.innerHTML = `

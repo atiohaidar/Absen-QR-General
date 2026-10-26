@@ -97,6 +97,9 @@ window.EventPass = window.EventPass || {};
         DOM.btnRefreshSessions.addEventListener("click", (e) => {
           e.stopPropagation();
           this.syncSessions(true);
+          if (ns.Sync && ns.state.apiUrl) {
+            ns.Sync.syncAttendees(false);
+          }
         });
       }
 
@@ -705,9 +708,11 @@ window.EventPass = window.EventPass || {};
         const panitiaParam = searchParams.get("panitia") || searchParams.get("operator") || (hashParams && hashParams.get("panitia"));
 
         let hasNewConfig = false;
+        let isUrlChanged = false;
 
         if (apiParam && apiParam.trim().startsWith("http")) {
           const cleanApi = apiParam.trim();
+          isUrlChanged = (ns.state.apiUrl && ns.state.apiUrl !== cleanApi);
           ns.state.apiUrl = cleanApi;
           localStorage.setItem("absen_api_url", cleanApi);
           if (ns.DOM.inputApiUrl) ns.DOM.inputApiUrl.value = cleanApi;
@@ -730,13 +735,17 @@ window.EventPass = window.EventPass || {};
           hasNewConfig = true;
         }
 
+        if (isUrlChanged) {
+          this.purgeAllEventData(ns.state.apiUrl, true);
+        }
+
         if (hasNewConfig) {
           // Bersihkan query string dari browser address bar agar tetap bersih dan rapi
           const cleanUrl = window.location.origin + window.location.pathname;
           window.history.replaceState({}, document.title, cleanUrl);
 
           setTimeout(() => {
-            ns.UI.showToast("🔗 Terhubung otomatis ke Google Apps Script!");
+            ns.UI.showToast("🔗 Terhubung otomatis ke Google Apps Script baru!");
           }, 800);
         }
       } catch (e) {
@@ -1654,6 +1663,69 @@ window.EventPass = window.EventPass || {};
     },
 
     /**
+     * Purge all local event caches (attendees, sessions, history, queue, custom fields)
+     * when switching to a different event / different Apps Script URL to prevent
+     * cross-event data contamination.
+     */
+    purgeAllEventData(newApiUrl = "", triggerSync = true) {
+      console.log("[PURGE EVENT DATA] Purging previous event data and caches...");
+
+      // 1. Wipe attendee cache
+      ns.state.cachedAttendees = {};
+      localStorage.removeItem("absen_cached_attendees");
+
+      // 2. Wipe sessions cache
+      ns.state.sessions = [];
+      localStorage.removeItem("absen_cached_sessions");
+      ns.state.currentSessionId = "SESI-01";
+      ns.state.currentSessionName = "Memuat sesi...";
+      localStorage.removeItem("absen_current_session_id");
+      localStorage.removeItem("absen_current_session_name");
+
+      // 3. Wipe history & offline queue
+      ns.state.history = [];
+      localStorage.removeItem("absen_history");
+
+      ns.state.syncQueue = [];
+      localStorage.removeItem("absen_sync_queue");
+
+      // 4. Wipe custom fields & last sync time
+      ns.state.customFields = [];
+      localStorage.removeItem("absen_custom_fields");
+      ns.state.lastSyncTime = null;
+      localStorage.removeItem("absen_last_sync_time");
+
+      ns.state.isApiConnected = null;
+      ns.state.apiErrorMessage = "";
+
+      // 5. Reset UI components
+      if (ns.DOM.statTotal) ns.DOM.statTotal.textContent = "0";
+      if (ns.DOM.searchQuery) ns.DOM.searchQuery.value = "";
+      if (ns.DOM.searchResults) ns.DOM.searchResults.innerHTML = "";
+      if (ns.DOM.searchEmptyState) ns.DOM.searchEmptyState.style.display = "block";
+      if (ns.DOM.historyList) ns.DOM.historyList.innerHTML = "";
+      if (ns.DOM.historyEmptyState) ns.DOM.historyEmptyState.style.display = "block";
+      if (ns.DOM.syncQueueBadge) ns.DOM.syncQueueBadge.style.display = "none";
+      if (ns.DOM.otsCustomFieldsContainer) ns.DOM.otsCustomFieldsContainer.innerHTML = "";
+
+      ns.UI.renderSessionDropdown();
+      ns.UI.renderHistory();
+      if (ns.Sync) {
+        ns.Sync.updateCacheCountUI();
+        ns.Sync.updateSyncUI();
+      }
+
+      ns.UI.showToast("Data acara sebelumnya dibersihkan. Memuat data acara baru...");
+
+      if (triggerSync && newApiUrl) {
+        this.syncSessions(true);
+        if (ns.Sync) {
+          setTimeout(() => ns.Sync.syncAttendees(false), 400);
+        }
+      }
+    },
+
+    /**
      * Save settings to localStorage
      */
     handleSaveSettings() {
@@ -1669,17 +1741,12 @@ window.EventPass = window.EventPass || {};
 
       ns.state.panitiaName = pName;
       ns.state.gateName = gName;
-      const urlChanged = (ns.state.apiUrl !== aUrl);
+      const urlChanged = (ns.state.apiUrl && ns.state.apiUrl !== aUrl);
       ns.state.apiUrl = aUrl;
 
       localStorage.setItem("absen_panitia_name", pName);
       localStorage.setItem("absen_gate_name", gName);
       localStorage.setItem("absen_api_url", aUrl);
-
-      if (urlChanged) {
-        ns.state.isApiConnected = null;
-        ns.state.apiErrorMessage = "";
-      }
 
       // Sinkronkan ke form modal Operator Identity
       if (ns.DOM.inputOpName) ns.DOM.inputOpName.value = pName;
@@ -1698,6 +1765,12 @@ window.EventPass = window.EventPass || {};
 
       ns.UI.renderOperatorHeader();
       ns.UI.closeSettingsModal();
+
+      if (urlChanged) {
+        this.purgeAllEventData(aUrl, true);
+        return;
+      }
+
       ns.UI.showToast("Pengaturan berhasil disimpan.");
 
       if (ns.Sync) {

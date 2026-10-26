@@ -475,20 +475,22 @@ body {
 .scan-mode-pill-group {
   display: flex;
   background: #e2e8f0;
-  padding: 4px;
+  padding: 3px;
   border-radius: var(--radius-md);
   border: 1px solid #cbd5e1;
-  gap: 6px;
+  gap: 4px;
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
+  width: 100%;
 }
 
 .scan-mode-btn {
-  flex: 1;
-  display: flex;
+  flex: 1 1 50%;
+  min-width: 0;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 8px 12px;
+  padding: 7px 10px;
   background: transparent;
   border: 1.5px solid transparent;
   border-radius: var(--radius-sm);
@@ -499,40 +501,29 @@ body {
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   white-space: nowrap;
+  user-select: none;
 }
 
 .scan-mode-btn:hover:not(.active) {
   color: var(--text-main);
-  background: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.65);
 }
 
-.scan-mode-btn .mode-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  transition: transform 0.2s ease;
+.scan-mode-btn svg {
   flex-shrink: 0;
+  transition: transform 0.2s ease;
 }
 
-.scan-mode-btn .mode-dot.in {
-  background: #059669;
+.scan-mode-btn .mode-text {
+  font-weight: 700;
+  letter-spacing: 0.2px;
 }
 
-.scan-mode-btn .mode-dot.out {
-  background: #d97706;
-}
-
-.scan-mode-btn .mode-badge-status {
-  display: none;
-  font-size: 9.5px;
-  font-weight: 800;
-  letter-spacing: 0.5px;
-  padding: 2px 7px;
-  border-radius: 99px;
-  background: rgba(255, 255, 255, 0.28);
-  color: #ffffff;
-  margin-left: 4px;
-  text-transform: uppercase;
+.scan-mode-btn .mode-sub {
+  font-size: 11px;
+  font-weight: 500;
+  opacity: 0.85;
+  margin-left: 1px;
 }
 
 /* ==========================================================================
@@ -540,12 +531,7 @@ body {
    ========================================================================== */
 .scan-mode-btn.active {
   font-weight: 700;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.16), 0 1px 2px rgba(0, 0, 0, 0.08);
-}
-
-.scan-mode-btn.active .mode-badge-status {
-  display: inline-flex;
-  align-items: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.14), 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 
 /* Active Check-In: Solid Deep Emerald Green with Crisp White Text */
@@ -557,12 +543,7 @@ body {
 
 .scan-mode-btn.active[data-mode="IN"] svg {
   stroke: #ffffff;
-}
-
-.scan-mode-btn.active[data-mode="IN"] .mode-dot.in {
-  background: #ffffff;
-  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.35);
-  transform: scale(1.15);
+  transform: scale(1.08);
 }
 
 /* Active Check-Out: Solid Vibrant Amber/Rust with Crisp White Text */
@@ -574,12 +555,25 @@ body {
 
 .scan-mode-btn.active[data-mode="OUT"] svg {
   stroke: #ffffff;
+  transform: scale(1.08);
 }
 
-.scan-mode-btn.active[data-mode="OUT"] .mode-dot.out {
-  background: #ffffff;
-  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.35);
-  transform: scale(1.15);
+/* Mobile & Narrow Screens: Hide sub-text so buttons stay perfectly compact and never clip */
+@media (max-width: 540px) {
+  .scan-mode-btn .mode-sub {
+    display: none;
+  }
+
+  .scan-mode-btn {
+    padding: 6px 8px;
+    font-size: 12px;
+    gap: 5px;
+  }
+
+  .scan-mode-btn svg {
+    width: 13px;
+    height: 13px;
+  }
 }
 
 @keyframes fadeInDown {
