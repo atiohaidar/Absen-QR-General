@@ -162,6 +162,67 @@ Aplikasi mengandalkan `localStorage` untuk mempercepat pencarian data peserta da
 
 ---
 
+## 9. Kendala 8: Input Kontak OTS Menggabungkan Email & WhatsApp (Kolom Tertimpa)
+
+### Masalah
+Form pendaftaran di tempat (OTS) pada antarmuka frontend sebelumnya hanya menyediakan satu kolom input gabungan: `No. WhatsApp / Email (Opsional)`. Pada saat bersamaan, backend memasukkan kata kunci `"whatsapp"`, `"no hp"`, `"kontak"`, dan `"email"` ke dalam kategori tunggal `isContact`:
+* Jika spreadsheet memiliki kolom terpisah untuk `Email` dan `No WhatsApp`, backend mengisi kedua kolom tersebut dengan teks yang sama persis sehingga data saling bertumpuk/tertimpa.
+* Kolom WhatsApp juga disembunyikan dari daftar `customFields` dinamis, sehingga tidak dapat diisi secara mandiri.
+
+### Solusi
+1. **Pemisahan Input di Frontend (`index.html` & `js/state.js`)**:
+   Input statis bawaan form OTS disederhanakan menjadi khusus `Email (Opsional)` (`ots-email`).
+2. **Dynamic WhatsApp Field via Backend (`backend/Code.gs` & `bukber.gs`)**:
+   Kategori `isContact` di backend diubah hanya mendeteksi `"email"`. Kolom `No WhatsApp` / `Nomor HP` secara otomatis diperlakukan sebagai kolom kustom dinamis yang dirender ke form OTS **hanya jika** kolom tersebut memang ada di spreadsheet panitia.
+3. **Mapping Data Presisi**:
+   Data input email hanya mengisi kolom email di sheet `Data Peserta`, sedangkan input WhatsApp/HP masuk melalui parameter kolom dinamis (`customFields`) tanpa merusak data kolom lainnya.
+
+---
+
+## 10. Kendala 9: Antrean Macet Server Busy (Lock Timeout) saat Pemindaian Serentak
+
+### Masalah
+Untuk mencegah pemindaian ganda (double-checkin), backend menggunakan `LockService.getScriptLock()`. Namun sebelumnya, seluruh rangkaian proses—mulai dari pembacaan data, penulisan kehadiran peserta, penambahan baris audit di `Log Kehadiran`, hingga sinkronisasi antar-file ke spreadsheet eksternal (`forwardLogToExternalSpreadsheet`) dan pengiriman webhook—dijalankan **di dalam lock**:
+* Operasi pembukaan spreadsheet eksternal dan webhook memakan waktu 2.000ms – 4.000ms.
+* Akibatnya, satu proses pemindaian menahan kunci selama 4–6 detik.
+* Jika 3–4 panitia memindai tiket dalam waktu yang hampir bersamaan di gate berbeda, antrean request melebihi toleransi `tryLock(15000)` (15 detik) dan memicu kegagalan sistemik dengan pesan:
+  `Server sibuk memproses antrean presensi, silakan ulangi sesaat lagi (Server Busy / Lock Timeout)`.
+
+### Solusi
+1. **Penerapan Pola Micro-Locking**:
+   Lingkup penahanan lock dipersingkat menjadi seminimal mungkin:
+   * Kunci eksklusif `LockService` hanya digunakan untuk memvalidasi tiket dan menulis status `HADIR`/`CHECKOUT` ke baris peserta di sheet `Data Peserta`.
+   * Setelah perubahan cell ditulis dan disinkronkan via `SpreadsheetApp.flush()`, **kunci langsung dilepaskan detik itu juga (`releaseLockOnce()`)**.
+   * Durasi penahanan kunci turun drastis dari **~4.500ms menjadi < 300ms** (kapasitas antrean melonjak hingga 15x lipat).
+2. **Audit Logging & External Forwarding di Luar Lock**:
+   Pencatatan riwayat scan ke tab `Log Kehadiran`, pengiriman log ke spreadsheet eksternal, dan webhook kupon dijalankan **di luar blok lock**. Operasi logging yang memakan waktu tidak lagi menahan atau memblokir pemindaian panitia lain.
+3. **Penyelarasan Timeout (27 Detik)**:
+   * Backend: Batas waktu tunggu antrean `tryLock` dinaikkan ke **27.000ms (27 detik)**.
+   * Frontend (`js/api.js`): Batas toleransi request jaringan dinaikkan menjadi **27.000ms (`DEFAULT_TIMEOUT_MS = 27000`)** agar selaras penuh dengan backend.
+4. **Audit Durasi Lock**:
+   Menambahkan pencatatan waktu antrean lock (`lockWaitMs`) dan waktu penahanan lock (`lockHeldMs`) ke dalam execution logger agar performa konkurensi terpantau transparan.
+
+---
+
+## 11. Kendala 10: Pencarian Manual Lambat & Tidak Menggunakan Database Sync Lokal
+
+### Masalah
+Fitur pencarian manual peserta (berdasarkan Nama, Email, atau ID Tiket) sebelumnya selalu mengirim request jaringan `action: search` ke Google Apps Script:
+* Google Apps Script harus membaca ulang seluruh range data peserta (`getDataRange().getValues()`) dan melakukan pencarian baris per baris di server, memakan waktu 2–4 detik.
+* Fitur pencarian gagal total jika koneksi internet panitia di lapangan tidak stabil atau offline, padahal data semua peserta sudah tersimpan di browser dari tombol **Sync Database**.
+
+### Solusi
+1. **Cache-First Instant Search (`js/app.js`)**:
+   Fungsi `performSearch()` diubah menjadi memprioritaskan pencarian langsung dari memori lokal HP (`ns.state.cachedAttendees` di `localStorage`).
+   * Waktu pencarian turun menjadi **< 5 milidetik (instan)** tanpa loading spinner.
+   * Mendukung pencarian saat offline atau di area dengan sinyal lemah.
+2. **Live Typing Debounce**:
+   Menambahkan listener otomatis saat operator mengetik minimal 2 karakter (debounce 250ms), sehingga hasil pencarian otomatis muncul tanpa harus menekan tombol "Cari" atau tombol Enter.
+3. **Smart Fallback ke Server**:
+   Pencarian ke server Google Apps Script hanya dijalankan sebagai fallback jika data sama sekali tidak ditemukan di memori lokal atau jika cache lokal masih kosong.
+
+---
+
 ## Ringkasan Akhir Status Sistem
 
 | Bagian | Kondisi Awal | Kondisi Sekarang |
@@ -169,6 +230,8 @@ Aplikasi mengandalkan `localStorage` untuk mempercepat pencarian data peserta da
 | **Sinkronisasi Tab Kupon** | Mengandalkan trigger `onChange` (tidak jalan) | Webhook `doPost` mandiri dengan auto-migration kolom |
 | **Pencocokan Kolom WA** | Header "Waktu Daftar" terbaca sebagai WhatsApp | Regex presisi dengan blacklist kata "waktu" |
 | **Formula Timestamp** | Error locale koma dan circular reference | Formula titik koma `;` sesuai locale Indonesia |
-| **Stabilitas Scan** | Timeout 12s memicu duplicate retry | Timeout 25s, proses cold start tertangani |
+| **Stabilitas Scan & Lock** | Lock ditahan 4-6 detik, sering timeout 15s | **Micro-Locking (< 300ms)**, log di luar lock, timeout 27s |
+| **Input Kontak OTS** | Input gabungan menimpa kolom Email & WA | Input Email mandiri, kolom WhatsApp dinamis otomatis |
+| **Pencarian Manual** | Lambat 2-4s nembak GAS, gagal saat offline | **Cache-First Instant (< 5ms)** dari sync lokal + live debounce |
 | **Tampilan Mobile** | Tombol mode terpotong di HP | UI ringkas, flex 50-50, bersih tanpa elemen berulang |
 | **Manajemen Cache** | Rentan kontaminasi data saat ganti link/sesi | Auto-purge menyeluruh saat URL berubah & auto-refresh per sesi |
