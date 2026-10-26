@@ -9,7 +9,7 @@ window.EventPass = window.EventPass || {};
 (function (ns) {
   'use strict';
 
-  const DEFAULT_TIMEOUT_MS = 25000; // 25 seconds request timeout (cukup untuk cold-start dan webhook sync)
+  const DEFAULT_TIMEOUT_MS = 27000; // 27 seconds request timeout (sinkron dengan LockService 27 detik)
 
   /**
    * Helper fetch with AbortController timeout to prevent UI freeze on spotty mobile data
@@ -244,7 +244,7 @@ window.EventPass = window.EventPass || {};
     /**
      * Register walk-in attendee on the spot with dynamic custom fields
      */
-    async registerOts(name, contact, notes, customFields = {}) {
+    async registerOts(name, email, notes, customFields = {}) {
       const mapsUrl = (ns.state.location && ns.state.location.mapsUrl) ? ns.state.location.mapsUrl : "-";
       const deviceInfo = ns.state.deviceInfo || "-";
       const currentSessionId = ns.state.currentSessionId || "SESI-01";
@@ -259,7 +259,8 @@ window.EventPass = window.EventPass || {};
       const payload = {
         action: 'registerOts',
         name: name.trim(),
-        contact: contact.trim(),
+        email: (email || "").trim(),
+        contact: (email || "").trim(),
         notes: notes.trim(),
         customFields: customFields,
         sessionId: effectiveSessionId,

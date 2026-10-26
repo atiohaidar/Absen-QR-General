@@ -370,7 +370,7 @@ const CONFIG = {
       if (s.includes("ticket") || s.includes("id tiket")) ticketCol = idx;
       if (s.includes("nama")) nameCol = idx;
       if (s.includes("total") || s.includes("jumlah")) totalCol = idx;
-      if (s.includes("email") || s.includes("kontak")) emailCol = idx;
+      if (s.includes("email")) emailCol = idx;
     });
 
     return { ticketCol, nameCol, totalCol, emailCol, headers };
@@ -976,7 +976,7 @@ const CONFIG = {
       const isTicket = lower.includes("ticket") || lower === "id" || lower.includes("id tiket");
       const isName = lower.includes("nama");
       const isTotal = lower.includes("total") || lower.includes("jumlah");
-      const isContact = lower.includes("email") || lower.includes("kontak") || lower.includes("no hp") || lower.includes("whatsapp");
+      const isContact = lower.includes("email");
       const isDriveId = lower.includes("drive file id") || lower === "file id";
       const isDriveUrl = lower.includes("drive file url") || lower === "file url";
       const isTime = lower.includes("waktu") || lower === "timestamp" || lower.includes("tanggal");
@@ -1305,8 +1305,25 @@ const CONFIG = {
       // 2. MUTATION ACTIONS (CHECK-IN, CANCEL, OTS) -> MEMERLUKAN EXCLUSIVE LOCK
       // ============================================================================
       const lock = LockService.getScriptLock();
-      if (!lock.tryLock(15000)) {
-        logger.warn("ScriptLock busy / timeout after 15s");
+      let lockReleased = false;
+      let lockAcquiredAt = 0;
+      const releaseLockOnce = () => {
+        if (!lockReleased) {
+          try {
+            lock.releaseLock();
+            const lockHeldMs = lockAcquiredAt ? (Date.now() - lockAcquiredAt) : 0;
+            logger.info(`[LOCK] 🔓 ScriptLock DILEPAS setelah ditahan ${lockHeldMs}ms (Micro-Locking selesai). Antrean lain sekarang bebas masuk!`);
+          } catch (e) {
+            sysLog.info("Notice releasing lock: " + e.message);
+          }
+          lockReleased = true;
+        }
+      };
+
+      const lockWaitStart = Date.now();
+      if (!lock.tryLock(27000)) {
+        const lockWaitMs = Date.now() - lockWaitStart;
+        logger.warn(`[LOCK] ❌ ScriptLock busy / timeout setelah antre ${lockWaitMs}ms`);
         logger.setSummary("Server Busy (Lock Timeout)");
         return createJsonResponse({
           success: false,
@@ -1314,6 +1331,9 @@ const CONFIG = {
           message: "Server sibuk memproses antrean presensi, silakan ulangi sesaat lagi."
         });
       }
+      lockAcquiredAt = Date.now();
+      const lockWaitMs = lockAcquiredAt - lockWaitStart;
+      logger.info(`[LOCK] 🔒 Berhasil memperoleh ScriptLock setelah antre ${lockWaitMs}ms. Memulai critical section presensi.`);
 
       try {
         const pesertaData = sheetPeserta.getDataRange().getValues();
@@ -1357,6 +1377,7 @@ const CONFIG = {
 
           // Skenario 1: Tiket Tidak Ditemukan
           if (foundRow === -1) {
+            releaseLockOnce();
             sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, "-", "TIDAK_VALID", scannedBy, gate, mapsUrl, deviceInfo, "ID tidak terdaftar di sistem"]);
             forwardLogToExternalSpreadsheet({
               timestamp: nowStr,
@@ -1394,6 +1415,7 @@ const CONFIG = {
           const isAlreadyOut = existingStatus.startsWith("CHECKOUT");
 
           if ((scanMode === "OUT" && isAlreadyOut) || (scanMode !== "OUT" && isAlreadyIn)) {
+            releaseLockOnce();
             const dupType = (scanMode === "OUT") ? "DUPLIKAT_CHECKOUT" : "DUPLIKAT";
             const dupMsg = (scanMode === "OUT") 
               ? `TIKET SUDAH CHECK-OUT untuk sesi "${sessionName}"!`
@@ -1453,8 +1475,10 @@ const CONFIG = {
           }
 
           sheetPeserta.getRange(foundRow, sessionColIdx).setValue(statusValue);
+          SpreadsheetApp.flush();
+          releaseLockOnce(); // Micro-Locking: Lepas lock segera setelah status hadir tertulis!
           
-          // Catat di sheet Log Kehadiran dengan Link Google Maps & Device Info
+          // Catat di sheet Log Kehadiran dengan Link Google Maps & Device Info di luar lock
           sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, attendeeName, logStatus, scannedBy, gate, mapsUrl, deviceInfo, logDesc]);
 
           forwardLogToExternalSpreadsheet({
@@ -1680,7 +1704,11 @@ const CONFIG = {
             }
           }
 
-          // Append all log rows in a single batch
+          // Flush dan lepas lock segera setelah semua status peserta terupdate
+          SpreadsheetApp.flush();
+          releaseLockOnce();
+
+          // Append all log rows in a single batch (di luar lock)
           if (logRowsToAppend.length > 0) {
             const startRow = sheetLog.getLastRow() + 1;
             sheetLog.getRange(startRow, 1, logRowsToAppend.length, logRowsToAppend[0].length).setValues(logRowsToAppend);
@@ -1747,7 +1775,9 @@ const CONFIG = {
           if (sessionColIdx > 0) {
             // Kosongkan status di sheet Data Peserta (Revert kembali)
             sheetPeserta.getRange(foundRow, sessionColIdx).setValue("");
+            SpreadsheetApp.flush();
           }
+          releaseLockOnce(); // Micro-Locking: Lepas lock setelah cell di sheet peserta dikosongkan
 
           // Catat event pembatalan di sheet Log Kehadiran dengan Link Google Maps & Device Info
           sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, attendeeName, "DIBATALKAN", cancelledBy, payload.gate || "-", mapsUrl, deviceInfo, reason]);
@@ -1838,8 +1868,8 @@ const CONFIG = {
             sysLog.warn("QR Drive save error: " + err.message);
           }
 
-          // 3. Masukkan ke sheet Data Peserta secara dinamis sesuai kolom sheet
-          const effectiveContact = contact || "OTS (Tanpa HP)";
+          const email = (payload.email || payload.contact || "").trim();
+          const effectiveContact = email || "-";
           const nextOtsRow = sheetPeserta.getLastRow() + 1;
           const otsFormulaTotal = `=IF(A${nextOtsRow}=""; ""; COUNTIF(D${nextOtsRow}:ZZ${nextOtsRow}; "HADIR*"))`;
 
@@ -1861,7 +1891,7 @@ const CONFIG = {
               otsRowData[idx] = name;
             } else if (lower.includes("total") || lower.includes("jumlah")) {
               otsRowData[idx] = otsFormulaTotal;
-            } else if (lower.includes("email") || lower.includes("kontak") || lower.includes("no hp") || lower.includes("whatsapp")) {
+            } else if (lower.includes("email")) {
               otsRowData[idx] = effectiveContact;
             } else if (lower.includes("drive file id") || lower === "file id") {
               otsRowData[idx] = fileId;
@@ -1894,8 +1924,10 @@ const CONFIG = {
           // Pastikan cell di kolom sesi terisi status HADIR
           const statusValue = `HADIR - ${nowStr}`;
           sheetPeserta.getRange(newRowIdx, sessionColIdx).setValue(statusValue);
+          SpreadsheetApp.flush();
+          releaseLockOnce(); // Micro-Locking: Lepas lock setelah baris OTS baru tertulis
 
-          // 4. Catat di Log Kehadiran dengan Link Google Maps & Device Info
+          // 4. Catat di Log Kehadiran dengan Link Google Maps & Device Info (di luar lock)
           sheetLog.appendRow([nowStr, sessionId, sessionName, ticketId, name, "BERHASIL (OTS)", scannedBy, gate, mapsUrl, deviceInfo, notes]);
 
           forwardLogToExternalSpreadsheet({
@@ -1937,7 +1969,7 @@ const CONFIG = {
         return createJsonResponse({ success: false, message: `Action "${action}" tidak dikenali.` });
 
       } finally {
-        lock.releaseLock();
+        releaseLockOnce();
       }
 
     } catch (err) {

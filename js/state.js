@@ -246,7 +246,8 @@ window.EventPass = window.EventPass || {};
     // OTS Tab
     formOts: document.getElementById("form-ots"),
     inputOtsName: document.getElementById("ots-name"),
-    inputOtsContact: document.getElementById("ots-contact"),
+    inputOtsEmail: document.getElementById("ots-email") || document.getElementById("ots-contact"),
+    inputOtsContact: document.getElementById("ots-email") || document.getElementById("ots-contact"),
     otsCustomFieldsContainer: document.getElementById("ots-custom-fields-container"),
     inputOtsNotes: document.getElementById("ots-notes"),
     btnSubmitOts: document.getElementById("btn-submit-ots"),

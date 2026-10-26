@@ -349,8 +349,25 @@ window.EventPass = window.EventPass || {};
         DOM.btnSearchQuery.addEventListener("click", () => this.performSearch());
       }
       if (DOM.inputManualSearch) {
+        let searchDebounceTimer = null;
         DOM.inputManualSearch.addEventListener("keyup", (e) => {
-          if (e.key === "Enter") this.performSearch();
+          if (e.key === "Enter") {
+            clearTimeout(searchDebounceTimer);
+            this.performSearch();
+          }
+        });
+        DOM.inputManualSearch.addEventListener("input", () => {
+          clearTimeout(searchDebounceTimer);
+          const q = (DOM.inputManualSearch.value || "").trim();
+          if (!q) {
+            if (DOM.searchResultsList) DOM.searchResultsList.innerHTML = "";
+            return;
+          }
+          if (q.length >= 2) {
+            searchDebounceTimer = setTimeout(() => {
+              this.performSearch({ isLiveInput: true });
+            }, 250);
+          }
         });
       }
 
@@ -1424,12 +1441,76 @@ Jelaskan kendala atau bug yang Anda alami di sini:
     },
 
     /**
-     * Search attendees by query
+     * Search attendees by query - Cache-First (Instant from local database)
      */
-    async performSearch() {
-      const query = ns.DOM.inputManualSearch.value.trim();
+    async performSearch(options = {}) {
+      const isLiveInput = Boolean(options.isLiveInput);
+      const query = (ns.DOM.inputManualSearch ? ns.DOM.inputManualSearch.value : "").trim();
       if (!query) {
-        ns.UI.showToast("Ketik nama atau email yang dicari.");
+        if (!isLiveInput) ns.UI.showToast("Ketik nama, email, atau ID tiket yang dicari.");
+        return;
+      }
+
+      const q = query.toLowerCase();
+      const currentSessId = ns.state.currentSessionId || "SESI-01";
+      const currentSessName = ns.state.currentSessionName || currentSessId;
+      const inSessId = `${currentSessId}_IN`;
+      const outSessId = `${currentSessId}_OUT`;
+
+      // 1. CEK DULU DI DATABASE CACHE LOKAL HP (INSTANT LOOKUP < 5ms)
+      const cachedMap = ns.state.cachedAttendees || {};
+      const cachedList = Object.values(cachedMap);
+
+      if (cachedList.length > 0) {
+        const localMatches = [];
+        for (let i = 0; i < cachedList.length; i++) {
+          const a = cachedList[i];
+          const tId = String(a.ticketId || "");
+          const tName = String(a.name || "");
+          const tEmail = String(a.email || "");
+
+          if (tId.toLowerCase().includes(q) || tName.toLowerCase().includes(q) || tEmail.toLowerCase().includes(q)) {
+            const sessions = a.checkedInSessions || {};
+            const inVal = sessions[inSessId] || sessions[currentSessId] || "";
+            const outVal = sessions[outSessId] || "";
+            const hasIn = Boolean(inVal);
+            const hasOut = Boolean(outVal);
+
+            let status = "BELUM_HADIR";
+            if (hasOut) status = "CHECKOUT";
+            else if (hasIn) status = "HADIR";
+
+            const statusDetail = hasOut ? `CHECKOUT - ${outVal}` : (hasIn ? `HADIR - ${inVal}` : "Belum Absen");
+
+            localMatches.push({
+              ticketId: tId,
+              name: tName,
+              email: tEmail,
+              hasIn: hasIn,
+              hasOut: hasOut,
+              inTime: String(inVal).replace(/^HADIR\s*-\s*/, "") || "",
+              outTime: String(outVal).replace(/^CHECKOUT\s*-\s*/, "") || "",
+              status: status,
+              statusDetail: statusDetail,
+              sessionId: currentSessId,
+              sessionName: currentSessName
+            });
+
+            if (localMatches.length >= 30) break;
+          }
+        }
+
+        // Jika ketemu di cache lokal, render INSTAN tanpa loading spinner!
+        if (localMatches.length > 0) {
+          ns.UI.renderSearchResults(localMatches, query);
+          return;
+        }
+      }
+
+      // 2. FALLBACK KE SERVER JIKA TIDAK DITEMUKAN DI CACHE LOKAL ATAU CACHE KOSONG
+      // Pada mode live input, jika belum tekan tombol cari, tampilkan notif kecil saja jika tidak ada di lokal
+      if (isLiveInput && cachedList.length > 0) {
+        // Jangan spam server jika panitia masih ngetik dan data gak ada di lokal
         return;
       }
 
@@ -1444,7 +1525,7 @@ Jelaskan kendala atau bug yang Anda alami di sini:
       ns.DOM.searchResultsList.innerHTML = `
         <div style="text-align: center; color: var(--text-muted); padding: 20px; display: flex; align-items: center; justify-content: center; gap: 8px;">
           <div class="spinner"></div>
-          <span>Mencari data untuk ${ns.state.currentSessionName}...</span>
+          <span>Mencari di server untuk ${ns.state.currentSessionName}...</span>
         </div>
       `;
 
@@ -1465,13 +1546,10 @@ Jelaskan kendala atau bug yang Anda alami di sini:
         if (isConnErr) {
           ns.DOM.searchResultsList.innerHTML = `
             <div style="text-align: center; color: var(--status-error); padding: 22px 16px; background: rgba(220, 38, 38, 0.04); border-radius: var(--radius-md); border: 1px dashed rgba(220, 38, 38, 0.25); margin-top: 10px;">
-              <p style="font-weight: 700; font-size: 14px; margin-bottom: 6px;">Koneksi Google Apps Script Gagal (404/CORS)</p>
+              <p style="font-weight: 700; font-size: 14px; margin-bottom: 6px;">Peserta Tidak Ada di Memori HP & Server Offline</p>
               <p style="font-size: 12px; color: var(--text-muted); line-height: 1.45; margin-bottom: 14px;">
-                URL Web App mungkin salah, kadaluarsa, atau opsi akses belum disetel ke <strong>Anyone</strong>.
+                Jika peserta baru didaftarkan, klik tombol <strong>Sinkronkan Sekarang</strong> di kanan atas.
               </p>
-              <button type="button" class="btn-primary" onclick="EventPass.UI.openSettingsModal()" style="margin: 0 auto; width: auto; padding: 8px 18px; font-size: 12px; border-radius: var(--radius-md); display: inline-flex; align-items: center; gap: 6px;">
-                ⚙️ Buka Pengaturan URL
-              </button>
             </div>
           `;
         } else {
@@ -1495,7 +1573,8 @@ Jelaskan kendala atau bug yang Anda alami di sini:
       if (!this.requirePanitiaName()) return;
 
       const name = ns.DOM.inputOtsName.value.trim();
-      const contact = ns.DOM.inputOtsContact.value.trim();
+      const emailInput = ns.DOM.inputOtsEmail || ns.DOM.inputOtsContact;
+      const email = emailInput ? emailInput.value.trim() : "";
       const notes = ns.DOM.inputOtsNotes.value.trim();
 
       if (!name) {
@@ -1523,7 +1602,7 @@ Jelaskan kendala atau bug yang Anda alami di sini:
       }
 
       try {
-        const result = await ns.API.registerOts(name, contact, notes, customFields);
+        const result = await ns.API.registerOts(name, email, notes, customFields);
 
         if (result.success && result.attendee) {
           ns.sounds.playSuccess();
@@ -1535,7 +1614,8 @@ Jelaskan kendala atau bug yang Anda alami di sini:
 
           const attendee = result.attendee;
           ns.DOM.inputOtsName.value = "";
-          ns.DOM.inputOtsContact.value = "";
+          if (ns.DOM.inputOtsEmail) ns.DOM.inputOtsEmail.value = "";
+          if (ns.DOM.inputOtsContact) ns.DOM.inputOtsContact.value = "";
           ns.DOM.inputOtsNotes.value = "";
           if (ns.DOM.otsCustomFieldsContainer) {
             ns.DOM.otsCustomFieldsContainer.querySelectorAll(".ots-custom-field").forEach(input => {
@@ -1575,10 +1655,16 @@ Jelaskan kendala atau bug yang Anda alami di sini:
 
           // Update cache lokal dengan tiket OTS baru
           if (!ns.state.cachedAttendees) ns.state.cachedAttendees = {};
-          ns.state.cachedAttendees[String(attendee.ticketId).toUpperCase().trim()] = {
+          const otsUpper = String(attendee.ticketId).toUpperCase().trim();
+          const otsSessions = {};
+          const curSessId = ns.state.currentSessionId || "SESI-01";
+          otsSessions[curSessId] = attendee.checkInTime || "Hadir";
+          otsSessions[`${curSessId}_IN`] = attendee.checkInTime || "Hadir";
+          ns.state.cachedAttendees[otsUpper] = {
             ticketId: attendee.ticketId,
             name: name,
-            email: attendee.email || "OTS"
+            email: attendee.email || "-",
+            checkedInSessions: otsSessions
           };
           try {
             localStorage.setItem("absen_cached_attendees", JSON.stringify(ns.state.cachedAttendees));
