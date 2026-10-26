@@ -479,7 +479,8 @@ window.EventPass = window.EventPass || {};
         );
         const isCheckedInCache = cached && cached.checkedInSessions && cached.checkedInSessions[h.sessionId];
 
-        if (h.status === "SUCCESS") {
+        const isSuccess = (h.status === "SUCCESS" || h.status === "CHECKED_IN" || h.status === "CHECKED_OUT" || h.status === "ANOMALY_CHECKOUT");
+        if (isSuccess) {
           // Jika tiket terdeteksi pernah dibatalkan, atau data di cache sudah dicabut dan tidak ada di antrean
           if (cancelledKeys.has(key) || (cached && !isCheckedInCache && !isPending)) {
             h.status = "CANCELLED";
@@ -536,15 +537,25 @@ window.EventPass = window.EventPass || {};
         let syncTagHtml = "";
         let syncSubtextHtml = "";
 
-        if (item.status === "SUCCESS") {
-          badgeClass = "badge-success";
-          badgeLabel = "Hadir";
+        const isSuccessStatus = (
+          item.status === "SUCCESS" ||
+          item.status === "CHECKED_IN" ||
+          item.status === "CHECKED_OUT" ||
+          item.status === "ANOMALY_CHECKOUT"
+        );
+
+        if (isSuccessStatus) {
+          const isOut = (item.status === "CHECKED_OUT" || (item.sessionName && item.sessionName.includes("Keluar")));
+          const isAnomaly = (item.status === "ANOMALY_CHECKOUT");
+
+          badgeClass = isAnomaly ? "badge-warning" : (isOut ? "badge-warning" : "badge-success");
+          badgeLabel = isAnomaly ? "Keluar (Anomali)" : (isOut ? "Keluar" : "Hadir");
           // Tombol Batalkan hanya muncul jika tiket ini benar-benar masih terdaftar hadir
           showUndo = Boolean(isCheckedInNow);
 
           if (isPendingInQueue) {
             syncTagHtml = `
-              <span class="badge badge-pending-sync" title="Data tersimpan di memori HP, belum terkirim ke Google Sheets">
+              <span class="badge badge-pending-sync" title="Data tersimpan di memori HP, sedang dikirim ke Google Sheets">
                 ⏳ Antrean HP
               </span>
             `;

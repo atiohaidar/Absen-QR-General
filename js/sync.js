@@ -270,7 +270,7 @@ window.EventPass = window.EventPass || {};
                   delete ns.state.cachedAttendees[uId];
                   localStorage.setItem("absen_cached_attendees", JSON.stringify(ns.state.cachedAttendees));
                   this.updateCacheCountUI();
-                } else if (res.status === "CHECKED_IN") {
+                } else if (res.status === "CHECKED_IN" || res.status === "CHECKED_OUT") {
                   // Di spreadsheet ternyata statusnya belum hadir/direset admin, sehingga server mencatat presensi baru
                   if (ns.state.cachedAttendees[uId]) {
                     if (!ns.state.cachedAttendees[uId].checkedInSessions) {
