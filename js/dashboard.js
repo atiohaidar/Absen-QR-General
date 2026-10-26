@@ -405,23 +405,7 @@
       });
     }
 
-    // Toggle Mode Grafik Riwayat Sesi (Total Sesi vs Pisah Kategori Aktif)
-    const btnHistModeAll = document.getElementById("btn-hist-mode-all");
-    const btnHistModeGender = document.getElementById("btn-hist-mode-gender");
-    if (btnHistModeAll) {
-      btnHistModeAll.addEventListener("click", () => {
-        if (state.historyChartMode === "ALL") return;
-        state.historyChartMode = "ALL";
-        renderHistoryTrendChart(state.lastSessionList || [], true);
-      });
-    }
-    if (btnHistModeGender) {
-      btnHistModeGender.addEventListener("click", () => {
-        if (state.historyChartMode === "CATEGORY") return;
-        state.historyChartMode = "CATEGORY";
-        renderHistoryTrendChart(state.lastSessionList || [], true);
-      });
-    }
+
 
     // Search input (Realtime)
     const searchInput = document.getElementById("dash-search-input");
@@ -1849,35 +1833,14 @@
     const hasCategory = Boolean(dimName);
     const isGender = isGenderDimension(dimName);
 
-    if (!hasCategory) {
-      state.historyChartMode = "ALL";
-    }
+    const activeCategories = (sessionList[0] && sessionList[0].activeCategories && sessionList[0].activeCategories.length > 0)
+      ? sessionList[0].activeCategories
+      : (isGender ? ["Laki-laki", "Perempuan"] : []);
 
-    // Toggle button UI
-    const toggleGroup = document.getElementById("history-chart-toggle-group");
-    const btnAll = document.getElementById("btn-hist-mode-all");
-    const btnCategory = document.getElementById("btn-hist-mode-gender");
-    const btnCategoryLabel = document.getElementById("btn-hist-mode-label");
+    const isCategoryMode = hasCategory && activeCategories.length > 0;
+    state.historyChartMode = isCategoryMode ? "CATEGORY" : "ALL";
+
     const chartSub = document.getElementById("history-chart-sub");
-
-    if (toggleGroup) {
-      toggleGroup.style.display = hasCategory ? "inline-flex" : "none";
-    }
-
-    if (btnCategoryLabel) {
-      if (isGender) {
-        btnCategoryLabel.textContent = "Pisah: Jenis Kelamin";
-      } else if (dimName) {
-        btnCategoryLabel.textContent = `Pisah: ${dimName.length > 15 ? dimName.slice(0, 13) + '..' : dimName}`;
-      } else {
-        btnCategoryLabel.textContent = "Pisah Kategori";
-      }
-    }
-
-    const isCategoryMode = (state.historyChartMode === "CATEGORY" || state.historyChartMode === "GENDER") && hasCategory;
-    if (btnAll) btnAll.classList.toggle("active", !isCategoryMode);
-    if (btnCategory) btnCategory.classList.toggle("active", isCategoryMode);
-
     if (chartSub) {
       if (isCategoryMode) {
         chartSub.textContent = `Membandingkan tren kehadiran peserta berdasarkan ${dimName} antar sesi`;
@@ -1898,10 +1861,6 @@
     let datasets = [];
 
     if (isCategoryMode) {
-      const activeCategories = (sessionList[0] && sessionList[0].activeCategories && sessionList[0].activeCategories.length > 0)
-        ? sessionList[0].activeCategories
-        : (isGender ? ["Laki-laki", "Perempuan"] : []);
-
       const palette = getCategoryPalette(activeCategories, isDark, isGender);
 
       activeCategories.forEach((cat) => {
