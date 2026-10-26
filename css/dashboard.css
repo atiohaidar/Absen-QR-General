@@ -633,6 +633,36 @@ body.theme-dark .dash-gender-mini-pill.female {
   border-radius: var(--dash-radius-full);
 }
 
+.dash-group-split-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--dash-border-subtle);
+}
+
+.dash-group-sub-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  color: var(--dash-text-muted);
+}
+
+.dash-group-sub-pill strong {
+  font-weight: 700;
+}
+
+.dash-group-sub-pill.in-loc strong {
+  color: var(--dash-green);
+}
+
+.dash-group-sub-pill.out strong {
+  color: var(--dash-text-main);
+}
+
 /* ==============================================================================
    CHARTS (WITH HORIZONTAL SCROLL FOR LARGE DATASETS)
    ============================================================================== */
@@ -1139,6 +1169,13 @@ body.theme-dark .dash-history-card:hover {
 .dash-hist-cat-val {
   font-weight: 700;
   color: var(--dash-green);
+}
+
+.dash-hist-cat-sub {
+  font-size: 0.66rem;
+  font-weight: 500;
+  color: var(--dash-text-dim);
+  margin-left: 2px;
 }
 
 /* ==============================================================================

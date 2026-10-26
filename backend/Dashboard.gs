@@ -155,6 +155,21 @@ function compileDashboardData(sheetPeserta, masterSessions, options) {
         isOut: isOut,
         isIn: isIn
       });
+    } else if (headerStr) {
+      const lower = headerStr.toLowerCase();
+      if (lower.startsWith("sesi:") || lower.startsWith("sesi ")) {
+        const cleanName = headerStr.replace(/^Sesi[:\s]+/i, "").trim();
+        const found = masterSessions.find(s => s.name.trim().toLowerCase() === cleanName.toLowerCase() || s.id.trim().toLowerCase() === cleanName.toLowerCase());
+        const sId = found ? found.id : (cleanName || `SESI_${idx}`);
+        sessionColumns.push({
+          colIdx: idx,
+          fullHeader: headerStr,
+          rawSessionId: sId,
+          baseSessionId: sId,
+          isOut: false,
+          isIn: false
+        });
+      }
     }
   });
 
@@ -233,7 +248,12 @@ function compileDashboardData(sheetPeserta, masterSessions, options) {
       customData[dim.name] = val;
 
       if (!dimensionAggregates[dim.name][val]) {
-        dimensionAggregates[dim.name][val] = { total: 0, attendedInActive: 0 };
+        dimensionAggregates[dim.name][val] = {
+          total: 0,
+          attendedInActive: 0,
+          inLocationInActive: 0,
+          checkedOutInActive: 0
+        };
       }
       dimensionAggregates[dim.name][val].total++;
     });
@@ -301,13 +321,19 @@ function compileDashboardData(sheetPeserta, masterSessions, options) {
       };
     });
 
-    // Update dimension attended count untuk activeSession
-    const isActiveAttended = activeSessionId && attendeeSessions[activeSessionId] && attendeeSessions[activeSessionId].status !== "BELUM_HADIR";
-    if (isActiveAttended) {
+    // Update dimension attended & checkout count untuk activeSession
+    const activeSess = activeSessionId ? attendeeSessions[activeSessionId] : null;
+    if (activeSess && activeSess.status !== "BELUM_HADIR") {
+      const isCheckedOut = (activeSess.status === "CHECKOUT");
       columnSchema.dimensions.forEach(dim => {
         const val = customData[dim.name];
         if (dimensionAggregates[dim.name] && dimensionAggregates[dim.name][val]) {
           dimensionAggregates[dim.name][val].attendedInActive++;
+          if (isCheckedOut) {
+            dimensionAggregates[dim.name][val].checkedOutInActive++;
+          } else {
+            dimensionAggregates[dim.name][val].inLocationInActive++;
+          }
         }
       });
     }

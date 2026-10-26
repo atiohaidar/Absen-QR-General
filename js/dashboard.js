@@ -243,18 +243,32 @@
     let maleAttended = 0;
     let femaleAttended = 0;
     let otherAttended = 0;
+    let maleInLocation = 0;
+    let femaleInLocation = 0;
+    let maleCheckedOut = 0;
+    let femaleCheckedOut = 0;
 
     attendeeList.forEach(att => {
       const g = getAttendeeGender(att);
       const sess = att.sessions[sessionId];
       const isAttended = sess && (sess.status === "HADIR" || sess.status === "CHECKOUT");
+      const isCheckedOut = sess && sess.status === "CHECKOUT";
+      const isInLocation = sess && sess.status === "HADIR";
 
       if (g === "Laki-laki") {
         maleTotal++;
-        if (isAttended) maleAttended++;
+        if (isAttended) {
+          maleAttended++;
+          if (isCheckedOut) maleCheckedOut++;
+          if (isInLocation) maleInLocation++;
+        }
       } else if (g === "Perempuan") {
         femaleTotal++;
-        if (isAttended) femaleAttended++;
+        if (isAttended) {
+          femaleAttended++;
+          if (isCheckedOut) femaleCheckedOut++;
+          if (isInLocation) femaleInLocation++;
+        }
       } else {
         otherTotal++;
         if (isAttended) otherAttended++;
@@ -276,6 +290,10 @@
       maleAttended,
       femaleAttended,
       otherAttended,
+      maleInLocation,
+      femaleInLocation,
+      maleCheckedOut,
+      femaleCheckedOut,
       maleAbsent,
       femaleAbsent,
       maleAttendedPct,
@@ -834,9 +852,17 @@
       }
       if (elPillsAttended) {
         elPillsAttended.style.display = "flex";
+        const hasCheckout = (gStats.maleCheckedOut > 0 || gStats.femaleCheckedOut > 0);
+        const maleText = hasCheckout
+          ? `L: ${gStats.maleAttended} (${gStats.maleInLocation} lokasi &bull; ${gStats.maleCheckedOut} out)`
+          : `L: ${gStats.maleAttended} (${gStats.maleAttendedPct}%)`;
+        const femaleText = hasCheckout
+          ? `P: ${gStats.femaleAttended} (${gStats.femaleInLocation} lokasi &bull; ${gStats.femaleCheckedOut} out)`
+          : `P: ${gStats.femaleAttended} (${gStats.femaleAttendedPct}%)`;
+
         elPillsAttended.innerHTML = `
-          <span class="dash-gender-mini-pill male">L: ${gStats.maleAttended} (${gStats.maleAttendedPct}%)</span>
-          <span class="dash-gender-mini-pill female">P: ${gStats.femaleAttended} (${gStats.femaleAttendedPct}%)</span>
+          <span class="dash-gender-mini-pill male">${maleText}</span>
+          <span class="dash-gender-mini-pill female">${femaleText}</span>
         `;
       }
       if (elPillsAbsent) {
@@ -877,25 +903,43 @@
     }
 
     // Grouping
-    const groups = {}; // { [groupName]: { total: 0, attended: 0 } }
+    const groups = {}; // { [groupName]: { total: 0, attended: 0, inLocation: 0, checkedOut: 0 } }
     state.attendees.forEach(att => {
-      const val = (att.custom && att.custom[dimName]) ? String(att.custom[dimName]).trim() : "Tidak Diisi";
-      if (!groups[val]) groups[val] = { total: 0, attended: 0 };
+      const val = getAttendeeCategoryValue(att, dimName);
+      if (!groups[val]) groups[val] = { total: 0, attended: 0, inLocation: 0, checkedOut: 0 };
       groups[val].total++;
 
       const sess = att.sessions[state.selectedSessionId];
-      if (sess && (sess.status === "HADIR" || sess.status === "CHECKOUT")) {
-        groups[val].attended++;
+      if (sess) {
+        if (sess.status === "HADIR") {
+          groups[val].attended++;
+          groups[val].inLocation++;
+        } else if (sess.status === "CHECKOUT") {
+          groups[val].attended++;
+          groups[val].checkedOut++;
+        }
       }
     });
 
     const categories = Object.keys(groups).sort((a, b) => groups[b].total - groups[a].total);
+    const hasAnyCheckoutInSession = categories.some(cat => groups[cat].checkedOut > 0);
 
     const cardsHtml = categories.map(cat => {
       const g = groups[cat];
       const absent = Math.max(0, g.total - g.attended);
       const rate = g.total > 0 ? ((g.attended / g.total) * 100).toFixed(1) : 0;
       const isSelected = (state.drilldownValue === cat);
+
+      const splitRowHtml = hasAnyCheckoutInSession
+        ? `<div class="dash-group-split-row">
+             <span class="dash-group-sub-pill in-loc" title="Sedang berada di lokasi acara">
+               Di Lokasi: <strong>${g.inLocation}</strong>
+             </span>
+             <span class="dash-group-sub-pill out" title="Sudah melakukan checkout kepulangan">
+               Checkout: <strong>${g.checkedOut}</strong>
+             </span>
+           </div>`
+        : '';
 
       return `
         <div class="dash-group-card ${isSelected ? 'active-selected' : ''}" onclick="window.EventPassSimple.selectGroup('${escapeJs(cat)}')" title="${isSelected ? 'Klik untuk menghapus filter' : 'Klik untuk menyaring tabel'}">
@@ -912,7 +956,7 @@
           <div class="dash-group-stats-row">
             <div class="dash-group-metric">
               <span class="dash-group-metric-val green">${g.attended}</span>
-              <span class="dash-group-metric-label">Sudah Hadir (${rate}%)</span>
+              <span class="dash-group-metric-label">Hadir (${rate}%)</span>
             </div>
             <div class="dash-group-metric" style="text-align: right;">
               <span class="dash-group-metric-val amber">${absent}</span>
@@ -923,6 +967,8 @@
           <div class="dash-mini-progress">
             <div class="dash-mini-bar" style="width: ${rate}%;"></div>
           </div>
+
+          ${splitRowHtml}
         </div>
       `;
     }).join("");
@@ -1668,12 +1714,16 @@
       let femaleAttended = 0;
       let maleTotal = 0;
       let femaleTotal = 0;
+      let maleInLocation = 0;
+      let femaleInLocation = 0;
+      let maleCheckedOut = 0;
+      let femaleCheckedOut = 0;
       const hourly = {};
 
       // Inisialisasi statistik kategori aktif per sesi
       const catStats = {};
       activeCategories.forEach(cat => {
-        catStats[cat] = { total: 0, attended: 0, rate: 0 };
+        catStats[cat] = { total: 0, attended: 0, inLocation: 0, checkedOut: 0, rate: 0 };
       });
 
       state.attendees.forEach(att => {
@@ -1689,12 +1739,21 @@
         const sess = att.sessions[s.id];
         if (sess && (sess.status === "HADIR" || sess.status === "CHECKOUT")) {
           attended++;
-          if (sess.status === "CHECKOUT") checkouts++;
-          if (g === "Laki-laki") maleAttended++;
-          else if (g === "Perempuan") femaleAttended++;
-
-          if (catStats[cVal]) {
-            catStats[cVal].attended++;
+          if (sess.status === "CHECKOUT") {
+            checkouts++;
+            if (g === "Laki-laki") maleCheckedOut++;
+            else if (g === "Perempuan") femaleCheckedOut++;
+            if (catStats[cVal]) {
+              catStats[cVal].attended++;
+              catStats[cVal].checkedOut++;
+            }
+          } else {
+            if (g === "Laki-laki") maleInLocation++;
+            else if (g === "Perempuan") femaleInLocation++;
+            if (catStats[cVal]) {
+              catStats[cVal].attended++;
+              catStats[cVal].inLocation++;
+            }
           }
 
           if (sess.checkInTime) {
@@ -1744,6 +1803,10 @@
         femaleTotal: femaleTotal,
         maleAttended: maleAttended,
         femaleAttended: femaleAttended,
+        maleInLocation: maleInLocation,
+        femaleInLocation: femaleInLocation,
+        maleCheckedOut: maleCheckedOut,
+        femaleCheckedOut: femaleCheckedOut,
         maleRate: maleRate,
         femaleRate: femaleRate,
         categoryStats: catStats,
@@ -2122,11 +2185,19 @@
       let categoryBreakdownHtml = '';
       if (dimName && s.categoryStats) {
         if (isGender) {
+          const hasCo = (s.maleCheckedOut > 0 || s.femaleCheckedOut > 0);
+          const maleDetail = hasCo
+            ? `L: ${s.maleAttended}/${s.maleTotal} (${s.maleInLocation} lokasi &bull; ${s.maleCheckedOut} out)`
+            : `L: ${s.maleAttended}/${s.maleTotal} (${s.maleRate}%)`;
+          const femaleDetail = hasCo
+            ? `P: ${s.femaleAttended}/${s.femaleTotal} (${s.femaleInLocation} lokasi &bull; ${s.femaleCheckedOut} out)`
+            : `P: ${s.femaleAttended}/${s.femaleTotal} (${s.femaleRate}%)`;
+
           categoryBreakdownHtml = (s.maleTotal > 0 || s.femaleTotal > 0)
             ? `<div class="dash-history-gender-split">
-                 <span class="male">L: ${s.maleAttended}/${s.maleTotal} (${s.maleRate}%)</span>
+                 <span class="male">${maleDetail}</span>
                  <span>&bull;</span>
-                 <span class="female">P: ${s.femaleAttended}/${s.femaleTotal} (${s.femaleRate}%)</span>
+                 <span class="female">${femaleDetail}</span>
                </div>`
             : '';
         } else {
@@ -2136,11 +2207,19 @@
             .slice(0, 4);
 
           if (catEntries.length > 0) {
+            const hasAnyCoInSess = catEntries.some(([_, st]) => st.checkedOut > 0);
             const pills = catEntries.map(([cName, st]) => {
               const displayName = cName.length > 16 ? cName.slice(0, 14) + '..' : cName;
-              return `<span class="dash-hist-cat-pill" title="${escapeHtml(cName)}: ${st.attended} dari ${st.total} orang hadir (${st.rate}%)">
+              const hasCo = (st.checkedOut > 0);
+              const tooltip = `${escapeHtml(cName)}: ${st.attended} dari ${st.total} orang hadir (${st.rate}%)${hasCo ? ` [Di Lokasi: ${st.inLocation}, Checkout: ${st.checkedOut}]` : ''}`;
+              const subPill = hasAnyCoInSess
+                ? `<span class="dash-hist-cat-sub">${st.inLocation} in &bull; ${st.checkedOut} out</span>`
+                : `<span class="dash-hist-cat-sub">${st.rate}%</span>`;
+
+              return `<span class="dash-hist-cat-pill" title="${tooltip}">
                 <span class="dash-hist-cat-name">${escapeHtml(displayName)}:</span>
-                <span class="dash-hist-cat-val">${st.attended}/${st.total} (${st.rate}%)</span>
+                <span class="dash-hist-cat-val">${st.attended}/${st.total}</span>
+                ${subPill}
               </span>`;
             }).join("");
 

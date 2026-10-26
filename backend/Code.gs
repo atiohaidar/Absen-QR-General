@@ -1125,6 +1125,17 @@ const CONFIG = {
         if (typeof handleDashboardRequest === "function") {
           return handleDashboardRequest(e, e.parameter);
         }
+        // Fallback jika Dashboard.gs tidak di-load
+        const sheetPeserta = getOrCreateSheet(CONFIG.SHEETS.DATA_PESERTA);
+        const attendees = buildAttendeesList(sheetPeserta);
+        const sessions = getActiveSessions();
+        return ContentService.createTextOutput(JSON.stringify({
+          success: true,
+          meta: { eventName: CONFIG.EVENT_NAME || "Event Attendance System", totalParticipants: attendees.length },
+          sessions: sessions,
+          attendees: attendees,
+          dimensions: []
+        })).setMimeType(ContentService.MimeType.JSON);
       }
 
       if (action === "getSessions") {
@@ -1244,6 +1255,17 @@ const CONFIG = {
         if (typeof handleDashboardRequest === "function") {
           return handleDashboardRequest(e, payload);
         }
+        // Fallback jika Dashboard.gs tidak di-load
+        const sheetPeserta = getOrCreateSheet(CONFIG.SHEETS.DATA_PESERTA);
+        const attendees = buildAttendeesList(sheetPeserta);
+        const sessions = getActiveSessions();
+        return ContentService.createTextOutput(JSON.stringify({
+          success: true,
+          meta: { eventName: CONFIG.EVENT_NAME || "Event Attendance System", totalParticipants: attendees.length },
+          sessions: sessions,
+          attendees: attendees,
+          dimensions: []
+        })).setMimeType(ContentService.MimeType.JSON);
       }
 
       // ACTION B: SEARCH PESERTA (Manual Search by Name/Email/Ticket)
