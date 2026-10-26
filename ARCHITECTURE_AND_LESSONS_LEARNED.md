@@ -13,6 +13,11 @@ Dokumen ini merangkum seluruh **arsitektur inti, logika kritis, dan lessons lear
 6. [Gotchas & Best Practices Deployment Web App Google Apps Script](#6-gotchas--best-practices-deployment-web-app)
 7. [Standardisasi Waktu & Konsistensi Data](#7-standardisasi-waktu--konsistensi-data)
 8. [Audit Trail & Operasional Multi-Gate](#8-audit-trail--operasional-multi-gate)
+9. [Arsitektur Check-In & Check-Out Dinamis dengan Deteksi Anomali](#9-arsitektur-check-in--check-out-dinamis-dengan-deteksi-anomali)
+10. [Mode Rutin: Presensi Harian Otomatis Per Tanggal](#10-mode-rutin-presensi-harian-otomatis-per-tanggal)
+11. [Integrasi Realtime Spreadsheet Eksternal](#11-integrasi-realtime-spreadsheet-eksternal)
+12. [Dynamic Custom Fields: Registrasi OTS & Google Form Self-Healing](#12-dynamic-custom-fields-registrasi-ots--google-form-self-healing)
+13. [Dual-Column Search Semantics & Rekonsiliasi Cache Lokal](#13-dual-column-search-semantics--rekonsiliasi-cache-lokal)
 
 ---
 
@@ -256,9 +261,78 @@ Tidak semua kepanitiaan membutuhkan sistem Check-In dan Check-Out (banyak acara 
 
 ---
 
+## 10. Mode Rutin: Presensi Harian Otomatis Per Tanggal
+
+Untuk kegiatan berulang (misalnya kelas harian, magang harian, atau pesantren kilat), membuat baris sesi baru setiap hari di "Master Sesi" sangat merepotkan.
+
+### A. Konsep Status `RUTIN`
+* Admin cukup mendefinisikan 1 baris sesi di sheet `Master Sesi` dengan kolom **Status = `RUTIN`**.
+* Saat scan berlangsung pada hari berjalan, backend otomatis menggenerasi kolom tanggal `YYYY-MM-DD`:
+  * Jika sesi `SINGLE`: Kolom `Sesi: Nama Sesi [SESI-ID_YYYY-MM-DD]`.
+  * Jika sesi `CHECK_IN_OUT`: Otomatis memecah menjadi 2 kolom harian:
+    * `Sesi: Nama Sesi (Masuk) [SESI-ID_YYYY-MM-DD_IN]`
+    * `Sesi: Nama Sesi (Keluar) [SESI-ID_YYYY-MM-DD_OUT]`
+
+### B. Proteksi Anti Phantom Column
+* Aksi pembacaan data (`search` atau `getAttendees`) bersifat **Read-Only**:
+  * Menggunakan helper `findSessionColumn(sheetPeserta, sessionId, false)`.
+  * Jika kolom hari ini belum ada karena belum ada peserta yang hadir, helper tidak akan membuat kolom kosong secara sembarangan (*no phantom column generation*). Kolom baru hanya terbuat saat ada aksi penulisan mutasi (`batchCheckIn` / `checkIn`).
+
+---
+
+## 11. Integrasi Realtime Spreadsheet Eksternal
+
+Banyak organisasi memiliki dashboard pusat atau spreadsheet terpisah untuk analitik / pelaporan publik, tanpa ingin membuka akses ke database utama presensi.
+
+### A. Non-Blocking Realtime Forwarding
+* Setiap kali scan berhasil dicatat di `Log Kehadiran`, backend memanggil:
+  `forwardLogToExternalSpreadsheet(logEntry, attendeeData)`.
+* Dijalankan di dalam blok `try-catch` terisolasi: **Jika spreadsheet target eksternal error, lambat, atau izinnya dicabut, proses presensi utama di gate TETAP BERJALAN 100% SUKSES.**
+
+### B. Penyimpanan Kredensial via `PropertiesService`
+* Mengapa Spreadsheet ID eksternal tidak di-hardcode di file `Code.gs`?
+  * Agar ketika kode program di-update atau di-pull dari Git, konfigurasi target sheet milik pengguna tidak ter-overwrite menjadi kosong.
+  * Menu `⚡ Presensi Event -> 9. Hubungkan / Test Spreadsheet Eksternal` menyimpan ID ke Google Cloud Script Properties (`PropertiesService.getScriptProperties()`), yang bertahan lintas deployment.
+
+---
+
+## 12. Dynamic Custom Fields: Registrasi OTS & Google Form Self-Healing
+
+Database peserta sering kali memiliki kolom tambahan kustom (*Custom Fields*) seperti *Jenis Kelamin*, *Divisi*, *Asal Instansi*, atau *Ukuran Kaos*.
+
+### A. Auto-Discovery Header & Dropdown Validation
+* Backend membaca seluruh header di sheet `Data Peserta`.
+* Semua kolom di luar kolom sistem inti diidentifikasi sebagai **Custom Fields**.
+* Helper `getCustomFields()` memeriksa validasi data Google Sheets (`DataValidationCriteria.VALUE_IN_LIST`).
+* Jika ada dropdown list di sheet, frontend web app otomatis me-render elemen `<select>` dengan opsi pilihan yang persis sama. Jika teks biasa, di-render sebagai input teks.
+
+### B. Dynamic Row Mapping & Auto-Fix Shifted Rows
+* **Pendaftaran OTS**: Backend mengalokasikan array baris sepanjang total kolom sheet dan memetakan nilai form OTS persis ke indeks kolom yang sesuai.
+* **Auto-Fix Baris Bergeser (`fixShiftedParticipantRows`)**: Jika admin sempat menyisipkan kolom baru di tengah-tengah sheet yang menyebabkan data tergeser (misal email masuk ke kolom instansi), fungsi auto-fix ini secara cerdas mendeteksi format email/link drive dan mengembalikannya ke posisi header yang semestinya.
+
+---
+
+## 13. Dual-Column Search Semantics & Rekonsiliasi Cache Lokal
+
+Pada mode presensi `CHECK_IN_OUT`, pencarian manual peserta (*Cari Manual*) sering menghadapi inkonsistensi status jika hanya memeriksa satu kolom.
+
+### A. Dual Column Live Inspection
+* Saat operator melakukan pencarian di mode `OUT`, backend tidak hanya mengecek kolom keluar, tetapi sekaligus memeriksa kolom `IN` dan `OUT`:
+  * `hasIn: true, hasOut: false` &rarr; Status: **Sudah Check-In** (Siap Check-Out).
+  * `hasIn: false, hasOut: false` &rarr; Status: **Belum Check-In** (Tombol Check-Out ditandai merah: **Check Out (Anomali)**).
+  * `hasIn: true, hasOut: true` &rarr; Status: **Sudah Check-Out**.
+
+### B. Auto-Pruning Stale Cache & Dedicated Cache Clear Button
+* Jika admin mengedit status kehadiran peserta secara manual di Google Sheets, cache `localStorage` di HP operator bisa menjadi *stale* (usang).
+* Setiap kali pencarian live server dilakukan, respon server otomatis menimpa dan membersihkan (*pruning*) status lokal yang kadaluwarsa.
+* Disediakan tombol **"Bersihkan Cache Lokal"** di modal Pengaturan dan tab Riwayat untuk mereset memori HP secara aman tanpa menghapus antrean offline yang belum tersinkron.
+
+---
+
 ## 🎯 Kesimpulan
 Dengan memadukan **Google Sheets sebagai reactive database** dan **Web App Frontend sebagai edge-cache scanner**, kita mendapatkan sistem yang menggabungkan:
 1. **Kecepatan ekstrim (0.05s)** layaknya sistem enterprise berbasis Redis/Postgres.
 2. **Kemudahan operasional & nol biaya server** khas Google Sheets.
 3. **Ketahanan offline** yang aman dari gangguan koneksi internet di lapangan.
-4. **Fleksibilitas sesi**: Bebas memilih sesi `SINGLE` atau `CHECK_IN_OUT` per pertemuan tanpa saling bentrok.
+4. **Fleksibilitas sesi**: Bebas memilih sesi `SINGLE`, `CHECK_IN_OUT`, maupun `RUTIN` harian tanpa saling bentrok.
+5. **Skalabilitas Data**: Integrasi eksternal realtime, custom fields dinamis untuk OTS, dan rekonsiliasi data otomatis.

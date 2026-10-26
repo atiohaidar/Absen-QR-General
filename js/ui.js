@@ -99,6 +99,9 @@ window.EventPass = window.EventPass || {};
         `;
 
         itemBtn.addEventListener("click", () => {
+          const oldSessionId = ns.state.currentSessionId;
+          const isChanged = (oldSessionId !== sesi.id);
+
           ns.state.currentSessionId = sesi.id;
           ns.state.currentSessionName = sesi.name;
 
@@ -108,7 +111,31 @@ window.EventPass = window.EventPass || {};
           ns.UI.renderSessionDropdown();
           ns.UI.closeSessionDropdown();
 
-          ns.UI.showToast(`Sesi aktif: ${sesi.name}`);
+          if (isChanged) {
+            // Bersihkan hasil pencarian & query sebelumnya agar data tidak bercampur antar sesi
+            if (ns.DOM.searchQuery) ns.DOM.searchQuery.value = "";
+            if (ns.DOM.searchResults) ns.DOM.searchResults.innerHTML = "";
+            if (ns.DOM.searchEmptyState) ns.DOM.searchEmptyState.style.display = "block";
+
+            // Tampilkan loading bar & sync status kehadiran terbaru untuk sesi ini
+            if (ns.DOM.globalLoadingBar) {
+              ns.DOM.globalLoadingBar.classList.add("active");
+            }
+
+            ns.UI.showToast(`Sesi aktif: ${sesi.name}. Mengambil status terbaru...`);
+
+            if (ns.Sync && ns.state.apiUrl) {
+              ns.Sync.syncAttendees(false).finally(() => {
+                if (ns.DOM.globalLoadingBar) ns.DOM.globalLoadingBar.classList.remove("active");
+              });
+            } else {
+              setTimeout(() => {
+                if (ns.DOM.globalLoadingBar) ns.DOM.globalLoadingBar.classList.remove("active");
+              }, 500);
+            }
+          } else {
+            ns.UI.showToast(`Sesi aktif: ${sesi.name}`);
+          }
         });
 
         ns.DOM.sessionMenu.appendChild(itemBtn);
