@@ -9,7 +9,7 @@ window.EventPass = window.EventPass || {};
 (function (ns) {
   'use strict';
 
-  const DEFAULT_TIMEOUT_MS = 12000; // 12 seconds request timeout
+  const DEFAULT_TIMEOUT_MS = 25000; // 25 seconds request timeout (cukup untuk cold-start dan webhook sync)
 
   /**
    * Helper fetch with AbortController timeout to prevent UI freeze on spotty mobile data
