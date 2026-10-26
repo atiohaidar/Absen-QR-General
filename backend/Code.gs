@@ -1120,6 +1120,13 @@ const CONFIG = {
       const action = (e && e.parameter && e.parameter.action) || "status";
       logger.meta.action = action;
 
+      // ACTION 0: DASHBOARD REALTIME ANALYTICS (Zero-Lock)
+      if (action === "getDashboardData" || action === "getDashboardSummary") {
+        if (typeof handleDashboardRequest === "function") {
+          return handleDashboardRequest(e, e.parameter);
+        }
+      }
+
       if (action === "getSessions") {
         const sessions = getActiveSessions();
         const sheetPeserta = getOrCreateSheet(CONFIG.SHEETS.DATA_PESERTA);
@@ -1230,6 +1237,13 @@ const CONFIG = {
           count: attendees.length,
           timestamp: new Date().toISOString()
         });
+      }
+
+      // ACTION A3: GET DASHBOARD ANALYTICS (Realtime Zero-Lock Analytics)
+      if (action === "getDashboardData" || action === "getDashboardSummary") {
+        if (typeof handleDashboardRequest === "function") {
+          return handleDashboardRequest(e, payload);
+        }
       }
 
       // ACTION B: SEARCH PESERTA (Manual Search by Name/Email/Ticket)
