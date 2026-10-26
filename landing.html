@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+  <meta name="theme-color" content="#0d532d">
+  <title>Panduan & Pengenalan Sistem Presensi QR Code</title>
+  <meta name="description"
+    content="Panduan setup dan pengenalan sistem presensi QR Code multi-sesi terintegrasi Google Sheets untuk panitia dan tim internal.">
+
+  <!-- Google Fonts: Outfit & Inter (Consistent with Web Scanner) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
+
+  <!-- Landing Stylesheet -->
+  <link rel="stylesheet" href="css/landing.css">
+</head>
+
+<body class="landing-body">
+
+  <!-- TOP NAVBAR -->
+  <header class="land-header">
+    <div class="land-header-inner">
+      <a href="landing.html" class="land-brand">
+        <span class="land-brand-badge">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+            stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
+          </svg>
+        </span>
+        <div>
+          <span class="land-brand-title">EventPass</span>
+          <span class="land-brand-subtitle">Panduan & Sistem Presensi</span>
+        </div>
+      </a>
+
+      <nav class="land-nav" aria-label="Navigasi Halaman">
+        <a href="#tentang" class="land-nav-link">Untuk Apa?</a>
+        <a href="#alasan" class="land-nav-link">Kelebihan</a>
+        <a href="#panduan" class="land-nav-link">Cara Setup</a>
+        <a href="#struktur" class="land-nav-link">Format Sheet</a>
+        <a href="#feedback" class="land-nav-link">Kritik & Masukan</a>
+      </nav>
+
+      <div class="land-header-actions">
+        <a href="dashboard.html" class="land-btn land-btn-outline" title="Buka Dashboard Monitoring">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="20" x2="18" y2="10"></line>
+            <line x1="12" y1="20" x2="12" y2="4"></line>
+            <line x1="6" y1="20" x2="6" y2="14"></line>
+          </svg>
+          <span>Dashboard</span>
+        </a>
+
+        <a href="index.html" class="land-btn land-btn-primary" title="Buka Scanner Tiket QR">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
+          </svg>
+          <span>Buka Scanner</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN CONTAINER -->
+  <main class="land-main">
+
+    <!-- HERO SECTION -->
+    <section class="land-hero" id="tentang">
+      <div class="land-pill-tag">
+        <span class="land-pill-dot"></span>
+        <span>Internal Organizers Tool</span>
+      </div>
+
+      <h1 class="land-hero-title">
+        Presensi QR Code Cepat, Ringan, & Langsung Masuk Google Sheets
+      </h1>
+
+      <p class="land-hero-desc">
+        Aplikasi web ini dibuat untuk mempermudah panitia mendata kehadiran peserta pada event satu hari maupun bertahap. 
+        Cukup buka browser di HP panitia untuk scan tiket QR—tanpa install aplikasi dari Play Store, tanpa database server berbayar, dan tetap jalan meski koneksi internet sempat terputus.
+      </p>
+
+      <div class="land-hero-actions">
+        <a href="index.html" class="land-btn land-btn-primary land-btn-lg">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+            <circle cx="12" cy="13" r="4"></circle>
+          </svg>
+          <span>Mulai Gunakan Scanner</span>
+        </a>
+
+        <a href="#panduan" class="land-btn land-btn-outline land-btn-lg">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+          <span>Pelajari Cara Pasang</span>
+        </a>
+      </div>
+
+      <div class="land-hero-highlights">
+        <div class="land-highlight-item">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          <span>Bebas Install APK / App Store</span>
+        </div>
+        <div class="land-highlight-item">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          <span>1 Tiket untuk Banyak Sesi</span>
+        </div>
+        <div class="land-highlight-item">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          <span>Bisa Check-In & Check-Out</span>
+        </div>
+        <div class="land-highlight-item">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          <span>Aman Saat Sinyal Drop</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 2: KENAPA MENGGUNAKAN TOOL INI? -->
+    <section id="alasan">
+      <div class="land-section-header">
+        <h2 class="land-section-title">Kenapa Menggunakan Aplikasi Ini?</h2>
+        <p class="land-section-desc">
+          Alasan praktis berdasarkan pengalaman lapangan saat panitia menangani antrean ratusan peserta.
+        </p>
+      </div>
+
+      <div class="land-grid-3">
+        <!-- Card 1 -->
+        <div class="land-feature-card">
+          <div class="land-feature-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+              <line x1="12" y1="18" x2="12.01" y2="18"></line>
+            </svg>
+          </div>
+          <h3 class="land-feature-title">Panitia Bebas Ribet Install</h3>
+          <p class="land-feature-text">
+            Petugas gate tidak perlu download aplikasi Android/iOS yang berat. Cukup buka link di browser HP panitia mana pun dan izinkan kamera untuk langsung memindai QR.
+          </p>
+        </div>
+
+        <!-- Card 2 -->
+        <div class="land-feature-card">
+          <div class="land-feature-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+              <polyline points="10 9 9 9 8 9"></polyline>
+            </svg>
+          </div>
+          <h3 class="land-feature-title">Tersimpan di Google Sheets Anda</h3>
+          <p class="land-feature-text">
+            Tidak ada database asing berbayar. Semua data nama, waktu presensi, petugas, dan gate langsung tercatat rapi di Google Sheets yang Anda miliki secara privat.
+          </p>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="land-feature-card">
+          <div class="land-feature-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="16" y1="2" x2="16" y2="6"></line>
+              <line x1="8" y1="2" x2="8" y2="6"></line>
+              <line x1="3" y1="10" x2="21" y2="10"></line>
+            </svg>
+          </div>
+          <h3 class="land-feature-title">1 QR Tetap untuk Seluruh Sesi</h3>
+          <p class="land-feature-text">
+            Peserta cukup registrasi satu kali dan memegang 1 tiket QR. Tiket yang sama otomatis berlaku untuk Sesi 1 (Pembukaan), Sesi 2 (Inti), hingga Sesi 3 (Ramah Tamah).
+          </p>
+        </div>
+
+        <!-- Card 4 -->
+        <div class="land-feature-card">
+          <div class="land-feature-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+              <polyline points="10 17 15 12 10 7"></polyline>
+              <line x1="15" y1="12" x2="3" y2="12"></line>
+            </svg>
+          </div>
+          <h3 class="land-feature-title">Mendukung Masuk & Keluar (IN-OUT)</h3>
+          <p class="land-feature-text">
+            Bisa mencatat waktu kedatangan (check-in) sekaligus kepulangan (check-out). Panitia bisa memantau siapa saja yang saat ini masih berada di lokasi acara.
+          </p>
+        </div>
+
+        <!-- Card 5 -->
+        <div class="land-feature-card">
+          <div class="land-feature-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
+              <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
+              <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+              <line x1="12" y1="20" x2="12.01" y2="20"></line>
+            </svg>
+          </div>
+          <h3 class="land-feature-title">Tahan Gangguan Sinyal (Offline Queue)</h3>
+          <p class="land-feature-text">
+            Bila jaringan seluler di gedung atau masjid sempat lambat/terputus, hasil scan tetap tersimpan di memori browser dan otomatis terkirim begitu internet terhubung kembali.
+          </p>
+        </div>
+
+        <!-- Card 6 -->
+        <div class="land-feature-card">
+          <div class="land-feature-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+              <path d="M3 3v5h5"></path>
+            </svg>
+          </div>
+          <h3 class="land-feature-title">Bisa Pembatalan (Undo Scan)</h3>
+          <p class="land-feature-text">
+            Bila panitia salah memindai tiket atau salah memilih sesi, kehadiran bisa dibatalkan secara instan dan aman langsung dari pop-up hasil verifikasi.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 3: STEP-BY-STEP PENGINSTALAN UNTUK TIM INTERNAL -->
+    <section id="panduan">
+      <div class="land-section-header">
+        <h2 class="land-section-title">Langkah-Langkah Setup untuk Panitia Baru</h2>
+        <p class="land-section-desc">
+          Ikuti 5 langkah mudah berikut untuk menghubungkan Google Sheets Anda ke Web Scanner dan Dashboard.
+        </p>
+      </div>
+
+      <div class="land-steps-list">
+        <!-- Step 1 -->
+        <div class="land-step-card">
+          <div class="land-step-num">1</div>
+          <div class="land-step-content">
+            <h3 class="land-step-title">Siapkan Google Spreadsheet</h3>
+            <p class="land-step-desc">
+              Buat spreadsheet baru di Google Drive Anda. Siapkan minimal 3 lembar kerja (sheet):
+              <strong>Data Peserta</strong>, <strong>Master Sesi</strong>, dan <strong>Log Kehadiran</strong>.
+            </p>
+
+            <div class="land-code-box">
+              <div class="land-code-header">
+                <span>Contoh Header Sheet "Data Peserta"</span>
+                <button class="land-copy-btn" onclick="copyToClipboard('ID Tiket\tNama Peserta\tWhatsApp\tJenis Kelamin\tInstansi\t[SESI-01]\t[SESI-02]')">Salin Header</button>
+              </div>
+              <code>ID Tiket | Nama Peserta | WhatsApp | Jenis Kelamin | Instansi | [SESI-01] | [SESI-02]</code>
+            </div>
+
+            <div class="land-tip-box">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+              <span><strong>Format Header Sesi:</strong> Beri tanda kurung siku seperti <code>[SESI-01]</code> agar sistem otomatis mengenalinya sebagai kolom pencatatan presensi sesi tersebut.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="land-step-card">
+          <div class="land-step-num">2</div>
+          <div class="land-step-content">
+            <h3 class="land-step-title">Buka Apps Script & Pasang Script Backend</h3>
+            <p class="land-step-desc">
+              Di Google Sheets Anda, buka menu <strong>Ekstensi &gt; Apps Script</strong> (Extensions &gt; Apps Script). 
+              Salin kode dari repository ini ke editor Apps Script:
+            </p>
+
+            <ul style="padding-left: 20px; font-size: 13.5px; color: var(--land-text-muted); display: flex; flex-direction: column; gap: 4px;">
+              <li>File <code>Code.gs</code>: Salin seluruh isi dari folder <strong>backend/Code.gs</strong>.</li>
+              <li>File <code>Dashboard.gs</code>: Buat file script baru dan salin seluruh isi dari <strong>backend/Dashboard.gs</strong>.</li>
+            </ul>
+
+            <div class="land-tip-box">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline></svg>
+              <span>Pastikan nama-nama sheet di bagian atas <code>CONFIG</code> pada <code>Code.gs</code> sudah sesuai dengan nama sheet di Google Spreadsheet Anda.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3 -->
+        <div class="land-step-card">
+          <div class="land-step-num">3</div>
+          <div class="land-step-content">
+            <h3 class="land-step-title">Deploy sebagai Aplikasi Web (Web App)</h3>
+            <p class="land-step-desc">
+              Di jendela Apps Script, klik tombol biru <strong>Deploy (Terapkan) &gt; New deployment (Deployment baru)</strong> di pojok kanan atas.
+            </p>
+
+            <div class="land-code-box">
+              <div class="land-code-header">
+                <span>Pengaturan Wajib Deployment</span>
+              </div>
+              <code>• Select type: Web app<br>• Description: Versi 1.0 Presensi QR<br>• Execute as: Me (Email Google Anda)<br>• Who has access: Anyone (Siapa saja)</code>
+            </div>
+
+            <div class="land-tip-box">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+              <span><strong>Penting:</strong> Opsi <em>Who has access</em> WAJIB diset ke <strong>Anyone</strong> agar panitia di lapangan bisa mengirim data scan tanpa harus login akun Google pemilik sheet.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 4 -->
+        <div class="land-step-card">
+          <div class="land-step-num">4</div>
+          <div class="land-step-content">
+            <h3 class="land-step-title">Hubungkan URL Web App ke Scanner & Dashboard</h3>
+            <p class="land-step-desc">
+              Setelah deploy selesai, salin <strong>Web App URL</strong> yang dihasilkan (formatnya: <code>https://script.google.com/macros/s/.../exec</code>).
+            </p>
+
+            <ul style="padding-left: 20px; font-size: 13.5px; color: var(--land-text-muted); display: flex; flex-direction: column; gap: 4px;">
+              <li>Buka Web Scanner (<a href="index.html" style="color: var(--land-primary); font-weight: 600;">index.html</a>) atau Dashboard (<a href="dashboard.html" style="color: var(--land-primary); font-weight: 600;">dashboard.html</a>).</li>
+              <li>Klik ikon <strong>Pengaturan (Gear)</strong> di pojok kanan atas.</li>
+              <li>Tempelkan URL tersebut ke kolom <strong>URL Google Apps Script</strong>, lalu klik <strong>Simpan</strong>.</li>
+            </ul>
+
+            <div class="land-tip-box">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+              <span>URL tersimpan otomatis di browser HP panitia. Jika panitia lain membuka di HP masing-masing, cukup masukkan URL ini sekali saja.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 5 -->
+        <div class="land-step-card">
+          <div class="land-step-num">5</div>
+          <div class="land-step-content">
+            <h3 class="land-step-title">Siap Operasional di Lapangan</h3>
+            <p class="land-step-desc">
+              Saat hari acara tiba, panitia cukup melakukan langkah singkat berikut:
+            </p>
+
+            <ul style="padding-left: 20px; font-size: 13.5px; color: var(--land-text-muted); display: flex; flex-direction: column; gap: 4px;">
+              <li>Buka Web Scanner di HP petugas gate.</li>
+              <li>Klik tombol petugas di kiri atas untuk mengisi nama petugas & gate (misal: "Ahmad - Pintu Timur").</li>
+              <li>Pilih sesi acara yang sedang berlangsung pada dropdown sesi.</li>
+              <li>Arahkan kamera ke QR tiket peserta. Tiket valid akan berbunyi *beep* hijau dan langsung tercatat di sheet!</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 4: STRUKTUR DATA SPREADSHEET -->
+    <section id="struktur">
+      <div class="land-section-header">
+        <h2 class="land-section-title">Contoh Format Lembar Kerja Spreadsheet</h2>
+        <p class="land-section-desc">
+          Gunakan contoh struktur tabel berikut agar sistem scanner dan dashboard otomatis mengenali seluruh kolom Anda.
+        </p>
+      </div>
+
+      <!-- Sheet: Data Peserta -->
+      <div style="margin-bottom: 24px;">
+        <h4 style="font-size: 14px; font-weight: 700; color: var(--land-primary); margin-bottom: 6px;">
+          1. Sheet: "Data Peserta" (Matrix Kehadiran Peserta)
+        </h4>
+        <div class="land-table-wrapper">
+          <table class="land-table">
+            <thead>
+              <tr>
+                <th>ID Tiket</th>
+                <th>Nama Peserta</th>
+                <th>WhatsApp</th>
+                <th>Jenis Kelamin</th>
+                <th>Instansi</th>
+                <th>[SESI-01]</th>
+                <th>[SESI-02_IN]</th>
+                <th>[SESI-02_OUT]</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>MSU-GSB-001</strong></td>
+                <td>Ahmad Haidar</td>
+                <td>081234567890</td>
+                <td>Laki-laki</td>
+                <td>Masjid Al-Ikhlas</td>
+                <td>04:15</td>
+                <td>04:30</td>
+                <td>05:45</td>
+              </tr>
+              <tr>
+                <td><strong>MSU-GSB-002</strong></td>
+                <td>Siti Fatimah</td>
+                <td>081298765432</td>
+                <td>Perempuan</td>
+                <td>DKM Baiturrahman</td>
+                <td>04:22</td>
+                <td>04:35</td>
+                <td><em>(kosong = di lokasi)</em></td>
+              </tr>
+              <tr>
+                <td><strong>MSU-GSB-003</strong></td>
+                <td>Fauzan Rizqi</td>
+                <td>085612345678</td>
+                <td>Laki-laki</td>
+                <td>Komunitas Subuh</td>
+                <td><em>(kosong)</em></td>
+                <td><em>(kosong)</em></td>
+                <td><em>(kosong)</em></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Sheet: Master Sesi -->
+      <div>
+        <h4 style="font-size: 14px; font-weight: 700; color: var(--land-primary); margin-bottom: 6px;">
+          2. Sheet: "Master Sesi" (Daftar & Status Sesi Acara)
+        </h4>
+        <div class="land-table-wrapper">
+          <table class="land-table">
+            <thead>
+              <tr>
+                <th>ID Sesi</th>
+                <th>Nama Sesi</th>
+                <th>Tanggal</th>
+                <th>Status</th>
+                <th>Mode Presensi</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>SESI-01</strong></td>
+                <td>Sesi 01: Pembukaan & Registrasi</td>
+                <td>2026-10-27</td>
+                <td><span style="font-weight: 700; color: var(--land-text-dim);">SELESAI</span></td>
+                <td>CHECK_IN</td>
+              </tr>
+              <tr>
+                <td><strong>SESI-02</strong></td>
+                <td>Sesi 02: Kajian Inti Subuh</td>
+                <td>2026-10-27</td>
+                <td><span style="font-weight: 700; color: var(--land-primary);">AKTIF</span></td>
+                <td>CHECK_IN_OUT <span class="land-badge-inout">Masuk & Keluar</span></td>
+              </tr>
+              <tr>
+                <td><strong>SESI-03</strong></td>
+                <td>Sesi 03: Penutupan & Ramah Tamah</td>
+                <td>2026-10-27</td>
+                <td><span style="font-weight: 700; color: var(--land-text-dim);">SELESAI</span></td>
+                <td>CHECK_IN</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 5: KRITIK & MASUKAN (FEEDBACK) -->
+    <section id="feedback">
+      <div class="land-section-header">
+        <h2 class="land-section-title">Kritik, Saran, & Masukan Panitia</h2>
+        <p class="land-section-desc">
+          Apakah ada alur yang membingungkan atau fitur yang ingin ditambahkan? Masukan Anda sangat berharga untuk kelancaran acara berikutnya.
+        </p>
+      </div>
+
+      <div class="land-feedback-card">
+        <form id="feedback-form" onsubmit="handleFeedbackSubmit(event)">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-bottom: 14px;">
+            <div class="land-form-group">
+              <label for="fb-name" class="land-form-label">Nama Panitia / Divisi</label>
+              <input type="text" id="fb-name" class="land-form-input" placeholder="Contoh: Farhan (Divisi Acara)" required>
+            </div>
+
+            <div class="land-form-group">
+              <label for="fb-category" class="land-form-label">Jenis Masukan</label>
+              <select id="fb-category" class="land-form-select">
+                <option value="Saran Fitur Baru">Saran Fitur Baru</option>
+                <option value="Laporan Kendala / Bug">Laporan Kendala / Bug Scan</option>
+                <option value="Kemudahan Penggunaan (UX)">Kemudahan Penggunaan (Tampilan/UX)</option>
+                <option value="Pertanyaan & Bantuan">Pertanyaan Setup</option>
+                <option value="Lainnya">Lainnya</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="land-form-group" style="margin-bottom: 14px;">
+            <label class="land-form-label">Bagaimana Kemudahan Penggunaan Tool Ini?</label>
+            <div class="land-rating-pills" id="rating-pills-group">
+              <button type="button" class="land-rating-btn active" data-rating="Sangat Mudah & Cepat">Sangat Mudah & Cepat</button>
+              <button type="button" class="land-rating-btn" data-rating="Cukup Baik">Cukup Baik</button>
+              <button type="button" class="land-rating-btn" data-rating="Masih Ada Kendala">Masih Ada Kendala</button>
+              <button type="button" class="land-rating-btn" data-rating="Perlu Penyederhanaan">Perlu Disederhanakan</button>
+            </div>
+          </div>
+
+          <div class="land-form-group" style="margin-bottom: 18px;">
+            <label for="fb-message" class="land-form-label">Isi Kritik & Saran Anda</label>
+            <textarea id="fb-message" class="land-form-textarea" rows="4" placeholder="Tuliskan masukan secara jujur dan to-the-point, misalnya: 'Saat malam hari kamera butuh senter otomatis' atau 'Tampilan kartu sesi sudah jelas'..." required></textarea>
+          </div>
+
+          <div class="land-feedback-actions">
+            <!-- Send to WhatsApp Button -->
+            <button type="button" class="land-btn land-btn-primary" onclick="sendViaWhatsApp()">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+              </svg>
+              <span>Kirim via WhatsApp Admin</span>
+            </button>
+
+            <!-- Copy to Clipboard Button -->
+            <button type="button" class="land-btn land-btn-outline" onclick="copyFeedbackText()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+              <span>Salin Teks Masukan</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- SECTION 6: FAQ (PERTANYAAN UMUM LAPANGAN) -->
+    <section id="faq">
+      <div class="land-section-header">
+        <h2 class="land-section-title">Pertanyaan yang Sering Muncul (FAQ)</h2>
+      </div>
+
+      <div class="land-faq-list">
+        <div class="land-faq-item">
+          <div class="land-faq-question">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+            <span>Bagaimana jika panitia salah scan peserta atau salah sesi?</span>
+          </div>
+          <p class="land-faq-answer">
+            Jangan panik. Pada kotak pop-up hijau hasil scan terdapat tombol <strong>"Batalkan Kehadiran" (Undo)</strong>. Klik tombol tersebut untuk menghapus tanda hadir secara otomatis dan audit trail pembatalan akan tercatat rapi di sheet <em>Log Kehadiran</em>.
+          </p>
+        </div>
+
+        <div class="land-faq-item">
+          <div class="land-faq-question">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+            <span>Apakah scanner bisa membaca tiket dari layar HP peserta (bukan kertas)?</span>
+          </div>
+          <p class="land-faq-answer">
+            Bisa. Scanner membaca QR code baik dari tiket cetak (kertas) maupun langsung dari layar smartphone peserta. Pastikan layar HP peserta tidak terlalu redup.
+          </p>
+        </div>
+
+        <div class="land-faq-item">
+          <div class="land-faq-question">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+            <span>Apakah beberapa panitia bisa scan bersamaan di pintu yang berbeda?</span>
+          </div>
+          <p class="land-faq-answer">
+            Bisa dan sangat dianjurkan. Sistem mendukung multi-gate dan multi-petugas secara bersamaan. Backend Google Apps Script menggunakan locking terkelola untuk mencegah konflik data saat banyak petugas scan dalam detik yang sama.
+          </p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- APPLICATION FOOTER (IDENTICAL WITH SCANNER & DASHBOARD) -->
+  <footer class="app-footer">
+    <div class="footer-container">
+      <span class="footer-optimized-text">EventPass &bull; Sistem Presensi & QR Code Terintegrasi Google Sheets</span>
+    </div>
+  </footer>
+
+  <!-- TOAST NOTIFICATION -->
+  <div id="land-toast" class="land-toast" role="status" aria-live="polite">
+    <span id="land-toast-text">Teks berhasil disalin!</span>
+  </div>
+
+  <!-- SCRIPT UNTUK INTERAKTIVITAS FEEDBACK & COPY -->
+  <script>
+    let selectedRating = "Sangat Mudah & Cepat";
+
+    // Rating selection toggle
+    document.querySelectorAll("#rating-pills-group .land-rating-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll("#rating-pills-group .land-rating-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        selectedRating = btn.getAttribute("data-rating");
+      });
+    });
+
+    function showToast(text) {
+      const toast = document.getElementById("land-toast");
+      const toastText = document.getElementById("land-toast-text");
+      if (!toast) return;
+      if (toastText) toastText.textContent = text;
+      toast.classList.add("show");
+      setTimeout(() => {
+        toast.classList.remove("show");
+      }, 2500);
+    }
+
+    function copyToClipboard(text) {
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(() => {
+          showToast("Header berhasil disalin ke clipboard!");
+        });
+      }
+    }
+
+    function getFeedbackPayload() {
+      const name = document.getElementById("fb-name")?.value.trim() || "Anonim (Panitia)";
+      const category = document.getElementById("fb-category")?.value || "Masukan Umum";
+      const message = document.getElementById("fb-message")?.value.trim() || "";
+      return { name, category, rating: selectedRating, message };
+    }
+
+    function sendViaWhatsApp() {
+      const p = getFeedbackPayload();
+      if (!p.message) {
+        alert("Silakan tuliskan pesan kritik atau masukan Anda terlebih dahulu.");
+        document.getElementById("fb-message")?.focus();
+        return;
+      }
+
+      const text = `Halo Admin EventPass, berikut kritik & masukan internal:\n\n` +
+        `• *Pengirim:* ${p.name}\n` +
+        `• *Kategori:* ${p.category}\n` +
+        `• *Kemudahan:* ${p.rating}\n` +
+        `• *Pesan:* ${p.message}\n\n` +
+        `_Dikirim via Landing Page Panduan EventPass_`;
+
+      const targetWa = "6281234567890"; // Nomor koordinator (bisa disesuaikan panitia)
+      const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+      window.open(url, "_blank");
+    }
+
+    function copyFeedbackText() {
+      const p = getFeedbackPayload();
+      if (!p.message) {
+        alert("Silakan tuliskan pesan kritik atau masukan Anda terlebih dahulu.");
+        document.getElementById("fb-message")?.focus();
+        return;
+      }
+
+      const text = `[Kritik & Masukan EventPass]\nPengirim: ${p.name}\nKategori: ${p.category}\nRating: ${p.rating}\nPesan: ${p.message}`;
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(() => {
+          showToast("Pesan masukan berhasil disalin ke clipboard!");
+        });
+      }
+    }
+
+    function handleFeedbackSubmit(e) {
+      e.preventDefault();
+      sendViaWhatsApp();
+    }
+  </script>
+
+</body>
+
+</html>

@@ -1,0 +1,823 @@
+/**
+ * ==============================================================================
+ * EVENTPASS • LANDING PAGE & INTERNAL GUIDE STYLESHEET (css/landing.css)
+ * ==============================================================================
+ * Harmonized with Web Scanner (style.css) & Dashboard (dashboard.css):
+ * - Fresh Organic Forest Green & Leaf Theme
+ * - Rounded radii (8px sm, 12px md, 18px lg, 9999px full)
+ * - Typography: 'Outfit' (headings) and 'Inter' (body)
+ * - Clean layout, zero buzzword clutter, practical internal guidance
+ */
+
+:root {
+  /* Color Palette - Fresh Organic Forest Green & Leaf Theme */
+  --land-bg-body: #f4f8f5;
+  --land-bg-card: #ffffff;
+  --land-bg-subtle: #ebf4ee;
+  --land-bg-hover: #dfeee3;
+  --land-border: #d7e6dc;
+  --land-border-subtle: #ebf4ee;
+
+  /* Typography Colors */
+  --land-text-main: #0c1f14;       /* Deep Forest Charcoal */
+  --land-text-muted: #385041;      /* Deep Sage Slate */
+  --land-text-dim: #557060;        /* Sage 500 */
+
+  /* Primary Brand Action */
+  --land-primary: #0d532d;         /* Deep Forest Green */
+  --land-primary-hover: #093e21;   /* Darker Forest Green */
+  --land-primary-active: #062b16;  /* Deepest Forest Green */
+  --land-primary-tint: #e8f5ec;    /* Soft Mint/Leaf Tint */
+  --land-accent-lime: #62b32b;     /* Fresh Spring Leaf Green */
+  --land-primary-gradient: linear-gradient(90deg, #0d532d 0%, #62b32b 100%);
+
+  /* Status Colors */
+  --land-green: #0d532d;
+  --land-green-bg: #f0fdf4;
+  --land-green-border: #bbf7d0;
+
+  --land-amber: #b45309;
+  --land-amber-bg: #fffbeb;
+  --land-amber-border: #fde68a;
+
+  --land-blue: #2563eb;
+  --land-blue-bg: #eff6ff;
+  --land-blue-border: #bfdbfe;
+
+  /* Border Radii */
+  --land-radius-sm: 8px;
+  --land-radius-md: 12px;
+  --land-radius-lg: 18px;
+  --land-radius-full: 9999px;
+
+  /* Elevation Shadows */
+  --land-shadow-xs: 0 1px 2px rgba(13, 83, 45, 0.05);
+  --land-shadow-sm: 0 2px 5px rgba(13, 83, 45, 0.06), 0 1px 2px rgba(0, 0, 0, 0.02);
+  --land-shadow-md: 0 6px 14px -2px rgba(13, 83, 45, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.03);
+  --land-shadow-lg: 0 14px 28px -4px rgba(13, 83, 45, 0.12), 0 4px 8px -4px rgba(0, 0, 0, 0.04);
+
+  --land-font-family: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --land-font-heading: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --land-font-body: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --land-transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Base Reset */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body.landing-body {
+  background-color: var(--land-bg-body);
+  color: var(--land-text-main);
+  font-family: var(--land-font-body);
+  min-height: 100vh;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ==============================================================================
+   TOP HEADER & NAVBAR
+   ============================================================================== */
+.land-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--land-border);
+  padding: 10px 20px;
+  box-shadow: var(--land-shadow-xs);
+}
+
+.land-header-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.land-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.land-brand-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--land-radius-sm);
+  background: var(--land-primary);
+  color: #ffffff;
+  box-shadow: var(--land-shadow-xs);
+}
+
+.land-brand-title {
+  font-family: var(--land-font-heading);
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--land-primary);
+  letter-spacing: -0.02em;
+}
+
+.land-brand-subtitle {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--land-text-dim);
+  display: block;
+  margin-top: -3px;
+}
+
+.land-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.land-nav-link {
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--land-text-muted);
+  text-decoration: none;
+  border-radius: var(--land-radius-sm);
+  transition: var(--land-transition);
+}
+
+.land-nav-link:hover {
+  color: var(--land-primary);
+  background: var(--land-bg-subtle);
+}
+
+.land-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ==============================================================================
+   BUTTONS (MATCHING SCANNER & DASHBOARD STYLES)
+   ============================================================================== */
+.land-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  border-radius: var(--land-radius-md);
+  border: 1px solid var(--land-border);
+  background: var(--land-bg-subtle);
+  color: var(--land-text-main);
+  text-decoration: none;
+  cursor: pointer;
+  transition: var(--land-transition);
+  white-space: nowrap;
+}
+
+.land-btn:hover {
+  background: var(--land-bg-hover);
+  color: var(--land-primary);
+}
+
+.land-btn:active {
+  transform: scale(0.97);
+}
+
+.land-btn-primary {
+  background: var(--land-primary);
+  color: #ffffff;
+  border-color: var(--land-primary);
+  box-shadow: 0 2px 6px rgba(13, 83, 45, 0.18);
+}
+
+.land-btn-primary:hover {
+  background: var(--land-primary-hover);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(13, 83, 45, 0.25);
+}
+
+.land-btn-outline {
+  background: #ffffff;
+  border-color: var(--land-border);
+  color: var(--land-primary);
+  box-shadow: var(--land-shadow-xs);
+}
+
+.land-btn-outline:hover {
+  border-color: var(--land-primary);
+  background: var(--land-bg-subtle);
+}
+
+.land-btn-lg {
+  padding: 12px 22px;
+  font-size: 14.5px;
+  font-weight: 700;
+  border-radius: var(--land-radius-md);
+}
+
+/* ==============================================================================
+   CONTAINER & LAYOUT
+   ============================================================================== */
+.land-main {
+  flex: 1;
+  max-width: 1040px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 24px 20px 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
+}
+
+/* ==============================================================================
+   HERO SECTION
+   ============================================================================== */
+.land-hero {
+  background: var(--land-bg-card);
+  border: 1px solid var(--land-border);
+  border-radius: var(--land-radius-lg);
+  padding: 40px 32px;
+  box-shadow: var(--land-shadow-sm);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 18px;
+  position: relative;
+  overflow: hidden;
+}
+
+.land-hero::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--land-primary-gradient);
+}
+
+.land-pill-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: var(--land-radius-full);
+  background: var(--land-bg-subtle);
+  border: 1px solid var(--land-border);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--land-primary);
+  letter-spacing: 0.3px;
+}
+
+.land-pill-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--land-accent-lime);
+}
+
+.land-hero-title {
+  font-family: var(--land-font-heading);
+  font-size: clamp(1.8rem, 4vw, 2.5rem);
+  font-weight: 800;
+  color: var(--land-text-main);
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  max-width: 760px;
+}
+
+.land-hero-desc {
+  font-size: clamp(0.95rem, 2vw, 1.05rem);
+  color: var(--land-text-muted);
+  max-width: 680px;
+  line-height: 1.6;
+}
+
+.land-hero-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.land-hero-highlights {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px dashed var(--land-border);
+  width: 100%;
+}
+
+.land-highlight-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--land-text-muted);
+}
+
+.land-highlight-item svg {
+  color: var(--land-primary);
+  flex-shrink: 0;
+}
+
+/* ==============================================================================
+   SECTION HEADERS
+   ============================================================================== */
+.land-section-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 22px;
+}
+
+.land-section-title {
+  font-family: var(--land-font-heading);
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: var(--land-text-main);
+  letter-spacing: -0.01em;
+}
+
+.land-section-desc {
+  font-size: 14px;
+  color: var(--land-text-muted);
+}
+
+/* ==============================================================================
+   FEATURES / ALASAN PENGGUNAAN (CARD GRID)
+   ============================================================================== */
+.land-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+  gap: 16px;
+}
+
+.land-feature-card {
+  background: var(--land-bg-card);
+  border: 1px solid var(--land-border);
+  border-radius: var(--land-radius-lg);
+  padding: 22px;
+  box-shadow: var(--land-shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: var(--land-transition);
+}
+
+.land-feature-card:hover {
+  border-color: #b7d1c0;
+  box-shadow: var(--land-shadow-md);
+  transform: translateY(-2px);
+}
+
+.land-feature-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--land-radius-md);
+  background: var(--land-bg-subtle);
+  border: 1px solid var(--land-border);
+  color: var(--land-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.land-feature-title {
+  font-family: var(--land-font-heading);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--land-text-main);
+  margin-top: 4px;
+}
+
+.land-feature-text {
+  font-size: 13.5px;
+  color: var(--land-text-muted);
+  line-height: 1.55;
+}
+
+/* ==============================================================================
+   INSTALLATION STEPS (STEP-BY-STEP PENGINSTALAN UNTUK INTERNAL)
+   ============================================================================== */
+.land-steps-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.land-step-card {
+  background: var(--land-bg-card);
+  border: 1px solid var(--land-border);
+  border-radius: var(--land-radius-lg);
+  padding: 24px;
+  box-shadow: var(--land-shadow-sm);
+  display: flex;
+  gap: 18px;
+  transition: var(--land-transition);
+}
+
+.land-step-num {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--land-radius-full);
+  background: var(--land-primary);
+  color: #ffffff;
+  font-family: var(--land-font-heading);
+  font-size: 16px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: var(--land-shadow-xs);
+}
+
+.land-step-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.land-step-title {
+  font-family: var(--land-font-heading);
+  font-size: 1.12rem;
+  font-weight: 700;
+  color: var(--land-text-main);
+}
+
+.land-step-desc {
+  font-size: 13.8px;
+  color: var(--land-text-muted);
+  line-height: 1.6;
+}
+
+/* Example Code / Sheet Preview Box */
+.land-code-box {
+  background: #0f1f14;
+  color: #e8f5ec;
+  border-radius: var(--land-radius-md);
+  padding: 14px 16px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.5;
+  overflow-x: auto;
+  position: relative;
+  margin-top: 6px;
+  border: 1px solid #1f3b29;
+}
+
+.land-code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 11px;
+  color: #86efac;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.land-copy-btn {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: var(--land-font-body);
+}
+
+.land-copy-btn:hover {
+  background: var(--land-accent-lime);
+  color: #0c1f14;
+}
+
+.land-tip-box {
+  background: var(--land-green-bg);
+  border: 1px solid var(--land-green-border);
+  border-radius: var(--land-radius-md);
+  padding: 12px 14px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 12.8px;
+  color: var(--land-text-muted);
+  margin-top: 6px;
+}
+
+.land-tip-box svg {
+  color: var(--land-primary);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* ==============================================================================
+   TABLE SCHEMA PREVIEW (STRUKTUR SPREADSHEET)
+   ============================================================================== */
+.land-table-wrapper {
+  background: #ffffff;
+  border: 1px solid var(--land-border);
+  border-radius: var(--land-radius-md);
+  overflow-x: auto;
+  margin-top: 8px;
+}
+
+.land-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.8px;
+  text-align: left;
+}
+
+.land-table th {
+  background: var(--land-bg-subtle);
+  padding: 9px 12px;
+  font-weight: 700;
+  color: var(--land-primary);
+  border-bottom: 1px solid var(--land-border);
+  white-space: nowrap;
+}
+
+.land-table td {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--land-border-subtle);
+  color: var(--land-text-main);
+  white-space: nowrap;
+}
+
+.land-badge-inout {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #e0e7ff;
+  color: #4338ca;
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  margin-left: 4px;
+}
+
+/* ==============================================================================
+   KRITIK & MASUKAN / FEEDBACK FORM
+   ============================================================================== */
+.land-feedback-card {
+  background: var(--land-bg-card);
+  border: 1px solid var(--land-border);
+  border-radius: var(--land-radius-lg);
+  padding: 30px;
+  box-shadow: var(--land-shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.land-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.land-form-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--land-text-main);
+}
+
+.land-form-input,
+.land-form-select,
+.land-form-textarea {
+  width: 100%;
+  padding: 10px 14px;
+  font-size: 13.8px;
+  font-family: inherit;
+  border-radius: var(--land-radius-md);
+  border: 1px solid var(--land-border);
+  background: var(--land-bg-subtle);
+  color: var(--land-text-main);
+  outline: none;
+  transition: var(--land-transition);
+}
+
+.land-form-input:focus,
+.land-form-select:focus,
+.land-form-textarea:focus {
+  border-color: var(--land-primary);
+  box-shadow: 0 0 0 3px rgba(13, 83, 45, 0.15);
+  background: #ffffff;
+}
+
+.land-rating-pills {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.land-rating-btn {
+  padding: 6px 14px;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: inherit;
+  border-radius: var(--land-radius-full);
+  border: 1px solid var(--land-border);
+  background: var(--land-bg-subtle);
+  color: var(--land-text-muted);
+  cursor: pointer;
+  transition: var(--land-transition);
+}
+
+.land-rating-btn:hover {
+  background: var(--land-bg-hover);
+  color: var(--land-primary);
+}
+
+.land-rating-btn.active {
+  background: var(--land-primary);
+  color: #ffffff;
+  border-color: var(--land-primary);
+}
+
+.land-feedback-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+/* ==============================================================================
+   FAQ ACCORDION
+   ============================================================================== */
+.land-faq-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.land-faq-item {
+  background: var(--land-bg-card);
+  border: 1px solid var(--land-border);
+  border-radius: var(--land-radius-md);
+  padding: 16px 20px;
+  box-shadow: var(--land-shadow-xs);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.land-faq-question {
+  font-family: var(--land-font-heading);
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: var(--land-text-main);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.land-faq-question svg {
+  color: var(--land-primary);
+  flex-shrink: 0;
+}
+
+.land-faq-answer {
+  font-size: 13.5px;
+  color: var(--land-text-muted);
+  line-height: 1.55;
+  padding-left: 26px;
+}
+
+/* ==============================================================================
+   APPLICATION FOOTER (CONSISTENT WITH SCANNER & DASHBOARD)
+   ============================================================================== */
+.app-footer {
+  width: 100%;
+  margin-top: auto;
+  padding: 20px 16px max(24px, calc(env(safe-area-inset-bottom) + 16px));
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+
+.footer-container {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 7px 16px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--land-border);
+  border-radius: var(--land-radius-full);
+  box-shadow: var(--land-shadow-xs);
+  transition: var(--land-transition);
+}
+
+.footer-container:hover {
+  background: #ffffff;
+  box-shadow: var(--land-shadow-sm);
+  transform: translateY(-1px);
+}
+
+.footer-optimized-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--land-text-dim);
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+/* Toast notice */
+.land-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(80px);
+  background: #0c1f14;
+  color: #ffffff;
+  padding: 10px 20px;
+  border-radius: var(--land-radius-full);
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: var(--land-shadow-md);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 200;
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease-out;
+}
+
+.land-toast.show {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+}
+
+/* Responsive */
+@media (max-width: 680px) {
+  .land-main {
+    padding: 16px 14px 40px;
+    gap: 32px;
+  }
+  .land-hero {
+    padding: 28px 18px;
+  }
+  .land-step-card {
+    padding: 18px 16px;
+    gap: 12px;
+  }
+  .land-step-num {
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
+  }
+  .land-feedback-card {
+    padding: 20px 16px;
+  }
+  .land-nav {
+    display: none;
+  }
+}
