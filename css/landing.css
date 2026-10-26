@@ -1,6 +1,6 @@
 /**
  * ==============================================================================
- * EVENTPASS • LANDING PAGE & INTERNAL GUIDE STYLESHEET (css/landing.css)
+ * ABSEN QR GENERAL • LANDING PAGE & INTERNAL GUIDE STYLESHEET (css/landing.css)
  * ==============================================================================
  * Harmonized with Web Scanner (style.css) & Dashboard (dashboard.css):
  * - Fresh Organic Forest Green & Leaf Theme
@@ -228,6 +228,18 @@ body.landing-body {
 .land-btn-outline:hover {
   border-color: var(--land-primary);
   background: var(--land-bg-subtle);
+}
+
+.land-btn-icon-only {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  padding: 0;
+  border-radius: var(--land-radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .land-btn-lg {

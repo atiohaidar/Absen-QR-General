@@ -1,6 +1,6 @@
 /**
  * ==============================================================================
- * EVENTPASS • DASHBOARD STYLESHEET (css/dashboard.css)
+ * ABSEN QR GENERAL • DASHBOARD STYLESHEET (css/dashboard.css)
  * ==============================================================================
  * Harmonized with Web Scanner (style.css) design system:
  * - Fresh Organic Forest Green & Leaf Theme
@@ -1549,6 +1549,28 @@ body.theme-dark .footer-container {
     padding: 14px 14px 40px;
     gap: 14px;
   }
+  .dash-header {
+    padding: 8px 12px;
+  }
+  .dash-header-inner {
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+  .dash-brand {
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+  }
+  .dash-brand-title {
+    font-size: 1.02rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .dash-header-actions {
+    flex-shrink: 0;
+    gap: 6px;
+  }
   .dash-simple-controls {
     grid-template-columns: 1fr;
     padding: 12px 14px;
@@ -1581,6 +1603,19 @@ body.theme-dark .footer-container {
   }
   .dash-hist-split-box {
     justify-content: space-around;
+  }
+}
+
+@media (max-width: 480px) {
+  .dash-sync-text {
+    display: none;
+  }
+  .dash-status-pill {
+    padding: 6px;
+  }
+  .dash-btn-icon-only {
+    width: 34px;
+    height: 34px;
   }
 }
 

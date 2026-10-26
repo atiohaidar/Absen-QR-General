@@ -1,4 +1,4 @@
-# ⚡ EventPass • QR Code Attendance & Multi-Session Check-In Blueprint
+# ⚡ Absen QR General • Sistem Presensi QR Code & Multi-Sesi Terintegrasi Google Sheets
 
 Blueprint sistem presensi dan registrasi event bertahap / multi-hari berbasis **Google Form + Google Drive + Google Sheets + GitHub Pages Scanner**. 
 

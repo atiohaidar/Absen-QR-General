@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
   <meta name="theme-color" content="#0d532d">
-  <title>Monitoring Kehadiran Peserta | EventPass</title>
+  <title>Monitoring Kehadiran Peserta | Absen QR General</title>
   <meta name="description"
     content="Ringkasan kehadiran peserta realtime sederhana dan interaktif. Pantau jumlah peserta yang sudah hadir dan belum hadir secara cepat.">
 
@@ -37,34 +37,32 @@
 
       <div class="dash-header-actions">
         <!-- Live Status Pill -->
-        <div class="dash-status-pill" title="Status Sinkronisasi Data">
+        <div class="dash-status-pill" id="sync-live-pill" title="Status Sinkronisasi Data">
           <span class="dash-status-dot" id="sync-live-dot"></span>
-          <span id="sync-live-text">Realtime</span>
+          <span id="sync-live-text" class="dash-sync-text">Realtime</span>
         </div>
 
         <!-- Manual Refresh Button -->
-        <button id="btn-refresh" class="dash-btn" title="Perbarui Data Sekarang">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+        <button id="btn-refresh" class="dash-btn dash-btn-icon-only" title="Perbarui Data Sekarang" aria-label="Refresh Data">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
             stroke-linecap="round" stroke-linejoin="round">
             <polyline points="23 4 23 10 17 10"></polyline>
             <polyline points="1 20 1 14 7 14"></polyline>
             <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
           </svg>
-          <span>Refresh</span>
         </button>
 
         <!-- Panduan & Pengenalan Link -->
-        <a href="landing.html" class="dash-btn" title="Panduan & Pengenalan Aplikasi">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+        <a href="landing.html" class="dash-btn dash-btn-icon-only" title="Panduan & Pengenalan Aplikasi" aria-label="Panduan Setup">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
             stroke-linecap="round" stroke-linejoin="round">
             <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
             <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
           </svg>
-          <span>Panduan</span>
         </a>
 
         <!-- Back to Scanner Link -->
-        <a href="index.html" class="dash-btn dash-btn-primary" title="Buka Scanner Tiket">
+        <a href="index.html" class="dash-btn dash-btn-primary dash-btn-icon-only" title="Buka Scanner Tiket QR" aria-label="Scanner Tiket">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
             stroke-linecap="round" stroke-linejoin="round">
             <rect x="3" y="3" width="7" height="7"></rect>
@@ -72,11 +70,10 @@
             <rect x="14" y="14" width="7" height="7"></rect>
             <rect x="3" y="14" width="7" height="7"></rect>
           </svg>
-          <span>Scanner</span>
         </a>
 
-        <!-- Settings Dropdown Button (Hidden complexity) -->
-        <button id="btn-open-settings-menu" class="dash-btn dash-btn-icon-only" title="Pengaturan Lanjutan">
+        <!-- Settings Dropdown Button -->
+        <button id="btn-open-settings-menu" class="dash-btn dash-btn-icon-only" title="Pengaturan Lanjutan" aria-label="Pengaturan">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
             stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="3"></circle>

@@ -1,6 +1,6 @@
 /**
  * ==============================================================================
- * EVENTPASS • MODULAR REALTIME DASHBOARD & ANALYTICS API (backend/Dashboard.gs)
+ * ABSEN QR GENERAL • MODULAR REALTIME DASHBOARD & ANALYTICS API (backend/Dashboard.gs)
  * ==============================================================================
  * 
  * Modul terpisah untuk menyajikan data analitik, statistik kehadiran,

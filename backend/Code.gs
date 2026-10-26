@@ -1171,7 +1171,7 @@ const CONFIG = {
       return createJsonResponse({
         success: true,
         status: "ONLINE",
-        app: "EventPass Google Apps Script API",
+        app: "Absen QR General Google Apps Script API",
         timeZone: Session.getScriptTimeZone(),
         activeSessions: getActiveSessions(),
         timestamp: new Date().toISOString()
@@ -2053,7 +2053,7 @@ const CONFIG = {
     }
 
     SpreadsheetApp.getUi()
-      .createMenu('⚡ Presensi Event')
+      .createMenu('⚡ Absen QR General')
       .addItem('🚀 1. Setup Otomatis (Inisialisasi & Pasang Trigger)', 'autoSetupEverything')
       .addItem('📝 2. Buat Google Form Pendaftaran Otomatis', 'autoCreateGoogleForm')
       .addItem('📥 3. Impor Peserta Lama dari Form Responses', 'syncExistingFormResponses')
