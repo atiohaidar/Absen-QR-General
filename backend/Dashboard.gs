@@ -268,12 +268,14 @@ function compileDashboardData(sheetPeserta, masterSessions, options) {
       let checkInTime = "";
       let checkOutTime = "";
 
+      if (hasIn) {
+        checkInTime = inVal.replace(/^HADIR\s*-\s*/, "").trim() || singleVal.replace(/^HADIR\s*-\s*/, "").trim();
+      }
       if (hasOut) {
         status = "CHECKOUT";
         checkOutTime = outVal.replace(/^CHECKOUT\s*-\s*/, "").trim() || singleVal.replace(/^CHECKOUT\s*-\s*/, "").trim();
       } else if (hasIn) {
         status = "HADIR";
-        checkInTime = inVal.replace(/^HADIR\s*-\s*/, "").trim() || singleVal.replace(/^HADIR\s*-\s*/, "").trim();
       }
 
       if (hasIn || hasOut) {
@@ -327,6 +329,7 @@ function compileDashboardData(sheetPeserta, masterSessions, options) {
   allSessions.forEach(s => {
     const summary = sessionSummaries[s.id];
     summary.absent = Math.max(0, summary.totalRegistered - summary.attended);
+    summary.inLocation = Math.max(0, summary.attended - summary.checkedOut);
     summary.rate = summary.totalRegistered > 0 
       ? Math.round((summary.attended / summary.totalRegistered) * 1000) / 10 
       : 0;

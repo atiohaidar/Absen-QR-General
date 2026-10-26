@@ -246,6 +246,85 @@ body.dashboard-body {
 }
 
 /* ==============================================================================
+   PRIMARY VIEW SWITCHER (LIVE VS RIWAYAT)
+   ============================================================================== */
+.dash-view-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--dash-bg-card);
+  border: 1px solid var(--dash-border);
+  padding: 4px;
+  border-radius: var(--dash-radius-full);
+  box-shadow: 0 2px 8px rgba(13, 83, 45, 0.04);
+  width: fit-content;
+  margin-bottom: -4px;
+}
+
+.dash-view-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  border-radius: var(--dash-radius-full);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--dash-text-muted);
+  font-size: 0.84rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.dash-view-tab-btn:hover {
+  color: var(--dash-text-main);
+  background: var(--dash-bg-subtle);
+}
+
+.dash-view-tab-btn.active {
+  background: var(--dash-primary);
+  color: #ffffff;
+  border-color: var(--dash-primary);
+  box-shadow: 0 4px 14px rgba(13, 83, 45, 0.25);
+}
+
+.dash-view-tab-btn.active .dash-pulse-dot {
+  background-color: #4ade80;
+  box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.6);
+}
+
+.dash-view-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: var(--dash-radius-full);
+  background: var(--dash-bg-subtle);
+  color: var(--dash-text-dim);
+  border: 1px solid var(--dash-border-subtle);
+  transition: all 0.15s ease;
+}
+
+.dash-view-tab-btn.active .dash-view-badge {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.dash-view-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  animation: dashFadeIn 0.2s ease-out;
+}
+
+@keyframes dashFadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ==============================================================================
    SIMPLE CONTROLS
    ============================================================================== */
 .dash-simple-controls {
@@ -683,6 +762,151 @@ body.dashboard-body {
   font-weight: 600;
 }
 
+.dash-peak-badge.male {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+}
+
+.dash-peak-badge.female {
+  background: #fff1f2;
+  border-color: #fecdd3;
+  color: #be123c;
+}
+
+body.theme-dark .dash-peak-badge.male {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: rgba(59, 130, 246, 0.35);
+  color: #93c5fd;
+}
+
+body.theme-dark .dash-peak-badge.female {
+  background: rgba(244, 114, 182, 0.15);
+  border-color: rgba(244, 114, 182, 0.35);
+  color: #fbcfe8;
+}
+
+/* Chart View Segmented Controls */
+.dash-chart-toggle-group {
+  display: inline-flex;
+  align-items: center;
+  background: var(--dash-bg-subtle);
+  border: 1px solid var(--dash-border);
+  border-radius: var(--dash-radius-full);
+  padding: 2px;
+  gap: 2px;
+}
+
+.dash-chart-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: var(--dash-radius-full);
+  border: none;
+  background: transparent;
+  color: var(--dash-text-muted);
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+}
+
+.dash-chart-toggle-btn:hover {
+  color: var(--dash-text-main);
+  background: rgba(0, 0, 0, 0.04);
+}
+
+body.theme-dark .dash-chart-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.dash-chart-toggle-btn.active {
+  background: var(--dash-bg-card);
+  color: var(--dash-text-main);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  font-weight: 700;
+}
+
+/* Gender Mini Pills in KPI Cards */
+.dash-stat-gender-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--dash-border-subtle);
+}
+
+.dash-gender-mini-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--dash-radius-full);
+}
+
+.dash-gender-mini-pill.male {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.dash-gender-mini-pill.female {
+  background: #fff1f2;
+  color: #be123c;
+  border: 1px solid #fecdd3;
+}
+
+.dash-gender-mini-pill.neutral {
+  background: var(--dash-bg-subtle);
+  color: var(--dash-text-muted);
+  border: 1px solid var(--dash-border);
+}
+
+body.theme-dark .dash-gender-mini-pill.male {
+  background: rgba(59, 130, 246, 0.15);
+  color: #93c5fd;
+  border-color: rgba(59, 130, 246, 0.35);
+}
+
+body.theme-dark .dash-gender-mini-pill.female {
+  background: rgba(244, 114, 182, 0.15);
+  color: #fbcfe8;
+  border-color: rgba(244, 114, 182, 0.35);
+}
+
+/* History Card Gender Split */
+.dash-history-gender-split {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-top: 6px;
+  color: var(--dash-text-muted);
+}
+
+.dash-history-gender-split .male {
+  color: #1d4ed8;
+}
+
+.dash-history-gender-split .female {
+  color: #be123c;
+}
+
+body.theme-dark .dash-history-gender-split .male {
+  color: #93c5fd;
+}
+
+body.theme-dark .dash-history-gender-split .female {
+  color: #fbcfe8;
+}
+
 .dash-chart-wrapper {
   position: relative;
   width: 100%;
@@ -742,6 +966,12 @@ body.dashboard-body {
   background: var(--dash-green);
   color: #ffffff;
   border-color: var(--dash-green);
+}
+
+.dash-filter-tab.active.tab-checkout {
+  background: #0d9488;
+  color: #ffffff;
+  border-color: #0d9488;
 }
 
 .dash-filter-tab.active.tab-belum {
@@ -859,6 +1089,30 @@ body.dashboard-body {
   background: var(--dash-green-bg);
   border: 1px solid var(--dash-green-border);
   color: var(--dash-green);
+}
+
+.dash-badge-checkout {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+}
+
+body.theme-dark .dash-badge-checkout {
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  color: #86efac;
+}
+
+.dash-badge-in-location {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+}
+
+body.theme-dark .dash-badge-in-location {
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  color: #93c5fd;
 }
 
 .dash-badge-belum {
@@ -1017,9 +1271,132 @@ body.dashboard-body {
   }
 }
 
+/* ==============================================================================
+   RIWAYAT SESI (HISTORY CARDS & GRID)
+   ============================================================================== */
+.dash-history-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+  margin-top: 14px;
+}
+
+.dash-history-card {
+  background: var(--dash-bg-card);
+  border: 1px solid var(--dash-border);
+  border-radius: var(--dash-radius-lg);
+  padding: 20px 22px;
+  box-shadow: 0 4px 16px -2px rgba(13, 83, 45, 0.04), 0 2px 6px -1px rgba(0, 0, 0, 0.02);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 14px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.dash-history-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px -4px rgba(13, 83, 45, 0.12);
+  border-color: var(--dash-primary);
+}
+
+.dash-history-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.dash-history-card-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--dash-text-main);
+  line-height: 1.35;
+}
+
+.dash-history-card-date {
+  font-size: 0.76rem;
+  color: var(--dash-text-dim);
+  margin-top: 2px;
+}
+
+.dash-history-card-stats {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-top: 4px;
+}
+
+.dash-history-card-num {
+  font-family: var(--dash-font-heading);
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: var(--dash-green);
+  line-height: 1;
+}
+
+.dash-history-card-pct {
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-family: var(--dash-font-body);
+  padding: 3px 10px;
+  border-radius: var(--dash-radius-full);
+  background: var(--dash-green-bg);
+  color: var(--dash-green);
+  border: 1px solid var(--dash-green-border);
+}
+
+.dash-history-delta-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--dash-radius-full);
+  width: fit-content;
+}
+
+.dash-history-delta-badge.up {
+  background: var(--dash-green-bg);
+  color: var(--dash-green);
+  border: 1px solid var(--dash-green-border);
+}
+
+.dash-history-delta-badge.down {
+  background: var(--dash-amber-bg);
+  color: var(--dash-amber);
+  border: 1px solid var(--dash-amber-border);
+}
+
+.dash-history-delta-badge.neutral {
+  background: var(--dash-bg-subtle);
+  color: var(--dash-text-dim);
+  border: 1px solid var(--dash-border-subtle);
+}
+
+.dash-history-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 12px;
+  border-top: 1px solid var(--dash-border-subtle);
+  margin-top: 2px;
+}
+
+.dash-history-rush {
+  font-size: 0.76rem;
+  color: var(--dash-text-dim);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
 /* Print Cleanliness */
 @media print {
-  .dash-header, .dash-simple-controls, .dash-filter-tabs, .dash-pagination-bar, .dash-action-btn {
+  .dash-header, .dash-simple-controls, .dash-filter-tabs, .dash-pagination-bar, .dash-action-btn, .dash-view-switcher {
     display: none !important;
   }
 }
