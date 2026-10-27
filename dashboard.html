@@ -247,7 +247,7 @@
                 <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
               </svg>
               <input type="text" id="dash-search-input" class="dash-table-search-input"
-                placeholder="Cari nama, ID tiket, WA...">
+                placeholder="Cari nama atau ID tiket...">
             </div>
 
             <!-- Export CSV Button -->
@@ -272,14 +272,13 @@
         <div class="dash-table-wrapper">
           <table class="dash-table">
             <thead>
-              <tr>
-                <th style="width: 45px;">No</th>
+              <tr id="dash-table-head-row">
+                <th style="width: 48px;">No</th>
                 <th>Nama Peserta</th>
                 <th>ID Tiket</th>
-                <th id="th-category-name">Kategori / Gender</th>
+                <th id="th-category-name">Jenis Kelamin</th>
                 <th>Status</th>
                 <th>Waktu Presensi</th>
-                <th style="text-align: right;">Aksi</th>
               </tr>
             </thead>
             <tbody id="dash-table-body">

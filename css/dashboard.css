@@ -1009,6 +1009,91 @@ body.theme-dark .dash-table-search-input:focus {
   z-index: 5;
 }
 
+.dash-th-sortable {
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.dash-th-sortable:hover {
+  background: var(--dash-bg-hover) !important;
+  color: var(--dash-primary);
+}
+
+.dash-th-sortable.active-sorted {
+  color: var(--dash-primary);
+  background: rgba(13, 83, 45, 0.08) !important;
+}
+
+body.theme-dark .dash-th-sortable.active-sorted {
+  background: rgba(52, 211, 153, 0.12) !important;
+}
+
+.dash-th-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.dash-sort-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  opacity: 0.35;
+  transition: opacity 0.15s ease;
+}
+
+.dash-th-sortable:hover .dash-sort-arrow {
+  opacity: 0.8;
+}
+
+.dash-th-sortable.active-sorted .dash-sort-arrow {
+  opacity: 1;
+  color: var(--dash-primary);
+}
+
+.dash-gender-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--dash-radius-full);
+  line-height: 1.35;
+}
+
+.dash-gender-badge.gender-laki {
+  background: rgba(37, 99, 235, 0.1);
+  color: #1d4ed8;
+  border: 1px solid rgba(37, 99, 235, 0.22);
+}
+
+.dash-gender-badge.gender-perempuan {
+  background: rgba(225, 29, 72, 0.1);
+  color: #be123c;
+  border: 1px solid rgba(225, 29, 72, 0.22);
+}
+
+.dash-gender-badge.gender-other {
+  background: var(--dash-bg-subtle);
+  color: var(--dash-text-muted);
+  border: 1px solid var(--dash-border);
+}
+
+body.theme-dark .dash-gender-badge.gender-laki {
+  background: rgba(96, 165, 250, 0.18);
+  color: #93c5fd;
+  border-color: rgba(96, 165, 250, 0.32);
+}
+
+body.theme-dark .dash-gender-badge.gender-perempuan {
+  background: rgba(251, 113, 133, 0.18);
+  color: #fca5a5;
+  border-color: rgba(251, 113, 133, 0.32);
+}
+
 .dash-table td {
   padding: 10px 16px;
   border-bottom: 1px solid var(--dash-border-subtle);

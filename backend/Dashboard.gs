@@ -237,8 +237,9 @@ function compileDashboardData(sheetPeserta, masterSessions, options) {
     if (!ticketId) continue; // Skip baris kosong
 
     const name = String(row[columnSchema.nameCol] || "Peserta").trim();
-    const email = columnSchema.emailCol >= 0 ? String(row[columnSchema.emailCol] || "-").trim() : "-";
-    const phone = columnSchema.phoneCol >= 0 ? String(row[columnSchema.phoneCol] || "-").trim() : "-";
+    // Privasi: tidak mengekspos email dan nomor WA/telepon ke dashboard publik
+    const email = "";
+    const phone = "";
     const totalHadirVal = columnSchema.totalCol >= 0 ? Number(row[columnSchema.totalCol]) || 0 : 0;
 
     // Kumpulkan field dimensi kustom
@@ -444,6 +445,7 @@ function analyzeColumnSchema(sheetPeserta, headers) {
     const isPhone = lower.includes("wa") || lower.includes("whatsapp") || lower.includes("hp") || lower.includes("telepon") || lower.includes("kontak");
     const isDrive = lower.includes("drive") || lower.includes("file id") || lower.includes("file url");
     const isTimestamp = lower.includes("timestamp") || lower.includes("waktu daftar") || lower.includes("tanggal daftar");
+    const isNimNik = lower.includes("nim") || lower.includes("nik") || lower.includes("nrp") || lower.includes("npm") || lower.includes("nomor induk") || lower.includes("no. induk");
     const isSession = lower.startsWith("sesi:") || (lower.includes("[") && lower.includes("]"));
 
     if (isTicket) {
@@ -461,6 +463,8 @@ function analyzeColumnSchema(sheetPeserta, headers) {
     } else if (isPhone) {
       phoneCol = idx;
       role = "phone";
+    } else if (isNimNik) {
+      role = "sensitiveIgnore";
     } else if (isDrive || isTimestamp) {
       role = "systemIgnore";
     } else if (isSession) {

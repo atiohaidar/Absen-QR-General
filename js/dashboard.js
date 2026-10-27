@@ -32,9 +32,11 @@
     drilldownValue: "",               // Clicked category filter (e.g. "Laki-laki")
     searchQuery: "",
 
-    // Pagination
+    // Pagination & Sorting
     currentPage: 1,
     rowsPerPage: 15,
+    sortColumn: "no",     // 'no', 'name', 'ticketId', 'gender', 'category', 'status', 'time'
+    sortDirection: "asc", // 'asc' | 'desc'
     isLoading: false,
 
     // Active Tab Navigation
@@ -587,7 +589,7 @@
       }
 
       state.sessions = data.sessions || [];
-      state.dimensions = data.dimensions || [];
+      state.dimensions = (data.dimensions || []).filter(d => !isSensitiveDimension(d.name));
       state.attendees = data.attendees || [];
       state.detectedGenderCol = data.detectedGenderCol || findGenderColumnName(state.dimensions);
       state.sessionSummaries = data.sessionSummaries || {};
@@ -646,6 +648,15 @@
       }
     }
     return "";
+  }
+
+  function isSensitiveDimension(name) {
+    if (!name) return false;
+    const l = name.toLowerCase();
+    return l.includes("email") || l.includes("wa") || l.includes("whatsapp") || l.includes("hp") ||
+           l.includes("telepon") || l.includes("phone") || l.includes("kontak") ||
+           l.includes("nim") || l.includes("nik") || l.includes("nrp") || l.includes("npm") ||
+           l.includes("nomor induk") || l.includes("no. induk");
   }
 
   function populateSessionDropdown() {
@@ -1438,12 +1449,99 @@
   }
 
   // ============================================================================
-  // TABLE FILTERING & RENDERING
+  // TABLE FILTERING, SORTING & RENDERING
   // ============================================================================
+  function sortAttendees(list) {
+    const col = state.sortColumn;
+    const dir = (state.sortDirection === "desc") ? -1 : 1;
+    const dimName = getEffectiveDimensionName();
+    const currentSessId = state.selectedSessionId;
+
+    return [...list].sort((a, b) => {
+      let res = 0;
+
+      switch (col) {
+        case "name": {
+          const nameA = String(a.name || "");
+          const nameB = String(b.name || "");
+          res = nameA.localeCompare(nameB, "id", { sensitivity: "base" });
+          break;
+        }
+        case "ticketId": {
+          const tA = String(a.ticketId || "");
+          const tB = String(b.ticketId || "");
+          res = tA.localeCompare(tB, undefined, { numeric: true, sensitivity: "base" });
+          break;
+        }
+        case "gender": {
+          const gA = getAttendeeGender(a);
+          const gB = getAttendeeGender(b);
+          res = gA.localeCompare(gB, "id");
+          break;
+        }
+        case "category": {
+          const cA = (a.custom && dimName && a.custom[dimName]) ? String(a.custom[dimName]).trim() : "";
+          const cB = (b.custom && dimName && b.custom[dimName]) ? String(b.custom[dimName]).trim() : "";
+          res = cA.localeCompare(cB, "id");
+          break;
+        }
+        case "status": {
+          const getStatusWeight = (att) => {
+            const sess = att.sessions[currentSessId];
+            if (!sess || sess.status === "BELUM_HADIR") return 3;
+            if (sess.status === "CHECKOUT") return 2;
+            if (sess.status === "HADIR") return 1;
+            return 3;
+          };
+          res = getStatusWeight(a) - getStatusWeight(b);
+          break;
+        }
+        case "time": {
+          const getTimeVal = (att) => {
+            const sess = att.sessions[currentSessId];
+            if (!sess) return "";
+            return sess.checkInTime || sess.checkOutTime || "";
+          };
+          const tA = getTimeVal(a);
+          const tB = getTimeVal(b);
+          if (!tA && !tB) res = 0;
+          else if (!tA) res = 1;
+          else if (!tB) res = -1;
+          else res = tA.localeCompare(tB);
+          break;
+        }
+        case "no":
+        default: {
+          const tA = String(a.ticketId || "");
+          const tB = String(b.ticketId || "");
+          res = tA.localeCompare(tB, undefined, { numeric: true });
+          break;
+        }
+      }
+
+      if (res === 0) {
+        res = String(a.name || "").localeCompare(String(b.name || ""), "id");
+      }
+
+      return res * dir;
+    });
+  }
+
+  function handleTableSort(columnKey) {
+    if (state.sortColumn === columnKey) {
+      state.sortDirection = (state.sortDirection === "asc") ? "desc" : "asc";
+    } else {
+      state.sortColumn = columnKey;
+      state.sortDirection = "asc";
+    }
+    state.currentPage = 1;
+    renderTable();
+  }
+
   function getFilteredAttendees() {
     const dimName = getEffectiveDimensionName();
 
-    return state.attendees.filter(att => {
+    const filtered = state.attendees.filter(att => {
       // 1. Status Filter
       if (state.statusFilter !== "ALL") {
         const sess = att.sessions[state.selectedSessionId];
@@ -1463,31 +1561,32 @@
         if (val !== state.drilldownValue) return false;
       }
 
-      // 3. Search Query
+      // 3. Search Query (Nama atau ID Tiket saja, tanpa mengekspos kontak/WA)
       if (state.searchQuery) {
-        const q = state.searchQuery;
+        const q = state.searchQuery.toLowerCase();
         const matchName = att.name.toLowerCase().includes(q);
         const matchTicket = att.ticketId.toLowerCase().includes(q);
-        const matchPhone = att.phone && att.phone.includes(q);
-        if (!matchName && !matchTicket && !matchPhone) return false;
+        if (!matchName && !matchTicket) return false;
       }
 
       return true;
     });
+
+    return sortAttendees(filtered);
   }
 
   function renderTable() {
     const tbody = document.getElementById("dash-table-body");
-    const thCategory = document.getElementById("th-category-name");
+    const theadRow = document.getElementById("dash-table-head-row");
     const drilldownBanner = document.getElementById("active-drilldown-banner");
     const drilldownName = document.getElementById("drilldown-category-name");
 
     if (!tbody) return;
 
     const dimName = getEffectiveDimensionName();
-    if (thCategory) {
-      thCategory.textContent = dimName || "Kategori";
-    }
+    const genderCol = getGenderCol();
+    const hasGender = Boolean(genderCol);
+    const hasOtherDim = Boolean(dimName && !isGenderDimension(dimName));
 
     // Drilldown banner
     if (drilldownBanner && drilldownName) {
@@ -1499,6 +1598,45 @@
       }
     }
 
+    // Bangun Kolom Tabel Dinamis
+    const columns = [
+      { key: "no", label: "No", style: "width: 48px;" },
+      { key: "name", label: "Nama Peserta" },
+      { key: "ticketId", label: "ID Tiket", style: "width: 130px;" }
+    ];
+    if (hasGender) {
+      columns.push({ key: "gender", label: "Jenis Kelamin", style: "width: 130px;" });
+    }
+    if (hasOtherDim) {
+      columns.push({ key: "category", label: dimName, style: "width: 140px;" });
+    }
+    columns.push({ key: "status", label: "Status", style: "width: 130px;" });
+    columns.push({ key: "time", label: "Waktu Presensi", style: "width: 140px;" });
+
+    // Render Table Header dengan Indikator Sort
+    if (theadRow) {
+      theadRow.innerHTML = columns.map(col => {
+        const isSorted = state.sortColumn === col.key;
+        let sortArrow = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 15l5 5 5-5M7 9l5-5 5 5"/></svg>`;
+        if (isSorted) {
+          sortArrow = state.sortDirection === "asc"
+            ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"></polyline></svg>`
+            : `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>`;
+        }
+        return `
+          <th class="dash-th-sortable ${isSorted ? 'active-sorted' : ''}" 
+              style="${col.style || ''}" 
+              onclick="EventPassSimple.sortTable('${col.key}')" 
+              title="Klik untuk mengurutkan berdasarkan ${escapeHtml(col.label)}">
+            <div class="dash-th-inner">
+              <span>${escapeHtml(col.label)}</span>
+              <span class="dash-sort-arrow" aria-hidden="true">${sortArrow}</span>
+            </div>
+          </th>
+        `;
+      }).join("");
+    }
+
     const filtered = getFilteredAttendees();
     const startIdx = (state.currentPage - 1) * state.rowsPerPage;
     const pageRows = filtered.slice(startIdx, startIdx + state.rowsPerPage);
@@ -1506,7 +1644,7 @@
     if (pageRows.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="7" class="dash-empty-cell">
+          <td colspan="${columns.length}" class="dash-empty-cell">
             <div style="font-weight: 600;">Tidak ada peserta yang cocok</div>
             <div style="font-size: 0.78rem; margin-top: 4px;">Coba sesuaikan pencarian atau reset filter di atas.</div>
           </td>
@@ -1558,34 +1696,31 @@
         timeHtml = `<span style="color: var(--dash-text-muted); font-size: 0.82rem;"><span style="font-size: 0.68rem; font-weight: 700; opacity: 0.85; padding: 1px 4px; background: rgba(148,163,184,0.15); border-radius: 3px; margin-right: 4px;">OUT</span>${sess.checkOutTime}</span>`;
       }
 
-      // Category / Gender value
-      const catVal = (att.custom && dimName && att.custom[dimName]) ? att.custom[dimName] : "-";
+      let cells = `
+        <td style="color: var(--dash-text-dim); font-size: 0.78rem;">${seq}</td>
+        <td>
+          <div style="font-weight: 600;">${escapeHtml(att.name)}</div>
+        </td>
+        <td style="font-family: monospace; font-size: 0.8rem; font-weight: 600;">${escapeHtml(att.ticketId)}</td>
+      `;
 
-      // WhatsApp Button for Absent Attendees
-      let waBtn = "";
-      if (att.phone && att.phone.length > 8) {
-        const cleanPhone = att.phone.replace(/[^0-9]/g, "");
-        const formatted = cleanPhone.startsWith("0") ? "62" + cleanPhone.slice(1) : cleanPhone;
-        const msg = encodeURIComponent(`Assalamu'alaikum ${att.name}, kami panitia mengingatkan terkait kehadiran sesi ${state.selectedSessionId}.`);
-        waBtn = `<a href="https://wa.me/${formatted}?text=${msg}" target="_blank" class="dash-action-btn" title="Kirim Pesan WhatsApp">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
-          WA
-        </a>`;
+      if (hasGender) {
+        const gVal = getAttendeeGender(att);
+        const gClass = (gVal === "Laki-laki") ? "gender-laki" : (gVal === "Perempuan" ? "gender-perempuan" : "gender-other");
+        cells += `<td><span class="dash-gender-badge ${gClass}">${escapeHtml(gVal)}</span></td>`;
       }
 
-      return `
-        <tr>
-          <td style="color: var(--dash-text-dim); font-size: 0.78rem;">${seq}</td>
-          <td>
-            <div style="font-weight: 600;">${escapeHtml(att.name)}</div>
-          </td>
-          <td style="font-family: monospace; font-size: 0.8rem; font-weight: 600;">${escapeHtml(att.ticketId)}</td>
-          <td>${escapeHtml(catVal)}</td>
-          <td>${statusBadge}</td>
-          <td>${timeHtml}</td>
-          <td style="text-align: right;">${waBtn}</td>
-        </tr>
+      if (hasOtherDim) {
+        const catVal = (att.custom && att.custom[dimName]) ? att.custom[dimName] : "-";
+        cells += `<td><span style="font-size: 0.82rem; color: var(--dash-text-muted);">${escapeHtml(catVal)}</span></td>`;
+      }
+
+      cells += `
+        <td>${statusBadge}</td>
+        <td>${timeHtml}</td>
       `;
+
+      return `<tr>${cells}</tr>`;
     }).join("");
 
     tbody.innerHTML = rowsHtml;
@@ -1607,7 +1742,7 @@
   }
 
   // ============================================================================
-  // EXPORT CSV (KOMPREHENSIF DENGAN WAKTU IN & OUT)
+  // EXPORT CSV (KOMPREHENSIF DENGAN WAKTU IN & OUT, TANPA DATA SENSITIF)
   // ============================================================================
   function exportCsv() {
     const filtered = getFilteredAttendees();
@@ -1616,8 +1751,15 @@
       return;
     }
 
-    const dimName = getEffectiveDimensionName() || "Kategori";
-    const headers = ["No", "ID Tiket", "Nama Peserta", dimName, "Status Kehadiran", "Waktu Check-In", "Waktu Check-Out", "Nomor WhatsApp"];
+    const dimName = getEffectiveDimensionName();
+    const genderCol = getGenderCol();
+    const hasGender = Boolean(genderCol);
+    const hasOtherDim = Boolean(dimName && !isGenderDimension(dimName));
+
+    const headers = ["No", "ID Tiket", "Nama Peserta"];
+    if (hasGender) headers.push("Jenis Kelamin");
+    if (hasOtherDim) headers.push(dimName);
+    headers.push("Status Kehadiran", "Waktu Check-In", "Waktu Check-Out");
 
     const rows = filtered.map((att, idx) => {
       const sess = att.sessions[state.selectedSessionId] || { status: "BELUM_HADIR", checkInTime: "", checkOutTime: "" };
@@ -1626,18 +1768,27 @@
       if (sess.status === "CHECKOUT") statusLabel = "Checkout";
       else if (isAttended) statusLabel = "Hadir / Di Lokasi";
 
-      const catVal = (att.custom && dimName && att.custom[dimName]) ? att.custom[dimName] : "";
-
-      return [
+      const row = [
         idx + 1,
         `"${att.ticketId}"`,
-        `"${att.name.replace(/"/g, '""')}"`,
-        `"${catVal.replace(/"/g, '""')}"`,
+        `"${att.name.replace(/"/g, '""')}"`
+      ];
+
+      if (hasGender) {
+        row.push(`"${getAttendeeGender(att)}"`);
+      }
+      if (hasOtherDim) {
+        const catVal = (att.custom && att.custom[dimName]) ? att.custom[dimName] : "";
+        row.push(`"${catVal.replace(/"/g, '""')}"`);
+      }
+
+      row.push(
         `"${statusLabel}"`,
         `"${sess.checkInTime || ''}"`,
-        `"${sess.checkOutTime || ''}"`,
-        `"${att.phone || ''}"`
-      ];
+        `"${sess.checkOutTime || ''}"`
+      );
+
+      return row;
     });
 
     const csvContent = "data:text/csv;charset=utf-8,\uFEFF" +
@@ -2358,6 +2509,9 @@
       const sel = document.getElementById("select-session");
       if (sel) sel.value = sessionId;
       switchActiveTab("live");
+    },
+    sortTable: (columnKey) => {
+      handleTableSort(columnKey);
     }
   };
 
