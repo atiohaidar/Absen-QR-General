@@ -124,7 +124,7 @@ window.EventPass = window.EventPass || {};
           tab: 'manual',
           popover: {
             title: 'Input ID Tiket Langsung',
-            description: 'Jika peserta mengetahui kode tiketnya (misal: MSU-GSBH7SWZJ), ketik kode tersebut di sini lalu tekan Check In.',
+            description: 'Jika peserta mengetahui kode tiketnya (misal: TICK-001), ketik kode tersebut di sini lalu tekan Check In.',
             side: 'bottom',
             align: 'start'
           }

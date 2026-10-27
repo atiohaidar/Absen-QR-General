@@ -215,8 +215,12 @@
   // INITIALIZATION
   // ============================================================================
   function initDashboard() {
-    // 1. URL parameter check
+    // 1. URL parameter check & reset trigger
     const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get("reset") === "1" || urlParams.get("clear") === "1") {
+      state.apiUrl = "";
+      localStorage.removeItem("absen_api_url");
+    }
     const paramApi = urlParams.get("apiUrl");
     if (paramApi) {
       state.apiUrl = paramApi;
@@ -421,6 +425,16 @@
     if (btnCloseSettings && modalSettings) {
       btnCloseSettings.addEventListener("click", () => modalSettings.classList.remove("open"));
     }
+    const btnClearApi = document.getElementById("btn-clear-api-url");
+    if (btnClearApi && inputApi) {
+      btnClearApi.addEventListener("click", () => {
+        inputApi.value = "";
+        state.apiUrl = "";
+        localStorage.removeItem("absen_api_url");
+        if (modalSettings) modalSettings.classList.remove("open");
+        fetchDashboardData(true);
+      });
+    }
     if (btnToggleTheme) {
       btnToggleTheme.addEventListener("click", () => {
         applyTheme(state.theme === "dark" ? "light" : "dark");
@@ -475,7 +489,7 @@
         // Tanpa URL API: Kosongkan data, jangan gunakan data dummy
         data = {
           success: true,
-          meta: { eventName: "Presensi Acara" },
+          meta: { eventName: "Absen QR General" },
           sessions: [],
           dimensions: [],
           attendees: [],
@@ -506,7 +520,7 @@
           console.warn("[Dashboard API warning] Backend offline/error:", fetchErr);
           data = {
             success: false,
-            meta: { eventName: "Presensi Acara" },
+            meta: { eventName: "Absen QR General" },
             sessions: [],
             dimensions: [],
             attendees: [],

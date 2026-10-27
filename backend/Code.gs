@@ -19,9 +19,9 @@
   */
 
 const CONFIG = {
-    EVENT_NAME: "Peserta Gerakan Subuh Berjamaah",
+    EVENT_NAME: "Absen QR General",
     QR_SUBFOLDER_NAME: "QR Code Peserta",
-    TICKET_PREFIX: "MSU-GSB",
+    TICKET_PREFIX: "TICK",
     SCANNER_URL: "https://atiohaidar.github.io/Absen-QR-General/",
     
     // Tampilan Caption QR Code (QuickChart)
@@ -76,10 +76,6 @@ const CONFIG = {
     if (sheetSesi.getLastRow() === 0) {
       sheetSesi.appendRow(["ID Sesi", "Nama Sesi", "Tanggal Pelaksanaan", "Status", "Tipe Presensi"]);
       sheetSesi.getRange(1, 1, 1, 5).setFontWeight("bold").setBackground("#e2e8f0");
-      // Tambahkan 3 contoh sesi awal
-      sheetSesi.appendRow(["SESI-01", "Pertemuan 1 - Pembukaan & Onboarding", formatDateOnly(new Date()), "AKTIF", "SINGLE"]);
-      sheetSesi.appendRow(["SESI-02", "Pertemuan 2 - Workshop Inti", formatDateOnly(new Date(Date.now() + 86400000)), "AKTIF", "CHECK_IN_OUT"]);
-      sheetSesi.appendRow(["SESI-03", "Pertemuan 3 - Evaluasi & Penutupan", formatDateOnly(new Date(Date.now() + 172800000)), "AKTIF", "SINGLE"]);
     } else {
       // Auto-migration: Tambahkan kolom Tipe Presensi jika belum ada
       const lastCol = sheetSesi.getLastColumn();

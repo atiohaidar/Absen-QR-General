@@ -5,6 +5,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
   <meta name="theme-color" content="#0d532d">
+  <!-- Anti-Cache Meta Tags to prevent stale browser cache -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>Monitoring Kehadiran Peserta | Absen QR General</title>
   <meta name="description"
     content="Ringkasan kehadiran peserta realtime sederhana dan interaktif. Pantau jumlah peserta yang sudah hadir dan belum hadir secara cepat.">
@@ -20,7 +24,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
   <!-- Simple Clean Stylesheet -->
-  <link rel="stylesheet" href="css/dashboard.css">
+  <link rel="stylesheet" href="css/dashboard.css?v=20261027_2">
 </head>
 
 <body class="dashboard-body">
@@ -276,7 +280,7 @@
                 <th style="width: 48px;">No</th>
                 <th>Nama Peserta</th>
                 <th>ID Tiket</th>
-                <th id="th-category-name">Jenis Kelamin</th>
+                <th id="th-category-name">Kategori</th>
                 <th>Status</th>
                 <th>Waktu Presensi</th>
               </tr>
@@ -418,9 +422,14 @@
             </label>
             <input type="url" id="cfg-api-url-input" class="dash-table-search-input" style="width: 100% !important; padding-left: 12px;"
               placeholder="https://script.google.com/macros/s/.../exec">
-            <span style="font-size: 0.72rem; color: var(--dash-text-dim); display: block; margin-top: 4px;">
-              Pastikan deployment Google Apps Script diatur ke "Anyone".
-            </span>
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 5px;">
+              <span style="font-size: 0.72rem; color: var(--dash-text-dim);">
+                Deployment Google Apps Script: "Anyone".
+              </span>
+              <button type="button" id="btn-clear-api-url" class="dash-btn dash-btn-sm" style="font-size: 0.72rem; color: var(--dash-red); border-color: rgba(239,68,68,0.3); padding: 2px 8px;">
+                Kosongkan URL
+              </button>
+            </div>
           </div>
 
           <div>
@@ -452,8 +461,8 @@
     </div>
   </div>
 
-  <!-- Dashboard Simplified Script -->
-  <script src="js/dashboard.js"></script>
+  <!-- Dashboard Simplified Script with Version Cache Busting -->
+  <script src="js/dashboard.js?v=20261027_2"></script>
 
 </body>
 
