@@ -392,7 +392,7 @@ body.landing-body {
    ============================================================================== */
 .land-grid-3 {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 16px;
 }
 
@@ -405,6 +405,8 @@ body.landing-body {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  height: 100%;
+  box-sizing: border-box;
   transition: var(--land-transition);
 }
 
@@ -439,6 +441,7 @@ body.landing-body {
   font-size: 13.5px;
   color: var(--land-text-muted);
   line-height: 1.55;
+  flex: 1 1 auto;
 }
 
 /* ==============================================================================
@@ -606,6 +609,220 @@ body.landing-body {
   color: #4338ca;
   border: 1px solid rgba(99, 102, 241, 0.25);
   margin-left: 4px;
+}
+
+/* General Card Container */
+.land-card {
+  background: var(--land-bg-card);
+  border: 1px solid var(--land-border);
+  border-radius: var(--land-radius-lg);
+  padding: 24px;
+  box-shadow: var(--land-shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-sizing: border-box;
+}
+
+.land-download-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.land-download-btn-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Sheet Menu Simulation Preview in Step 3 */
+.land-sheet-menu-preview {
+  background: #ffffff;
+  border: 1px solid var(--land-border);
+  border-radius: var(--land-radius-md);
+  overflow: hidden;
+  box-shadow: var(--land-shadow-xs);
+  margin-top: 8px;
+}
+
+.land-sheet-menu-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--land-bg-subtle);
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--land-border);
+  overflow-x: auto;
+}
+
+.land-sheet-menu-item {
+  font-size: 12px;
+  color: var(--land-text-muted);
+  padding: 3px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.land-sheet-menu-item.active {
+  background: var(--land-primary);
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.land-sheet-menu-dropdown {
+  background: #ffffff;
+  padding: 6px 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.land-menu-drop-item {
+  padding: 8px 16px;
+  font-size: 13px;
+  color: var(--land-text-main);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--land-border-subtle);
+}
+
+.land-menu-drop-item:last-child {
+  border-bottom: none;
+}
+
+.land-menu-drop-item:hover {
+  background: var(--land-bg-subtle);
+}
+
+/* Spreadsheet Architecture Cards */
+.land-sheets-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.land-sheet-card {
+  background: var(--land-bg-card);
+  border: 1px solid var(--land-border);
+  border-radius: var(--land-radius-lg);
+  padding: 22px;
+  box-shadow: var(--land-shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-sizing: border-box;
+}
+
+.land-sheet-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.land-sheet-card-title {
+  font-family: var(--land-font-heading);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--land-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.land-sheet-pill {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--land-radius-full);
+  background: var(--land-green-bg);
+  color: var(--land-green);
+  border: 1px solid var(--land-green-border);
+}
+
+/* License & Credits Cards */
+.land-license-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.land-license-card {
+  padding: 16px;
+  background: var(--land-bg-subtle);
+  border: 1px solid var(--land-border);
+  border-radius: var(--land-radius-md);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  height: 100%;
+  box-sizing: border-box;
+  transition: var(--land-transition);
+}
+
+.land-license-card:hover {
+  background: #ffffff;
+  border-color: #b7d1c0;
+  box-shadow: var(--land-shadow-xs);
+  transform: translateY(-1px);
+}
+
+.land-license-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.land-license-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--land-text-main);
+}
+
+.land-license-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.land-license-badge.badge-mit {
+  background: var(--land-green-bg);
+  color: var(--land-green);
+  border: 1px solid var(--land-green-border);
+}
+
+.land-license-badge.badge-apache {
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+}
+
+.land-license-badge.badge-ofl {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+.land-license-badge.badge-google {
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.land-license-desc {
+  font-size: 12.5px;
+  color: var(--land-text-muted);
+  line-height: 1.5;
+  margin: 0;
+  flex: 1 1 auto;
 }
 
 /* ==============================================================================
@@ -817,6 +1034,18 @@ body.landing-body {
   .land-hero {
     padding: 28px 18px;
   }
+  .land-hero-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .land-hero-actions .land-btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .land-grid-3 {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
   .land-step-card {
     padding: 18px 16px;
     gap: 12px;
@@ -826,8 +1055,48 @@ body.landing-body {
     height: 32px;
     font-size: 14px;
   }
+  .land-card {
+    padding: 18px 16px;
+  }
+  .land-sheet-card {
+    padding: 18px 16px;
+  }
+  .land-download-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .land-download-btn-group {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .land-download-btn-group .land-btn,
+  .land-download-actions .land-btn {
+    width: 100%;
+    justify-content: center;
+  }
   .land-feedback-card {
     padding: 20px 16px;
+  }
+  .land-rating-pills {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .land-rating-btn {
+    text-align: center;
+    padding: 8px 10px;
+    font-size: 12px;
+    width: 100%;
+  }
+  .land-feedback-actions {
+    flex-direction: column;
+  }
+  .land-feedback-actions .land-btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .land-license-grid {
+    grid-template-columns: 1fr;
   }
   .land-nav {
     display: none;

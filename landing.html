@@ -295,7 +295,7 @@
         <div class="land-step-card">
           <div class="land-step-num">1</div>
           <div class="land-step-content">
-            <h3 class="land-step-title">1. Buka Apps Script di Google Spreadsheet Anda</h3>
+            <h3 class="land-step-title">Buka Apps Script di Google Spreadsheet Anda</h3>
             <p class="land-step-desc">
               Buka Google Sheets yang akan Anda jadikan database presensi. Pada menu atas, klik <strong>Ekstensi &gt; Apps Script</strong> (Extensions &gt; Apps Script).
             </p>
@@ -310,7 +310,7 @@
         <div class="land-step-card">
           <div class="land-step-num">2</div>
           <div class="land-step-content">
-            <h3 class="land-step-title">2. Pasang File Script Backend (Code.gs & Dashboard.gs)</h3>
+            <h3 class="land-step-title">Pasang File Script Backend (Code.gs & Dashboard.gs)</h3>
             <p class="land-step-desc">
               Di editor Google Apps Script, buat 2 file script berikut (salin dari repositori atau unduh dari tombol di bawah):
             </p>
@@ -337,16 +337,37 @@
         <div class="land-step-card">
           <div class="land-step-num">3</div>
           <div class="land-step-content">
-            <h3 class="land-step-title">3. Gunakan Menu Otomatis Spreadsheet ("⚡ Absen QR General")</h3>
+            <h3 class="land-step-title">Gunakan Menu Otomatis Spreadsheet ("⚡ Absen QR General")</h3>
             <p class="land-step-desc">
               Setelah script disimpan dan spreadsheet di-refresh, akan muncul menu baru di atas Google Sheets: <strong>⚡ Absen QR General</strong>. Klik menu tersebut untuk inisialisasi 1-klik:
             </p>
 
-            <div class="land-code-box">
-              <div class="land-code-header">
-                <span>Menu Bawaan onOpen() di Code.gs</span>
+            <div class="land-sheet-menu-preview">
+              <div class="land-sheet-menu-bar">
+                <span class="land-sheet-menu-item">File</span>
+                <span class="land-sheet-menu-item">Edit</span>
+                <span class="land-sheet-menu-item">Tampilan</span>
+                <span class="land-sheet-menu-item">Ekstensi</span>
+                <span class="land-sheet-menu-item active">⚡ Absen QR General</span>
               </div>
-              <code>• 🚀 1. Setup Otomatis (Inisialisasi Seluruh Sheet & Pasang Trigger)<br>• 📝 2. Buat Google Form Pendaftaran Otomatis (Opsional)<br>• 📥 3. Impor Peserta Lama dari Form Responses (Jika ada data eksisting)<br>• 🔗 4. Buka / Bagikan Link Scanner Panitia</code>
+              <div class="land-sheet-menu-dropdown">
+                <div class="land-menu-drop-item">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--land-primary)" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                  <span><strong>1. Setup Otomatis</strong> (Inisialisasi Seluruh Sheet &amp; Pasang Trigger)</span>
+                </div>
+                <div class="land-menu-drop-item">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                  <span><strong>2. Buat Google Form Pendaftaran Otomatis</strong> (Opsional)</span>
+                </div>
+                <div class="land-menu-drop-item">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                  <span><strong>3. Impor Peserta Lama dari Form Responses</strong></span>
+                </div>
+                <div class="land-menu-drop-item">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+                  <span><strong>4. Buka / Bagikan Link Scanner Panitia</strong></span>
+                </div>
+              </div>
             </div>
 
             <div class="land-tip-box">
@@ -360,7 +381,7 @@
         <div class="land-step-card">
           <div class="land-step-num">4</div>
           <div class="land-step-content">
-            <h3 class="land-step-title">4. Deploy sebagai Web App (Aplikasi Web)</h3>
+            <h3 class="land-step-title">Deploy sebagai Web App (Aplikasi Web)</h3>
             <p class="land-step-desc">
               Agar kamera HP panitia bisa mengirim hasil scan ke sheet, terapkan script sebagai Web App:
             </p>
@@ -379,7 +400,7 @@
         <div class="land-step-card">
           <div class="land-step-num">5</div>
           <div class="land-step-content">
-            <h3 class="land-step-title">5. Hubungkan ke Web Scanner & Dashboard</h3>
+            <h3 class="land-step-title">Hubungkan ke Web Scanner & Dashboard</h3>
             <p class="land-step-desc">
               Buka Web Scanner (<a href="index.html" style="color: var(--land-primary); font-weight: 700;">index.html</a>) atau Dashboard (<a href="dashboard.html" style="color: var(--land-primary); font-weight: 700;">dashboard.html</a>):
             </p>
@@ -403,9 +424,9 @@
         </p>
       </div>
 
-      <div style="background: var(--land-bg-card); border: 1px solid var(--land-border); border-radius: var(--land-radius-lg); padding: 24px; box-shadow: var(--land-shadow-sm); display: flex; flex-direction: column; gap: 16px;">
-        <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center; justify-content: space-between;">
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+      <div class="land-card">
+        <div class="land-download-actions">
+          <div class="land-download-btn-group">
             <a href="backend/Code.gs" download="Code.gs" class="land-btn land-btn-primary">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
               <span>Unduh File Code.gs</span>
@@ -422,7 +443,7 @@
             </a>
           </div>
 
-          <button class="land-btn land-btn-outline" onclick="copySnippetCode()">
+          <button type="button" class="land-btn land-btn-outline" onclick="copySnippetCode()">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
             <span>Salin Cuplikan CONFIG</span>
           </button>
@@ -460,90 +481,117 @@
         </p>
       </div>
 
-      <!-- Sheet: Data Peserta -->
-      <div style="margin-bottom: 24px;">
-        <h4 style="font-size: 14px; font-weight: 700; color: var(--land-primary); margin-bottom: 6px;">
-          1. Sheet: "Data Peserta" (Master Data & Matriks Kehadiran Sesi)
-        </h4>
-        <p style="font-size: 13px; color: var(--land-text-muted); margin-bottom: 8px;">
-          Kolom 1-7 berisi data profil peserta. Kolom ke-8 ke kanan adalah kolom sesi berformat kurung siku <code>[SESI-ID]</code>.
-        </p>
-        <div class="land-table-wrapper">
-          <table class="land-table">
-            <thead>
-              <tr>
-                <th>Ticket ID</th>
-                <th>Nama Lengkap</th>
-                <th>Total Hadir</th>
-                <th>Email</th>
-                <th>Jenis Kelamin</th>
-                <th>Instansi</th>
-                <th>[SESI-01]</th>
-                <th>[SESI-02_IN]</th>
-                <th>[SESI-02_OUT]</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td><strong>MSU-GSB-001</strong></td>
-                <td>Ahmad Haidar</td>
-                <td><strong style="color: var(--land-primary);">=COUNTIF(...)</strong></td>
-                <td>ahmad@example.com</td>
-                <td>Laki-laki</td>
-                <td>Masjid Al-Ikhlas</td>
-                <td>04:15</td>
-                <td>04:30</td>
-                <td>05:45</td>
-              </tr>
-              <tr>
-                <td><strong>MSU-GSB-002</strong></td>
-                <td>Siti Fatimah</td>
-                <td><strong style="color: var(--land-primary);">=COUNTIF(...)</strong></td>
-                <td>siti@example.com</td>
-                <td>Perempuan</td>
-                <td>DKM Baiturrahman</td>
-                <td>04:22</td>
-                <td>04:35</td>
-                <td><em>(kosong = di lokasi)</em></td>
-              </tr>
-            </tbody>
-          </table>
+      <div class="land-sheets-grid">
+        <!-- Sheet: Data Peserta -->
+        <div class="land-sheet-card">
+          <div class="land-sheet-card-header">
+            <div class="land-sheet-card-title">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
+              <span>1. Sheet: "Data Peserta" (Master Data & Matriks Kehadiran Sesi)</span>
+            </div>
+            <span class="land-sheet-pill">Tab Master Data</span>
+          </div>
+          <p style="font-size: 13px; color: var(--land-text-muted); margin: 0;">
+            Kolom 1-7 berisi data profil peserta. Kolom ke-8 ke kanan adalah kolom sesi berformat kurung siku <code>[SESI-ID]</code> yang otomatis diisi timestamp saat presensi.
+          </p>
+          <div class="land-table-wrapper">
+            <table class="land-table">
+              <thead>
+                <tr>
+                  <th>Ticket ID</th>
+                  <th>Nama Lengkap</th>
+                  <th>Total Hadir</th>
+                  <th>Email</th>
+                  <th>Jenis Kelamin</th>
+                  <th>Instansi</th>
+                  <th>[SESI-01]</th>
+                  <th>[SESI-02_IN]</th>
+                  <th>[SESI-02_OUT]</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>MSU-GSB-001</strong></td>
+                  <td>Ahmad Haidar</td>
+                  <td><strong style="color: var(--land-primary);">=COUNTIF(...)</strong></td>
+                  <td>ahmad@example.com</td>
+                  <td>Laki-laki</td>
+                  <td>Masjid Al-Ikhlas</td>
+                  <td>04:15</td>
+                  <td>04:30</td>
+                  <td>05:45</td>
+                </tr>
+                <tr>
+                  <td><strong>MSU-GSB-002</strong></td>
+                  <td>Siti Fatimah</td>
+                  <td><strong style="color: var(--land-primary);">=COUNTIF(...)</strong></td>
+                  <td>siti@example.com</td>
+                  <td>Perempuan</td>
+                  <td>DKM Baiturrahman</td>
+                  <td>04:22</td>
+                  <td>04:35</td>
+                  <td><em>(kosong = di lokasi)</em></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
 
-      <!-- Sheet: Master Sesi -->
-      <div>
-        <h4 style="font-size: 14px; font-weight: 700; color: var(--land-primary); margin-bottom: 6px;">
-          2. Sheet: "Master Sesi" (Daftar & Konfigurasi Sesi Pertemuan)
-        </h4>
-        <div class="land-table-wrapper">
-          <table class="land-table">
-            <thead>
-              <tr>
-                <th>ID Sesi</th>
-                <th>Nama Sesi</th>
-                <th>Tanggal Pelaksanaan</th>
-                <th>Status</th>
-                <th>Tipe Presensi</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td><strong>SESI-01</strong></td>
-                <td>Pertemuan 1 - Pembukaan & Onboarding</td>
-                <td>2026-10-27</td>
-                <td><span style="font-weight: 700; color: var(--land-text-dim);">SELESAI</span></td>
-                <td>SINGLE</td>
-              </tr>
-              <tr>
-                <td><strong>SESI-02</strong></td>
-                <td>Pertemuan 2 - Workshop Inti</td>
-                <td>2026-10-28</td>
-                <td><span style="font-weight: 700; color: var(--land-primary);">AKTIF</span></td>
-                <td>CHECK_IN_OUT <span class="land-badge-inout">Masuk & Keluar</span></td>
-              </tr>
-            </tbody>
-          </table>
+        <!-- Sheet: Master Sesi -->
+        <div class="land-sheet-card">
+          <div class="land-sheet-card-header">
+            <div class="land-sheet-card-title">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+              <span>2. Sheet: "Master Sesi" (Daftar & Konfigurasi Sesi Pertemuan)</span>
+            </div>
+            <span class="land-sheet-pill">Tab Konfigurasi</span>
+          </div>
+          <p style="font-size: 13px; color: var(--land-text-muted); margin: 0;">
+            Menentukan sesi mana yang dibuka untuk presensi. Petugas scanner dan dashboard hanya membaca sesi yang berstatus <code>AKTIF</code>.
+          </p>
+          <div class="land-table-wrapper">
+            <table class="land-table">
+              <thead>
+                <tr>
+                  <th>ID Sesi</th>
+                  <th>Nama Sesi</th>
+                  <th>Tanggal Pelaksanaan</th>
+                  <th>Status</th>
+                  <th>Tipe Presensi</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>SESI-01</strong></td>
+                  <td>Pertemuan 1 - Pembukaan & Onboarding</td>
+                  <td>2026-10-27</td>
+                  <td><span style="font-weight: 700; color: var(--land-text-dim);">SELESAI</span></td>
+                  <td>SINGLE</td>
+                </tr>
+                <tr>
+                  <td><strong>SESI-02</strong></td>
+                  <td>Pertemuan 2 - Workshop Inti</td>
+                  <td>2026-10-28</td>
+                  <td><span style="font-weight: 700; color: var(--land-primary);">AKTIF</span></td>
+                  <td>CHECK_IN_OUT <span class="land-badge-inout">Masuk & Keluar</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Sheet: Log Kehadiran & Log Eksekusi -->
+        <div class="land-sheet-card">
+          <div class="land-sheet-card-header">
+            <div class="land-sheet-card-title">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+              <span>3. Sheet: "Log Kehadiran" & "Log Eksekusi" (Audit Trail & Logging)</span>
+            </div>
+            <span class="land-sheet-pill">Tab Audit Trail</span>
+          </div>
+          <p style="font-size: 13px; color: var(--land-text-muted); margin: 0;">
+            Mencatat rekam jejak setiap pemindaian tiket secara kronologis (Timestamp, Ticket ID, Nama, Operator Gate, dan Status) serta catatan error serverless backend secara otomatis via <code>ExecutionLogger</code>.
+          </p>
         </div>
       </div>
     </section>
@@ -623,70 +671,70 @@
         </p>
       </div>
 
-      <div style="background: var(--land-bg-card); border: 1px solid var(--land-border); border-radius: var(--land-radius-lg); padding: 24px; box-shadow: var(--land-shadow-sm); display: flex; flex-direction: column; gap: 14px;">
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px;">
+      <div class="land-card">
+        <div class="land-license-grid">
           <!-- Item 1: App License -->
-          <div style="padding: 14px; background: var(--land-bg-subtle); border: 1px solid var(--land-border); border-radius: var(--land-radius-md);">
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
-              <strong style="color: var(--land-primary); font-size: 13.5px;">Absen QR General</strong>
-              <span style="font-size: 11px; font-weight: 700; background: var(--land-green-bg); color: var(--land-green); border: 1px solid var(--land-green-border); padding: 1px 6px; border-radius: 4px;">MIT License</span>
+          <div class="land-license-card">
+            <div class="land-license-header">
+              <strong class="land-license-title">Absen QR General</strong>
+              <span class="land-license-badge badge-mit">MIT License</span>
             </div>
-            <p style="font-size: 12.5px; color: var(--land-text-muted); margin: 0;">
+            <p class="land-license-desc">
               Dibuat oleh <strong>Atio Haidar</strong>. Bebas dimodifikasi, disesuaikan, dan digunakan untuk kepanitiaan event apa pun.
             </p>
           </div>
 
           <!-- Item 2: jsQR -->
-          <div style="padding: 14px; background: var(--land-bg-subtle); border: 1px solid var(--land-border); border-radius: var(--land-radius-md);">
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
-              <strong style="color: var(--land-text-main); font-size: 13.5px;">jsQR Library</strong>
-              <span style="font-size: 11px; font-weight: 700; background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; padding: 1px 6px; border-radius: 4px;">Apache 2.0</span>
+          <div class="land-license-card">
+            <div class="land-license-header">
+              <strong class="land-license-title">jsQR Library</strong>
+              <span class="land-license-badge badge-apache">Apache 2.0</span>
             </div>
-            <p style="font-size: 12.5px; color: var(--land-text-muted); margin: 0;">
+            <p class="land-license-desc">
               Oleh <strong>LazarSoft / Cozmo</strong>. Mesin pembaca QR code ultra-ringan murni JavaScript di sisi peramban klien tanpa perlu backend scanner.
             </p>
           </div>
 
           <!-- Item 3: Chart.js -->
-          <div style="padding: 14px; background: var(--land-bg-subtle); border: 1px solid var(--land-border); border-radius: var(--land-radius-md);">
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
-              <strong style="color: var(--land-text-main); font-size: 13.5px;">Chart.js</strong>
-              <span style="font-size: 11px; font-weight: 700; background: var(--land-green-bg); color: var(--land-green); border: 1px solid var(--land-green-border); padding: 1px 6px; border-radius: 4px;">MIT License</span>
+          <div class="land-license-card">
+            <div class="land-license-header">
+              <strong class="land-license-title">Chart.js</strong>
+              <span class="land-license-badge badge-mit">MIT License</span>
             </div>
-            <p style="font-size: 12.5px; color: var(--land-text-muted); margin: 0;">
+            <p class="land-license-desc">
               Pustaka visualisasi grafik HTML5 Canvas interaktif untuk memetakan arus jam kedatangan peserta dan perbandingan antar sesi.
             </p>
           </div>
 
           <!-- Item 4: Driver.js -->
-          <div style="padding: 14px; background: var(--land-bg-subtle); border: 1px solid var(--land-border); border-radius: var(--land-radius-md);">
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
-              <strong style="color: var(--land-text-main); font-size: 13.5px;">Driver.js</strong>
-              <span style="font-size: 11px; font-weight: 700; background: var(--land-green-bg); color: var(--land-green); border: 1px solid var(--land-green-border); padding: 1px 6px; border-radius: 4px;">MIT License</span>
+          <div class="land-license-card">
+            <div class="land-license-header">
+              <strong class="land-license-title">Driver.js</strong>
+              <span class="land-license-badge badge-mit">MIT License</span>
             </div>
-            <p style="font-size: 12.5px; color: var(--land-text-muted); margin: 0;">
+            <p class="land-license-desc">
               Oleh <strong>Kamran Ahmed</strong>. Pustaka pemandu tutorial interaktif langkah demi langkah bagi petugas gate baru di web scanner.
             </p>
           </div>
 
           <!-- Item 5: Fonts -->
-          <div style="padding: 14px; background: var(--land-bg-subtle); border: 1px solid var(--land-border); border-radius: var(--land-radius-md);">
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
-              <strong style="color: var(--land-text-main); font-size: 13.5px;">Outfit & Inter Fonts</strong>
-              <span style="font-size: 11px; font-weight: 700; background: #fffbeb; color: #b45309; border: 1px solid #fde68a; padding: 1px 6px; border-radius: 4px;">SIL OFL 1.1</span>
+          <div class="land-license-card">
+            <div class="land-license-header">
+              <strong class="land-license-title">Outfit & Inter Fonts</strong>
+              <span class="land-license-badge badge-ofl">SIL OFL 1.1</span>
             </div>
-            <p style="font-size: 12.5px; color: var(--land-text-muted); margin: 0;">
+            <p class="land-license-desc">
               Oleh <strong>Vernon Adams & Rasmus Andersson</strong> (Google Fonts). Tipografi modern dengan legibilitas tinggi pada layar smartphone.
             </p>
           </div>
 
           <!-- Item 6: Google Apps Script -->
-          <div style="padding: 14px; background: var(--land-bg-subtle); border: 1px solid var(--land-border); border-radius: var(--land-radius-md);">
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
-              <strong style="color: var(--land-text-main); font-size: 13.5px;">Google Apps Script & Drive</strong>
-              <span style="font-size: 11px; font-weight: 700; background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; padding: 1px 6px; border-radius: 4px;">Google Platform</span>
+          <div class="land-license-card">
+            <div class="land-license-header">
+              <strong class="land-license-title">Google Apps Script & Drive</strong>
+              <span class="land-license-badge badge-google">Google Platform</span>
             </div>
-            <p style="font-size: 12.5px; color: var(--land-text-muted); margin: 0;">
+            <p class="land-license-desc">
               Layanan komputasi awan serverless milik Google LLC untuk mengeksekusi logika backend dan penyimpanan data Google Sheets.
             </p>
           </div>
