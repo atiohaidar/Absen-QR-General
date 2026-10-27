@@ -852,9 +852,14 @@ Jelaskan kendala atau bug yang Anda alami di sini:
 
       if (!this.requirePanitiaName(rawTicketId, sourceButton)) return;
 
+      if (!ns.state.currentSessionId) {
+        ns.UI.showToast("Belum ada sesi acara aktif. Hubungkan URL API di Pengaturan terlebih dahulu.", 3500);
+        return;
+      }
+
       const upperTicketId = rawTicketId.toUpperCase();
-      const currentSessionId = ns.state.currentSessionId || "SESI-01";
-      const currentSessionName = ns.state.currentSessionName || "Sesi Utama";
+      const currentSessionId = ns.state.currentSessionId;
+      const currentSessionName = ns.state.currentSessionName || "Sesi Acara";
       const currentOperator = [ns.state.panitiaName, ns.state.gateName].filter(Boolean).join(" • ") || "-";
 
       // Deteksi apakah sesi yang aktif bertipe CHECK_IN_OUT
@@ -1452,10 +1457,10 @@ Jelaskan kendala atau bug yang Anda alami di sini:
       }
 
       const q = query.toLowerCase();
-      const currentSessId = ns.state.currentSessionId || "SESI-01";
+      const currentSessId = ns.state.currentSessionId || "";
       const currentSessName = ns.state.currentSessionName || currentSessId;
-      const inSessId = `${currentSessId}_IN`;
-      const outSessId = `${currentSessId}_OUT`;
+      const inSessId = currentSessId ? `${currentSessId}_IN` : "";
+      const outSessId = currentSessId ? `${currentSessId}_OUT` : "";
 
       // 1. CEK DULU DI DATABASE CACHE LOKAL HP (INSTANT LOOKUP < 5ms)
       const cachedMap = ns.state.cachedAttendees || {};
@@ -1657,9 +1662,11 @@ Jelaskan kendala atau bug yang Anda alami di sini:
           if (!ns.state.cachedAttendees) ns.state.cachedAttendees = {};
           const otsUpper = String(attendee.ticketId).toUpperCase().trim();
           const otsSessions = {};
-          const curSessId = ns.state.currentSessionId || "SESI-01";
-          otsSessions[curSessId] = attendee.checkInTime || "Hadir";
-          otsSessions[`${curSessId}_IN`] = attendee.checkInTime || "Hadir";
+          const curSessId = ns.state.currentSessionId || "";
+          if (curSessId) {
+            otsSessions[curSessId] = attendee.checkInTime || "Hadir";
+            otsSessions[`${curSessId}_IN`] = attendee.checkInTime || "Hadir";
+          }
           ns.state.cachedAttendees[otsUpper] = {
             ticketId: attendee.ticketId,
             name: name,
@@ -1797,8 +1804,8 @@ Jelaskan kendala atau bug yang Anda alami di sini:
       // 2. Wipe sessions cache
       ns.state.sessions = [];
       localStorage.removeItem("absen_cached_sessions");
-      ns.state.currentSessionId = "SESI-01";
-      ns.state.currentSessionName = "Memuat sesi...";
+      ns.state.currentSessionId = "";
+      ns.state.currentSessionName = "";
       localStorage.removeItem("absen_current_session_id");
       localStorage.removeItem("absen_current_session_name");
 

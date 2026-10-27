@@ -276,8 +276,10 @@ window.EventPass = window.EventPass || {};
                     if (!ns.state.cachedAttendees[uId].checkedInSessions) {
                       ns.state.cachedAttendees[uId].checkedInSessions = {};
                     }
-                    const sessId = res.attendee?.sessionName || "SESI-01";
-                    ns.state.cachedAttendees[uId].checkedInSessions[sessId] = res.attendee?.checkInTime || "Hadir";
+                    const sessId = res.attendee?.sessionName || ns.state.currentSessionId || "";
+                    if (sessId) {
+                      ns.state.cachedAttendees[uId].checkedInSessions[sessId] = res.attendee?.checkInTime || "Hadir";
+                    }
                     localStorage.setItem("absen_cached_attendees", JSON.stringify(ns.state.cachedAttendees));
                   }
 

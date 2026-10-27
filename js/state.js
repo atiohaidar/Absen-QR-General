@@ -104,8 +104,8 @@ window.EventPass = window.EventPass || {};
 
     // Sessions Management
     sessions: JSON.parse(localStorage.getItem("absen_cached_sessions") || "[]"),
-    currentSessionId: localStorage.getItem("absen_current_session_id") || "SESI-01",
-    currentSessionName: localStorage.getItem("absen_current_session_name") || "Pertemuan 1",
+    currentSessionId: localStorage.getItem("absen_current_session_id") || "",
+    currentSessionName: localStorage.getItem("absen_current_session_name") || "",
     currentScanMode: localStorage.getItem("absen_scan_mode") || "IN", // "IN" (Masuk) or "OUT" (Keluar)
 
     // Device & Location Audit

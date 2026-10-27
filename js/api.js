@@ -222,7 +222,7 @@ window.EventPass = window.EventPass || {};
      * Search attendees by query in Data Peserta
      */
     async searchAttendees(query) {
-      const currentSessionId = ns.state.currentSessionId || "SESI-01";
+      const currentSessionId = ns.state.currentSessionId || "";
       const activeSessionObj = (ns.state.sessions || []).find(s => s.id === currentSessionId);
       const isInOut = (activeSessionObj && activeSessionObj.type === "CHECK_IN_OUT");
       const scanMode = isInOut ? (ns.state.currentScanMode || "IN") : "SINGLE";
@@ -247,7 +247,7 @@ window.EventPass = window.EventPass || {};
     async registerOts(name, email, notes, customFields = {}) {
       const mapsUrl = (ns.state.location && ns.state.location.mapsUrl) ? ns.state.location.mapsUrl : "-";
       const deviceInfo = ns.state.deviceInfo || "-";
-      const currentSessionId = ns.state.currentSessionId || "SESI-01";
+      const currentSessionId = ns.state.currentSessionId || "";
       const activeSessionObj = (ns.state.sessions || []).find(s => s.id === currentSessionId);
       const isInOut = (activeSessionObj && activeSessionObj.type === "CHECK_IN_OUT");
       const scanMode = isInOut ? (ns.state.currentScanMode || "IN") : "SINGLE";

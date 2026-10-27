@@ -51,98 +51,6 @@
     sessionSummaries: {}
   };
 
-  // Demo Fallback Data (When Google Apps Script URL is not set yet)
-  const mockData = {
-    success: true,
-    meta: { eventName: "Presensi Gerakan Subuh Berjamaah" },
-    sessions: [
-      { id: "SESI-01", name: "Sesi 01: Pembukaan & Registrasi", status: "SELESAI" },
-      { id: "SESI-02", name: "Sesi 02: Kajian Inti (Hari Ini)", status: "AKTIF" },
-      { id: "SESI-03", name: "Sesi 03: Penutupan & Ramah Tamah", status: "AKTIF" }
-    ],
-    detectedGenderCol: "Jenis Kelamin",
-    dimensions: [
-      { name: "Jenis Kelamin" },
-      { name: "Instansi / Masjid" },
-      { name: "Kategori Peserta" }
-    ],
-    attendees: generateDemoAttendees(120)
-  };
-
-  function generateDemoAttendees(count) {
-    const instansi = ["Masjid Al-Ikhlas", "DKM Baiturrahman", "Masjid Raya", "Komunitas Pejuang Subuh"];
-
-    // Distribusi jam kedatangan demo per gender & kelompok:
-    const timesPoolLaki02 = [
-      "04:05", "04:10", "04:12", "04:15", "04:15", "04:18", "04:20", "04:20", "04:20", "04:22", "04:25", "04:25", "04:28", "04:30", "04:35"
-    ];
-    const timesPoolPerempuan02 = [
-      "04:15", "04:20", "04:22", "04:25", "04:28", "04:30", "04:30", "04:32", "04:35", "04:35", "04:35", "04:38", "04:40", "04:45", "04:50"
-    ];
-
-    // Distribusi jam kedatangan Sesi 01 (Pembukaan)
-    const timesPoolLaki01 = ["03:45", "03:50", "03:55", "04:00", "04:00", "04:05", "04:10", "04:15"];
-    const timesPoolPerempuan01 = ["03:55", "04:00", "04:05", "04:10", "04:10", "04:15", "04:20", "04:25"];
-
-    const list = [];
-    for (let i = 1; i <= count; i++) {
-      const pad = String(i).padStart(3, '0');
-      const isLaki = i % 2 !== 0;
-      const genderVal = isLaki ? "Laki-laki" : "Perempuan";
-      const isPengurus = (i % 5 === 0);
-      const instansiIdx = i % instansi.length;
-
-      const isAttended01 = Math.random() < (isLaki ? 0.88 : 0.78);
-      const isAttended02 = Math.random() < (isLaki ? 0.83 : 0.72);
-      const isAttended03 = Math.random() < (isLaki ? 0.45 : 0.38);
-
-      let pool02 = isLaki ? timesPoolLaki02 : timesPoolPerempuan02;
-      if (isPengurus) {
-        pool02 = ["03:55", "04:00", "04:05", "04:10", "04:12", "04:15", "04:18"];
-      } else {
-        if (instansiIdx === 0) pool02 = ["04:10", "04:15", "04:18", "04:20", "04:22", "04:25"];
-        else if (instansiIdx === 1) pool02 = ["04:18", "04:22", "04:25", "04:28", "04:30"];
-        else if (instansiIdx === 2) pool02 = ["04:22", "04:26", "04:30", "04:32", "04:35"];
-        else pool02 = ["04:28", "04:32", "04:35", "04:38", "04:40", "04:45"];
-      }
-
-      const pool01 = isLaki ? timesPoolLaki01 : timesPoolPerempuan01;
-
-      const timeStr01 = isAttended01 ? pool01[Math.floor(Math.random() * pool01.length)] : "";
-      const timeStr02 = isAttended02 ? pool02[Math.floor(Math.random() * pool02.length)] : "";
-      const timeStr03 = isAttended03 ? "05:15" : "";
-
-      // Simulasi status IN-OUT untuk Sesi 02 (sedang berlangsung: sebagian sudah checkout) & Sesi 01 (selesai)
-      let status02 = isAttended02 ? "HADIR" : "BELUM_HADIR";
-      let checkOutTime02 = "";
-      if (isAttended02 && (i % 6 === 0)) {
-        status02 = "CHECKOUT";
-        checkOutTime02 = (i % 2 === 0) ? "05:10" : "05:25";
-      }
-
-      let status01 = isAttended01 ? (i % 4 !== 0 ? "CHECKOUT" : "HADIR") : "BELUM_HADIR";
-      let checkOutTime01 = (status01 === "CHECKOUT") ? "05:30" : "";
-
-      list.push({
-        ticketId: `MSU-GSB-${pad}`,
-        name: isLaki ? `Jamaah Putra ${pad}` : `Jamaah Putri ${pad}`,
-        email: `peserta${pad}@example.com`,
-        phone: `62812${Math.floor(10000000 + Math.random() * 90000000)}`,
-        custom: {
-          "Jenis Kelamin": genderVal,
-          "Instansi / Masjid": instansi[instansiIdx],
-          "Kategori Peserta": isPengurus ? "Pengurus" : "Jamaah Umum"
-        },
-        sessions: {
-          "SESI-01": { status: status01, checkInTime: timeStr01, checkOutTime: checkOutTime01 },
-          "SESI-02": { status: status02, checkInTime: timeStr02, checkOutTime: checkOutTime02 },
-          "SESI-03": { status: isAttended03 ? "HADIR" : "BELUM_HADIR", checkInTime: timeStr03, checkOutTime: "" }
-        }
-      });
-    }
-    return list;
-  }
-
   // ============================================================================
   // GENDER & CATEGORY CLASSIFICATION HELPERS
   // ============================================================================
@@ -564,13 +472,21 @@
       let data = null;
 
       if (!state.apiUrl) {
-        // Fallback demo data
-        await new Promise(r => setTimeout(r, 150));
-        data = mockData;
+        // Tanpa URL API: Kosongkan data, jangan gunakan data dummy
+        data = {
+          success: true,
+          meta: { eventName: "Presensi Acara" },
+          sessions: [],
+          dimensions: [],
+          attendees: [],
+          sessionSummaries: {}
+        };
+        if (syncDot) syncDot.style.backgroundColor = "var(--dash-text-dim, #94a3b8)";
+        if (syncText) syncText.textContent = "API Belum Diatur";
       } else {
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 5000);
+          const timeoutId = setTimeout(() => controller.abort(), 8000);
           const url = `${state.apiUrl}${state.apiUrl.includes('?') ? '&' : '?'}action=getDashboardData&forceRefresh=${forceRefresh}&t=${Date.now()}`;
           const resp = await fetch(url, { signal: controller.signal });
           clearTimeout(timeoutId);
@@ -580,11 +496,24 @@
           if (!data.success) {
             throw new Error(data.message || "Gagal mengambil data presensi.");
           }
+
+          if (syncDot) syncDot.style.backgroundColor = "var(--dash-green)";
+          if (syncText) {
+            const timeStr = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+            syncText.textContent = `Realtime (${timeStr})`;
+          }
         } catch (fetchErr) {
-          console.warn("[Dashboard API warning] Backend offline/error, falling back to demo data:", fetchErr);
-          data = mockData;
-          if (syncDot) syncDot.style.backgroundColor = "var(--dash-amber)";
-          if (syncText) syncText.textContent = "Offline (Demo Mode)";
+          console.warn("[Dashboard API warning] Backend offline/error:", fetchErr);
+          data = {
+            success: false,
+            meta: { eventName: "Presensi Acara" },
+            sessions: [],
+            dimensions: [],
+            attendees: [],
+            sessionSummaries: {}
+          };
+          if (syncDot) syncDot.style.backgroundColor = "var(--dash-red, #ef4444)";
+          if (syncText) syncText.textContent = "Koneksi Terputus / API Bermasalah";
         }
       }
 
@@ -599,10 +528,14 @@
         badgeHistoryCount.textContent = `${state.sessions.length} Sesi`;
       }
 
-      // Set default active session (prioritaskan sesi yang berstatus AKTIF)
-      if (!state.selectedSessionId && state.sessions.length > 0) {
-        const activeSess = state.sessions.find(s => s.status === "AKTIF");
-        state.selectedSessionId = activeSess ? activeSess.id : state.sessions[0].id;
+      // Set default active session (prioritaskan sesi yang berstatus AKTIF jika ada)
+      if (state.sessions.length > 0) {
+        if (!state.selectedSessionId || !state.sessions.some(s => s.id === state.selectedSessionId)) {
+          const activeSess = state.sessions.find(s => s.status === "AKTIF");
+          state.selectedSessionId = activeSess ? activeSess.id : state.sessions[0].id;
+        }
+      } else {
+        state.selectedSessionId = "";
       }
 
       // Populate Session dropdown
@@ -616,12 +549,6 @@
         renderHistoryView();
       } else {
         updateView();
-      }
-
-      if (syncDot) syncDot.style.backgroundColor = "var(--dash-green)";
-      if (syncText) {
-        const timeStr = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-        syncText.textContent = `Realtime (${timeStr})`;
       }
 
       const eventTitle = document.getElementById("event-title-display");
@@ -666,6 +593,15 @@
     const prev = state.selectedSessionId;
     sel.innerHTML = "";
 
+    if (state.sessions.length === 0) {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = "-- Belum Ada Sesi (Atur API) --";
+      sel.appendChild(opt);
+      state.selectedSessionId = "";
+      return;
+    }
+
     state.sessions.forEach(s => {
       const opt = document.createElement("option");
       opt.value = s.id;
@@ -675,7 +611,7 @@
 
     if (prev && state.sessions.some(s => s.id === prev)) {
       sel.value = prev;
-    } else if (state.sessions.length > 0) {
+    } else {
       const activeSess = state.sessions.find(s => s.status === "AKTIF") || state.sessions[0];
       sel.value = activeSess.id;
       state.selectedSessionId = activeSess.id;
@@ -689,6 +625,14 @@
     ].filter(Boolean);
 
     if (selects.length === 0) return;
+
+    if (!state.detectedGenderCol && state.dimensions.length === 0) {
+      selects.forEach(sel => {
+        sel.innerHTML = '<option value="NONE">-- Belum Ada Kategori Data --</option>';
+      });
+      state.selectedDimension = "NONE";
+      return;
+    }
 
     const prev = state.selectedDimension;
 
@@ -900,7 +844,7 @@
 
     const dimName = getEffectiveDimensionName();
 
-    if (!dimName) {
+    if (!dimName || state.attendees.length === 0) {
       section.style.display = "none";
       return;
     }
@@ -995,6 +939,29 @@
     const peakBadge = document.getElementById("peak-arrival-badge");
     const subEl = document.getElementById("arrival-chart-sub");
     if (!ctx) return;
+
+    if (state.attendees.length === 0) {
+      if (chartInstances.arrivalHours) {
+        chartInstances.arrivalHours.destroy();
+        chartInstances.arrivalHours = null;
+      }
+      ctx.style.display = "none";
+      if (peakBadge) peakBadge.style.display = "none";
+      let emptyMsg = document.getElementById("chart-arrival-empty-msg");
+      if (!emptyMsg) {
+        emptyMsg = document.createElement("div");
+        emptyMsg.id = "chart-arrival-empty-msg";
+        emptyMsg.style.cssText = "text-align: center; padding: 44px 16px; color: var(--dash-text-muted); font-size: 0.85rem;";
+        ctx.parentElement.appendChild(emptyMsg);
+      }
+      emptyMsg.innerHTML = `<div style="font-weight: 600; margin-bottom: 4px; color: var(--dash-text-main);">Belum Ada Data Arus Kedatangan</div><div>Data grafik akan muncul saat peserta mulai memindai tiket.</div>`;
+      emptyMsg.style.display = "block";
+      return;
+    }
+
+    const emptyArrivalMsg = document.getElementById("chart-arrival-empty-msg");
+    if (emptyArrivalMsg) emptyArrivalMsg.style.display = "none";
+    ctx.style.display = "block";
 
     const dimName = getEffectiveDimensionName();
     const isGender = isGenderDimension(dimName);
@@ -1642,13 +1609,39 @@
     const pageRows = filtered.slice(startIdx, startIdx + state.rowsPerPage);
 
     if (pageRows.length === 0) {
-      tbody.innerHTML = `
-        <tr>
-          <td colspan="${columns.length}" class="dash-empty-cell">
-            <div style="font-weight: 600;">Tidak ada peserta yang cocok</div>
-            <div style="font-size: 0.78rem; margin-top: 4px;">Coba sesuaikan pencarian atau reset filter di atas.</div>
-          </td>
-        </tr>`;
+      if (state.attendees.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="${columns.length}" class="dash-empty-cell" style="padding: 44px 16px; text-align: center;">
+              <div style="font-size: 1.8rem; margin-bottom: 8px; opacity: 0.7;">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                  <line x1="16" y1="13" x2="8" y2="13"></line>
+                  <line x1="16" y1="17" x2="8" y2="17"></line>
+                </svg>
+              </div>
+              <div style="font-weight: 600; font-size: 0.95rem; color: var(--dash-text-main);">Data Peserta Belum Masuk</div>
+              <div style="font-size: 0.8rem; color: var(--dash-text-muted); margin-top: 4px; max-width: 400px; margin-left: auto; margin-right: auto; line-height: 1.5;">
+                ${state.apiUrl ? 'Belum ada data peserta yang tersinkronisasi dari Google Sheets untuk sesi ini.' : 'URL Google Apps Script belum diatur. Silakan masukkan URL Web App pada menu Pengaturan.'}
+              </div>
+              ${!state.apiUrl ? `
+                <button type="button" onclick="window.EventPassSimple.openSettings()" class="dash-btn" style="margin-top: 14px; background: var(--dash-green); color: white; border: none; padding: 7px 16px; border-radius: 6px; font-size: 0.82rem; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                  Atur URL Google Apps Script
+                </button>
+              ` : ''}
+            </td>
+          </tr>`;
+      } else {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="${columns.length}" class="dash-empty-cell">
+              <div style="font-weight: 600;">Tidak ada peserta yang cocok</div>
+              <div style="font-size: 0.78rem; margin-top: 4px;">Coba sesuaikan pencarian atau reset filter di atas.</div>
+            </td>
+          </tr>`;
+      }
       updatePagination(0, 0, 0);
       return;
     }
@@ -2058,6 +2051,28 @@
     const ctx = document.getElementById("chart-history-sessions");
     if (!ctx) return;
 
+    if (sessionList.length === 0) {
+      if (chartInstances.historySessions) {
+        chartInstances.historySessions.destroy();
+        chartInstances.historySessions = null;
+      }
+      ctx.style.display = "none";
+      let emptyMsg = document.getElementById("chart-history-empty-msg");
+      if (!emptyMsg) {
+        emptyMsg = document.createElement("div");
+        emptyMsg.id = "chart-history-empty-msg";
+        emptyMsg.style.cssText = "text-align: center; padding: 44px 16px; color: var(--dash-text-muted); font-size: 0.85rem;";
+        ctx.parentElement.appendChild(emptyMsg);
+      }
+      emptyMsg.innerHTML = `<div style="font-weight: 600; margin-bottom: 4px; color: var(--dash-text-main);">Belum Ada Riwayat Sesi</div><div>Data grafik perbandingan akan muncul setelah terdapat minimal satu sesi acara.</div>`;
+      emptyMsg.style.display = "block";
+      return;
+    }
+
+    const emptyHistMsg = document.getElementById("chart-history-empty-msg");
+    if (emptyHistMsg) emptyHistMsg.style.display = "none";
+    ctx.style.display = "block";
+
     if (typeof Chart === "undefined") {
       ctx.parentElement.innerHTML = `<div style="text-align:center; padding: 40px; color: var(--dash-text-muted);">Library grafik sedang dimuat...</div>`;
       return;
@@ -2303,7 +2318,11 @@
     if (!grid) return;
 
     if (sessionList.length === 0) {
-      grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: var(--dash-text-muted);">Belum ada riwayat sesi yang tersimpan.</div>`;
+      grid.innerHTML = `
+        <div style="grid-column: 1 / -1; text-align: center; padding: 48px 16px; color: var(--dash-text-muted); font-size: 0.85rem; border: 1px dashed var(--dash-border, #e5e7eb); border-radius: 8px;">
+          <div style="font-weight: 600; margin-bottom: 4px; color: var(--dash-text-main);">Belum Ada Riwayat Sesi</div>
+          <div>Hubungkan URL Google Apps Script di Pengaturan untuk memuat daftar sesi presensi.</div>
+        </div>`;
       return;
     }
 
@@ -2512,6 +2531,10 @@
     },
     sortTable: (columnKey) => {
       handleTableSort(columnKey);
+    },
+    openSettings: () => {
+      const btn = document.getElementById("btn-open-settings-menu");
+      if (btn) btn.click();
     }
   };
 

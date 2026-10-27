@@ -50,10 +50,26 @@ window.EventPass = window.EventPass || {};
     renderSessionDropdown() {
       if (!ns.DOM.sessionDropdownContainer || !ns.DOM.sessionMenu) return;
 
-      const list = ns.state.sessions.length > 0 ? ns.state.sessions : [
-        { id: "SESI-01", name: "Pertemuan 1 - Pembukaan", label: "Pertemuan 1 - Pembukaan", type: "SINGLE" },
-        { id: "SESI-02", name: "Pertemuan 2 - Workshop", label: "Pertemuan 2 - Workshop", type: "CHECK_IN_OUT" }
-      ];
+      const list = ns.state.sessions || [];
+
+      if (list.length === 0) {
+        ns.state.currentSessionId = "";
+        ns.state.currentSessionName = "";
+        if (ns.DOM.sessionLabel) {
+          ns.DOM.sessionLabel.innerHTML = `<span style="opacity: 0.75; font-size: 12.5px;">Belum Ada Sesi (Atur API)</span>`;
+        }
+        ns.DOM.sessionMenu.innerHTML = `
+          <div style="padding: 16px 14px; font-size: 13px; color: var(--text-muted); text-align: center; line-height: 1.5;">
+            <div style="font-weight: 600; color: var(--text-main); margin-bottom: 4px;">Data Sesi Belum Masuk</div>
+            <div style="font-size: 12px; color: var(--text-dim); margin-bottom: 8px;">Hubungkan URL Google Apps Script di Pengaturan untuk memuat sesi dari Google Sheets.</div>
+            <button type="button" class="ctrl-btn-outline" style="font-size: 12px; padding: 5px 12px; width: 100%; justify-content: center;" onclick="document.getElementById('btn-open-settings').click()">
+              Buka Pengaturan API
+            </button>
+          </div>
+        `;
+        this.updateScanModeUI();
+        return;
+      }
 
       // Sinkronkan sesi yang aktif atau fallback ke sesi pertama
       let current = list.find(s => s.id === ns.state.currentSessionId);
@@ -732,9 +748,9 @@ window.EventPass = window.EventPass || {};
         const isInOut = (current && current.type === "CHECK_IN_OUT");
         const mode = isInOut ? (ns.state.currentScanMode || "IN") : "IN";
         const isOut = (mode === "OUT");
-        const currentSessId = ns.state.currentSessionId || "SESI-01";
-        const inSessId = `${currentSessId}_IN`;
-        const outSessId = `${currentSessId}_OUT`;
+        const currentSessId = ns.state.currentSessionId || "";
+        const inSessId = currentSessId ? `${currentSessId}_IN` : "";
+        const outSessId = currentSessId ? `${currentSessId}_OUT` : "";
 
         results.forEach(item => {
           const div = document.createElement("div");

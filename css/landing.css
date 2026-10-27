@@ -445,6 +445,104 @@ body.landing-body {
 }
 
 /* ==============================================================================
+   BATASAN TEKNIS & KUOTA GOOGLE PLATFORM
+   ============================================================================== */
+.land-callout {
+  background: var(--land-bg-subtle);
+  border: 1px solid var(--land-border);
+  border-left: 4px solid var(--land-primary);
+  border-radius: var(--land-radius-md);
+  padding: 16px 20px;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.land-callout-amber {
+  background: #fffbeb;
+  border-color: #fde68a;
+  border-left-color: #d97706;
+}
+
+.land-callout-icon {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--land-primary);
+}
+
+.land-callout-amber .land-callout-icon {
+  color: #b45309;
+}
+
+.land-callout-content {
+  font-size: 13.5px;
+  color: var(--land-text-muted);
+  line-height: 1.55;
+}
+
+.land-callout-title {
+  font-weight: 700;
+  color: var(--land-text-main);
+  margin-bottom: 4px;
+  font-size: 14px;
+}
+
+.land-badge-quota {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: var(--land-radius-full);
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+  white-space: nowrap;
+}
+
+.land-badge-quota.badge-quota-danger {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #fecaca;
+}
+
+.land-badge-quota.badge-quota-info {
+  background: #eff6ff;
+  color: #1e40af;
+  border-color: #bfdbfe;
+}
+
+.land-doc-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--land-primary);
+  text-decoration: none;
+  background: var(--land-bg-subtle);
+  border: 1px solid var(--land-border);
+  padding: 6px 12px;
+  border-radius: var(--land-radius-md);
+  transition: var(--land-transition);
+  margin-top: auto;
+  align-self: flex-start;
+}
+
+.land-doc-link:hover {
+  background: var(--land-primary-tint);
+  border-color: var(--land-primary);
+  color: var(--land-primary-hover);
+  transform: translateY(-1px);
+}
+
+/* ==============================================================================
    INSTALLATION STEPS (STEP-BY-STEP PENGINSTALAN UNTUK INTERNAL)
    ============================================================================== */
 .land-steps-list {
