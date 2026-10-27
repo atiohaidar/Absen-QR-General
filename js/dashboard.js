@@ -500,7 +500,7 @@
       } else {
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 8000);
+          const timeoutId = setTimeout(() => controller.abort(), 18000);
           const url = `${state.apiUrl}${state.apiUrl.includes('?') ? '&' : '?'}action=getDashboardData&forceRefresh=${forceRefresh}&t=${Date.now()}`;
           const resp = await fetch(url, { signal: controller.signal });
           clearTimeout(timeoutId);
@@ -955,9 +955,9 @@
     if (!ctx) return;
 
     if (state.attendees.length === 0) {
-      if (chartInstances.arrivalHours) {
-        chartInstances.arrivalHours.destroy();
-        chartInstances.arrivalHours = null;
+      if (state.arrivalChart) {
+        state.arrivalChart.destroy();
+        state.arrivalChart = null;
       }
       ctx.style.display = "none";
       if (peakBadge) peakBadge.style.display = "none";
@@ -1956,6 +1956,8 @@
         sessionId: s.id,
         sessionName: s.name || s.id,
         date: s.date || "",
+        dateIso: s.dateIso || "",
+        baseMasterId: s.baseMasterId || "",
         status: s.status || "AKTIF",
         totalRegistered: totalReg,
         attended: attended,
@@ -1987,6 +1989,60 @@
     return map;
   }
 
+  // ============================================================================
+  // HELPER: PENGURUTAN KRONOLOGIS SESI (LAMA DI KIRI -> BARU DI KANAN)
+  // ============================================================================
+  function parseSessionTimestamp(s) {
+    if (!s) return null;
+    if (s.dateIso && /^\d{4}-\d{2}-\d{2}$/.test(s.dateIso)) {
+      return new Date(s.dateIso).getTime();
+    }
+    const dateStr = String(s.date || "").trim();
+    if (dateStr) {
+      const ddmmyyyy = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+      if (ddmmyyyy) {
+        return new Date(`${ddmmyyyy[3]}-${ddmmyyyy[2].padStart(2, '0')}-${ddmmyyyy[1].padStart(2, '0')}`).getTime();
+      }
+      const iso = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (iso) {
+        return new Date(`${iso[1]}-${iso[2]}-${iso[3]}`).getTime();
+      }
+    }
+    const combinedStr = `${s.sessionId || ""} ${s.sessionName || ""}`;
+    const isoInStr = combinedStr.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (isoInStr) {
+      return new Date(`${isoInStr[1]}-${isoInStr[2]}-${isoInStr[3]}`).getTime();
+    }
+    const ddmmyyyyInStr = combinedStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (ddmmyyyyInStr) {
+      return new Date(`${ddmmyyyyInStr[3]}-${ddmmyyyyInStr[2].padStart(2, '0')}-${ddmmyyyyInStr[1].padStart(2, '0')}`).getTime();
+    }
+    return null;
+  }
+
+  function sortSessionsChronological(list) {
+    return [...list].sort((a, b) => {
+      const timeA = parseSessionTimestamp(a);
+      const timeB = parseSessionTimestamp(b);
+      if (timeA !== null && timeB !== null) {
+        if (timeA !== timeB) return timeA - timeB; // Ascending: paling lama di kiri, terbaru di kanan
+      } else if (timeA !== null) {
+        return -1;
+      } else if (timeB !== null) {
+        return 1;
+      }
+
+      // Fallback untuk sesi tanpa tanggal: nomor urut di ID atau Nama (e.g. SESI-01 vs SESI-02)
+      const numA = (String(a.sessionId || a.sessionName).match(/\d+/) || [null])[0];
+      const numB = (String(b.sessionId || b.sessionName).match(/\d+/) || [null])[0];
+      if (numA !== null && numB !== null && Number(numA) !== Number(numB)) {
+        return Number(numA) - Number(numB);
+      }
+
+      return 0;
+    });
+  }
+
   function renderHistoryView(forceRecreate = false) {
     const badgeCount = document.getElementById("badge-history-count");
     if (badgeCount) {
@@ -2008,6 +2064,8 @@
         sessionId: s.id,
         sessionName: s.name,
         date: s.date || "",
+        dateIso: s.dateIso || "",
+        baseMasterId: s.baseMasterId || "",
         status: s.status || "AKTIF",
         totalRegistered: state.attendees.length,
         attended: 0,
@@ -2033,7 +2091,9 @@
       }
     });
 
-    state.lastSessionList = sessionList;
+    // Urutkan sesi riwayat secara kronologis (paling lama di kiri, terbaru di kanan)
+    const chronologicalSessions = sortSessionsChronological(sessionList);
+    state.lastSessionList = chronologicalSessions;
 
     const avgRate = sessionList.length > 0 ? (rateSum / sessionList.length).toFixed(1) : 0;
 
@@ -2054,21 +2114,21 @@
         : "Belum ada scan tercatat";
     }
 
-    // 2. Render Grafik Tren Lintas Sesi
-    renderHistoryTrendChart(sessionList, forceRecreate);
+    // 2. Render Grafik Tren Lintas Sesi (Urutan: Lama di Kiri -> Baru di Kanan)
+    renderHistoryTrendChart(chronologicalSessions, forceRecreate);
 
     // 3. Render Kartu Tiap Sesi
-    renderHistoryCards(sessionList);
+    renderHistoryCards(chronologicalSessions);
   }
 
   function renderHistoryTrendChart(sessionList, forceRecreate) {
     const ctx = document.getElementById("chart-history-sessions");
     if (!ctx) return;
 
-    if (sessionList.length === 0) {
-      if (chartInstances.historySessions) {
-        chartInstances.historySessions.destroy();
-        chartInstances.historySessions = null;
+    if (!sessionList || sessionList.length === 0) {
+      if (state.historyChart) {
+        state.historyChart.destroy();
+        state.historyChart = null;
       }
       ctx.style.display = "none";
       let emptyMsg = document.getElementById("chart-history-empty-msg");
@@ -2092,12 +2152,15 @@
       return;
     }
 
+    // Urutan grafik tren: paling kiri = paling lama (oldest), paling kanan = paling baru (newest)
+    const chronologicalList = sortSessionsChronological(sessionList);
+
     const dimName = getEffectiveDimensionName();
     const hasCategory = Boolean(dimName);
     const isGender = isGenderDimension(dimName);
 
-    const activeCategories = (sessionList[0] && sessionList[0].activeCategories && sessionList[0].activeCategories.length > 0)
-      ? sessionList[0].activeCategories
+    const activeCategories = (chronologicalList[0] && chronologicalList[0].activeCategories && chronologicalList[0].activeCategories.length > 0)
+      ? chronologicalList[0].activeCategories
       : (isGender ? ["Laki-laki", "Perempuan"] : []);
 
     const isCategoryMode = hasCategory && activeCategories.length > 0;
@@ -2106,8 +2169,8 @@
     // Dynamic horizontal scroll support when there are many sessions
     const historyContainer = document.getElementById("chart-history-container");
     if (historyContainer) {
-      if (sessionList.length > 5) {
-        const neededWidth = Math.max(sessionList.length * 85, 560);
+      if (chronologicalList.length > 5) {
+        const neededWidth = Math.max(chronologicalList.length * 85, 560);
         historyContainer.style.width = `${neededWidth}px`;
         historyContainer.style.minWidth = `${neededWidth}px`;
       } else {
@@ -2119,9 +2182,9 @@
     const chartSub = document.getElementById("history-chart-sub");
     if (chartSub) {
       if (isCategoryMode) {
-        chartSub.textContent = `Membandingkan tren kehadiran peserta berdasarkan ${dimName} antar sesi`;
+        chartSub.textContent = `Membandingkan tren kehadiran peserta berdasarkan ${dimName} antar sesi (kronologis)`;
       } else {
-        chartSub.textContent = "Melihat perbandingan jumlah peserta hadir dan persentase dari sesi ke sesi";
+        chartSub.textContent = "Melihat perbandingan jumlah peserta hadir dan persentase dari sesi ke sesi (kronologis)";
       }
     }
 
@@ -2129,7 +2192,7 @@
     const textColor = isDark ? "#9eb5a5" : "#334d3d";
     const gridColor = isDark ? "rgba(255, 255, 255, 0.06)" : "rgba(13, 83, 45, 0.08)";
 
-    const labels = sessionList.map(s => {
+    const labels = chronologicalList.map(s => {
       const name = s.sessionName || s.sessionId;
       return name.length > 20 ? name.slice(0, 18) + '...' : name;
     });
@@ -2141,7 +2204,7 @@
 
       activeCategories.forEach((cat) => {
         const pal = palette[cat] || { line: "#059669", bg: "rgba(5, 150, 105, 0.2)" };
-        const attendedArr = sessionList.map(s => (s.categoryStats && s.categoryStats[cat]) ? s.categoryStats[cat].attended : 0);
+        const attendedArr = chronologicalList.map(s => (s.categoryStats && s.categoryStats[cat]) ? s.categoryStats[cat].attended : 0);
 
         datasets.push({
           type: 'bar',
@@ -2155,7 +2218,7 @@
 
         // Jika jumlah kategori <= 3, tampilkan garis persentase per kategori
         if (activeCategories.length <= 3) {
-          const rateArr = sessionList.map(s => (s.categoryStats && s.categoryStats[cat]) ? s.categoryStats[cat].rate : 0);
+          const rateArr = chronologicalList.map(s => (s.categoryStats && s.categoryStats[cat]) ? s.categoryStats[cat].rate : 0);
           datasets.push({
             type: 'line',
             label: `Rasio ${cat} (%)`,
@@ -2175,9 +2238,9 @@
         }
       });
     } else {
-      const attendedData = sessionList.map(s => s.attended);
-      const absentData = sessionList.map(s => s.absent);
-      const rateData = sessionList.map(s => s.rate);
+      const attendedData = chronologicalList.map(s => s.attended);
+      const absentData = chronologicalList.map(s => s.absent);
+      const rateData = chronologicalList.map(s => s.rate);
       const greenBar = isDark ? "#34d399" : "#0d532d";
       const amberBar = isDark ? "rgba(251, 191, 36, 0.35)" : "rgba(217, 119, 6, 0.22)";
 
@@ -2264,10 +2327,10 @@
             cornerRadius: 8,
             padding: 10,
             callbacks: {
-              title: (items) => `Sesi: ${sessionList[items[0].dataIndex].sessionName}`,
+              title: (items) => `Sesi: ${chronologicalList[items[0].dataIndex].sessionName}`,
               afterBody: (items) => {
                 const idx = items[0].dataIndex;
-                const s = sessionList[idx];
+                const s = chronologicalList[idx];
                 if (isCategoryMode && s.categoryStats) {
                   const activeCats = s.activeCategories || Object.keys(s.categoryStats);
                   const lines = activeCats.map(cat => {

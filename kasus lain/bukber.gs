@@ -29,13 +29,12 @@ const CONFIG = {
     QR_FONT_SIZE: 18,
     QR_FONT_COLOR: "1e293b",
     
-    // Integrasi Realtime ke Google Spreadsheet Eksternal (Enriched Audit Log)
-    EXTERNAL_SYNC: {
+       EXTERNAL_SYNC: {
       ENABLED: true, // Ubah ke true untuk mengaktifkan sinkronisasi realtime
-      SPREADSHEET_ID: "xxx", // Masukkan ID atau Link Spreadsheet target (misal: "1abcXYZ...")
+      SPREADSHEET_ID: "", // Masukkan ID atau Link Spreadsheet target (misal: "1abcXYZ...")
       SHEET_NAME: "Log Kehadiran", // Nama tab di spreadsheet target
       ONLY_SUCCESSFUL_SCANS: false, // Jika true, hanya mencatat scan BERHASIL/CHECKOUT (abaikan duplikat / gagal)
-          WEBHOOK_URL: "https://script.google.com/macros/s/xxx-xxx/exec" // 👈 Tambahkan ini
+          WEBHOOK_URL: "" // 👈 Tambahkan ini
 
     },
     
@@ -78,10 +77,9 @@ const CONFIG = {
     if (sheetSesi.getLastRow() === 0) {
       sheetSesi.appendRow(["ID Sesi", "Nama Sesi", "Tanggal Pelaksanaan", "Status", "Tipe Presensi"]);
       sheetSesi.getRange(1, 1, 1, 5).setFontWeight("bold").setBackground("#e2e8f0");
-      // Tambahkan 3 contoh sesi awal
-      sheetSesi.appendRow(["SESI-01", "Pertemuan 1 - Pembukaan & Onboarding", formatDateOnly(new Date()), "AKTIF", "SINGLE"]);
-      sheetSesi.appendRow(["SESI-02", "Pertemuan 2 - Workshop Inti", formatDateOnly(new Date(Date.now() + 86400000)), "AKTIF", "CHECK_IN_OUT"]);
-      sheetSesi.appendRow(["SESI-03", "Pertemuan 3 - Evaluasi & Penutupan", formatDateOnly(new Date(Date.now() + 172800000)), "AKTIF", "SINGLE"]);
+      // Tambahkan contoh sesi awal untuk Bukber (Check-In Masuk/Kupon & Check-Out Ambil Makan)
+      sheetSesi.appendRow(["BUKBER-01", "Bukber Utama (Masuk & Ambil Makanan)", formatDateOnly(new Date()), "AKTIF", "CHECK_IN_OUT"]);
+      sheetSesi.appendRow(["SESI-TAMBAHAN", "Sesi Tambahan / Doorprize", formatDateOnly(new Date()), "NONAKTIF", "SINGLE"]);
     } else {
       // Auto-migration: Tambahkan kolom Tipe Presensi jika belum ada
       const lastCol = sheetSesi.getLastColumn();
@@ -1127,6 +1125,17 @@ const CONFIG = {
         if (typeof handleDashboardRequest === "function") {
           return handleDashboardRequest(e, e.parameter);
         }
+        // Fallback jika Dashboard.gs tidak di-load
+        const sheetPeserta = getOrCreateSheet(CONFIG.SHEETS.DATA_PESERTA);
+        const attendees = buildAttendeesList(sheetPeserta);
+        const sessions = getActiveSessions();
+        return ContentService.createTextOutput(JSON.stringify({
+          success: true,
+          meta: { eventName: CONFIG.EVENT_NAME || "Event Attendance System", totalParticipants: attendees.length },
+          sessions: sessions,
+          attendees: attendees,
+          dimensions: []
+        })).setMimeType(ContentService.MimeType.JSON);
       }
 
       if (action === "getSessions") {
@@ -1246,6 +1255,17 @@ const CONFIG = {
         if (typeof handleDashboardRequest === "function") {
           return handleDashboardRequest(e, payload);
         }
+        // Fallback jika Dashboard.gs tidak di-load
+        const sheetPeserta = getOrCreateSheet(CONFIG.SHEETS.DATA_PESERTA);
+        const attendees = buildAttendeesList(sheetPeserta);
+        const sessions = getActiveSessions();
+        return ContentService.createTextOutput(JSON.stringify({
+          success: true,
+          meta: { eventName: CONFIG.EVENT_NAME || "Event Attendance System", totalParticipants: attendees.length },
+          sessions: sessions,
+          attendees: attendees,
+          dimensions: []
+        })).setMimeType(ContentService.MimeType.JSON);
       }
 
       // ACTION B: SEARCH PESERTA (Manual Search by Name/Email/Ticket)
@@ -3083,7 +3103,7 @@ const CONFIG = {
                 const key = String(h || "").trim().toLowerCase();
                 const val = attendeeData[idx];
                 if (key.includes("kelamin") || key.includes("gender")) res.jenisKelamin = val;
-                if (key.includes("Nomor Whatsapp") || key.includes("whatsapp") || key.includes("telepon")) res.noWhatsapp = val;
+                if (key.includes("nomor whatsapp") || key.includes("whatsapp") || key.includes("telepon") || key.includes("phone")) res.noWhatsapp = val;
                 if (key === "status" || key.includes("status peserta")) res.statusPeserta = val;
               });
             }

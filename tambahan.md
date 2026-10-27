@@ -1,3 +1,3 @@
-kadang timeout karena kelaaman mugnkin bisa di cut yang append to spreadsheetnnya
+paling mau nge test ya ini hasilnya gimana. terus benerin landing page. setelah itu yaudah mainkan 
 
-terus mau nge benerin yang email dan no whatsapp harusnya di pisah
+terus mungkin benerin QR nya biar ada branding MSU nya

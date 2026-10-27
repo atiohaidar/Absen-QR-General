@@ -37,7 +37,7 @@ function handleDashboardRequest(e, payload) {
     logger.info("Handling dashboard request", { action, forceRefresh, selectedSessionId });
 
     // 1. Cek CacheService jika forceRefresh tidak aktif
-    const cacheKey = `dash_data_${selectedSessionId || "all"}_v2`;
+    const cacheKey = `dash_data_${selectedSessionId || "all"}_v3`;
     const cache = CacheService.getScriptCache();
     
     if (!forceRefresh) {
@@ -136,73 +136,172 @@ function compileDashboardData(sheetPeserta, masterSessions, options) {
   // Analisis Peran Setiap Kolom
   const columnSchema = analyzeColumnSchema(sheetPeserta, headers);
   
-  // Deteksi Kolom-Kolom Sesi
-  const sessionColumns = [];
+  // Deteksi Kolom-Kolom Sesi dari Header
+  const sessionMap = new Map();
+
+  // Helper untuk membersihkan nama sesi
+  const cleanHeaderName = (headerStr) => {
+    return headerStr
+      .replace(/^Sesi[:\s]+/i, "")
+      .replace(/\s*\[.*?\]\s*$/, "")
+      .replace(/\s*\((Masuk|Keluar)\)\s*/gi, "")
+      .trim();
+  };
+
+  // Helper format YYYY-MM-DD ke DD/MM/YYYY
+  const formatIsoToDisplay = (isoStr) => {
+    if (!isoStr) return "";
+    const p = isoStr.split("-");
+    return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : isoStr;
+  };
+
   headers.forEach((h, idx) => {
     const headerStr = String(h || "").trim();
+    if (!headerStr) return;
+
     const match = headerStr.match(/\[([A-Za-z0-9_-]+)\]/);
     if (match) {
       const rawId = match[1];
       const isOut = /_OUT$/i.test(rawId);
       const isIn = /_IN$/i.test(rawId);
-      const baseId = rawId.replace(/_(IN|OUT)$/i, "").replace(/_\d{4}-?\d{2}-?\d{2}.*$/i, "");
+
+      // Cek apakah mengandung tanggal ISO (_YYYY-MM-DD)
+      const dateMatch = rawId.match(/_(\d{4}-\d{2}-\d{2})/);
+      const dateIso = dateMatch ? dateMatch[1] : "";
+      const baseMasterId = rawId.replace(/_(IN|OUT)$/i, "").replace(/_\d{4}-?\d{2}-?\d{2}.*$/i, "");
       
-      sessionColumns.push({
-        colIdx: idx,
-        fullHeader: headerStr,
-        rawSessionId: rawId,
-        baseSessionId: baseId,
-        isOut: isOut,
-        isIn: isIn
-      });
-    } else if (headerStr) {
+      // Jika ada tanggal, setiap tanggal menjadi sesi harian tersendiri!
+      const sessionId = dateIso ? `${baseMasterId}_${dateIso}` : baseMasterId;
+
+      if (!sessionMap.has(sessionId)) {
+        let cleanName = cleanHeaderName(headerStr);
+        // Pastikan tanggal tampil di nama jika belum ada
+        if (dateIso && !cleanName.includes(formatIsoToDisplay(dateIso)) && !cleanName.includes(dateIso)) {
+          cleanName = `${cleanName} (${formatIsoToDisplay(dateIso)})`;
+        }
+        
+        sessionMap.set(sessionId, {
+          id: sessionId,
+          baseMasterId: baseMasterId,
+          name: cleanName || sessionId,
+          date: dateIso ? formatIsoToDisplay(dateIso) : "",
+          dateIso: dateIso,
+          status: "AKTIF",
+          type: (isIn || isOut) ? "CHECK_IN_OUT" : "SINGLE",
+          isRoutineDaily: Boolean(dateIso),
+          inColIdx: isIn ? idx : -1,
+          outColIdx: isOut ? idx : -1,
+          singleColIdx: (!isIn && !isOut) ? idx : -1
+        });
+      } else {
+        const existing = sessionMap.get(sessionId);
+        if (isIn) {
+          existing.inColIdx = idx;
+          existing.type = "CHECK_IN_OUT";
+        } else if (isOut) {
+          existing.outColIdx = idx;
+          existing.type = "CHECK_IN_OUT";
+        } else if (existing.singleColIdx === -1) {
+          existing.singleColIdx = idx;
+        }
+      }
+    } else {
       const lower = headerStr.toLowerCase();
       if (lower.startsWith("sesi:") || lower.startsWith("sesi ")) {
-        const cleanName = headerStr.replace(/^Sesi[:\s]+/i, "").trim();
+        const cleanName = cleanHeaderName(headerStr);
         const found = masterSessions.find(s => s.name.trim().toLowerCase() === cleanName.toLowerCase() || s.id.trim().toLowerCase() === cleanName.toLowerCase());
         const sId = found ? found.id : (cleanName || `SESI_${idx}`);
-        sessionColumns.push({
-          colIdx: idx,
-          fullHeader: headerStr,
-          rawSessionId: sId,
-          baseSessionId: sId,
-          isOut: false,
-          isIn: false
+        if (!sessionMap.has(sId)) {
+          sessionMap.set(sId, {
+            id: sId,
+            baseMasterId: sId,
+            name: cleanName || sId,
+            date: "",
+            dateIso: "",
+            status: "AKTIF",
+            type: "SINGLE",
+            isRoutineDaily: false,
+            inColIdx: -1,
+            outColIdx: -1,
+            singleColIdx: idx
+          });
+        }
+      }
+    }
+  });
+
+  // Gabungkan dengan Master Sesi yang belum memiliki kolom di Data Peserta
+  const todayIso = Utilities.formatDate(new Date(), "GMT+7", "yyyy-MM-dd");
+  const todayDisplay = Utilities.formatDate(new Date(), "GMT+7", "dd/MM/yyyy");
+
+  masterSessions.forEach(s => {
+    const isRoutine = (s.status === "RUTIN");
+    if (isRoutine) {
+      // Untuk sesi RUTIN, buat opsi hari ini jika belum ada kolomnya
+      const todaySessionId = `${s.id}_${todayIso}`;
+      if (!sessionMap.has(todaySessionId)) {
+        sessionMap.set(todaySessionId, {
+          id: todaySessionId,
+          baseMasterId: s.id,
+          name: `${s.name} (Hari Ini - ${todayDisplay})`,
+          date: todayDisplay,
+          dateIso: todayIso,
+          status: "AKTIF",
+          type: s.type || "CHECK_IN_OUT",
+          isRoutineDaily: true,
+          inColIdx: -1,
+          outColIdx: -1,
+          singleColIdx: -1
+        });
+      }
+    } else {
+      // Sesi reguler non-rutin
+      if (!sessionMap.has(s.id)) {
+        sessionMap.set(s.id, {
+          id: s.id,
+          baseMasterId: s.id,
+          name: s.name || s.id,
+          date: s.date || "",
+          dateIso: "",
+          status: s.status || "AKTIF",
+          type: s.type || "SINGLE",
+          isRoutineDaily: false,
+          inColIdx: -1,
+          outColIdx: -1,
+          singleColIdx: -1
         });
       }
     }
   });
 
-  // Gabungkan daftar sesi dari Master Sesi dan Kolom Sesi yang ada di sheet
-  const sessionMap = new Map();
-  masterSessions.forEach(s => {
-    sessionMap.set(s.id, {
-      id: s.id,
-      name: s.name || s.id,
-      date: s.date || "",
-      status: s.status || "AKTIF",
-      type: s.type || "SINGLE"
-    });
-  });
-
-  sessionColumns.forEach(sc => {
-    if (!sessionMap.has(sc.baseSessionId)) {
-      // Buat entri fallback jika sesi belum ada di Master Sesi
-      const cleanName = sc.fullHeader.replace(/^Sesi:\s*/i, "").replace(/\s*\[.*\]$/, "").trim();
-      sessionMap.set(sc.baseSessionId, {
-        id: sc.baseSessionId,
-        name: cleanName || sc.baseSessionId,
-        date: "",
-        status: "AKTIF",
-        type: (sc.isIn || sc.isOut) ? "CHECK_IN_OUT" : "SINGLE"
-      });
-    }
-  });
-
   const allSessions = Array.from(sessionMap.values());
 
-  // Tentukan sesi acuan utama (Default ke sesi pertama atau yang dipilih)
-  const activeSessionId = options.selectedSessionId || (allSessions.length > 0 ? allSessions[0].id : "");
+  // Urutkan sesi: jika ada sesi rutin harian, urutkan tanggal terbaru di paling atas
+  allSessions.sort((a, b) => {
+    if (a.dateIso && b.dateIso) {
+      return b.dateIso.localeCompare(a.dateIso); // Descending (terbaru di atas)
+    }
+    if (a.dateIso && !b.dateIso) return -1;
+    if (!a.dateIso && b.dateIso) return 1;
+    return 0;
+  });
+
+  // Tentukan sesi acuan utama (Default ke sesi pertama / terbaru atau yang dipilih)
+  let activeSessionId = (options.selectedSessionId || "").trim();
+  if (activeSessionId) {
+    const exactMatch = allSessions.find(s => s.id === activeSessionId);
+    if (!exactMatch) {
+      // Jika frontend mengirim base ID (misal "BUKBER_SENIN_KAMIS"), cari sesi harian yang baseId-nya cocok
+      const baseMatch = allSessions.find(s => s.baseMasterId === activeSessionId || s.id.startsWith(activeSessionId));
+      if (baseMatch) {
+        activeSessionId = baseMatch.id;
+      } else {
+        activeSessionId = allSessions.length > 0 ? allSessions[0].id : "";
+      }
+    }
+  } else {
+    activeSessionId = allSessions.length > 0 ? allSessions[0].id : "";
+  }
   const compareSessionId = options.compareSessionId || "";
 
   // Penampung data analitik
@@ -227,8 +326,6 @@ function compileDashboardData(sheetPeserta, masterSessions, options) {
   columnSchema.dimensions.forEach(dim => {
     dimensionAggregates[dim.name] = {};
   });
-
-  const todayIso = Utilities.formatDate(new Date(), "GMT+7", "yyyy-MM-dd");
 
   // Iterasi data peserta (Row 2 sampai selesai)
   for (let r = 1; r < rawValues.length; r++) {
@@ -264,37 +361,29 @@ function compileDashboardData(sheetPeserta, masterSessions, options) {
     allSessions.forEach(s => {
       sessionSummaries[s.id].totalRegistered++;
 
-      // Cari kolom yang berkorespondensi dengan sesi ini
-      let inVal = "";
-      let outVal = "";
-      let singleVal = "";
+      // Ambil nilai cell dari kolom yang sudah terpetakan secara pasti
+      const inVal = (s.inColIdx >= 0) ? String(row[s.inColIdx] || "").trim() : "";
+      const outVal = (s.outColIdx >= 0) ? String(row[s.outColIdx] || "").trim() : "";
+      const singleVal = (s.singleColIdx >= 0) ? String(row[s.singleColIdx] || "").trim() : "";
 
-      sessionColumns.forEach(sc => {
-        if (sc.baseSessionId === s.id || sc.rawSessionId.includes(s.id)) {
-          // Periksa juga apakah cocok dengan format tanggal harian (sesi rutin)
-          const isDateMatch = !sc.rawSessionId.includes("_20") || sc.rawSessionId.includes(todayIso);
-          if (isDateMatch) {
-            const cellVal = String(row[sc.colIdx] || "").trim();
-            if (sc.isOut) outVal = cellVal;
-            else if (sc.isIn) inVal = cellVal;
-            else singleVal = cellVal;
-          }
-        }
-      });
-
-      const hasIn = inVal.startsWith("HADIR") || singleVal.startsWith("HADIR");
-      const hasOut = outVal.startsWith("CHECKOUT") || singleVal.startsWith("CHECKOUT");
+      const hasIn = inVal.toUpperCase().startsWith("HADIR") || singleVal.toUpperCase().startsWith("HADIR");
+      const hasOut = outVal.toUpperCase().startsWith("CHECKOUT") || singleVal.toUpperCase().startsWith("CHECKOUT");
 
       let status = "BELUM_HADIR";
       let checkInTime = "";
       let checkOutTime = "";
 
       if (hasIn) {
-        checkInTime = inVal.replace(/^HADIR\s*-\s*/, "").trim() || singleVal.replace(/^HADIR\s*-\s*/, "").trim();
+        const rawTimeStr = inVal || singleVal;
+        const m = rawTimeStr.match(/(\d{4}-\d{2}-\d{2}\s+)?(\d{1,2}:\d{2}(?::\d{2})?)/);
+        checkInTime = m ? m[2] : rawTimeStr.replace(/^HADIR.*?-\s*/i, "").trim();
       }
+
       if (hasOut) {
         status = "CHECKOUT";
-        checkOutTime = outVal.replace(/^CHECKOUT\s*-\s*/, "").trim() || singleVal.replace(/^CHECKOUT\s*-\s*/, "").trim();
+        const rawTimeStr = outVal || singleVal;
+        const m = rawTimeStr.match(/(\d{4}-\d{2}-\d{2}\s+)?(\d{1,2}:\d{2}(?::\d{2})?)/);
+        checkOutTime = m ? m[2] : rawTimeStr.replace(/^CHECKOUT.*?-\s*/i, "").trim();
       } else if (hasIn) {
         status = "HADIR";
       }

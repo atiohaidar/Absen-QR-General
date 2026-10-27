@@ -19,9 +19,9 @@
   */
 
 const CONFIG = {
-    EVENT_NAME: "Absen QR General",
+    EVENT_NAME: "Peserta Gerakan Subuh Berjamaah",
     QR_SUBFOLDER_NAME: "QR Code Peserta",
-    TICKET_PREFIX: "TICK",
+    TICKET_PREFIX: "MSU-GSB",
     SCANNER_URL: "https://atiohaidar.github.io/Absen-QR-General/",
     
     // Tampilan Caption QR Code (QuickChart)
