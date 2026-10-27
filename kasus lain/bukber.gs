@@ -24,10 +24,16 @@ const CONFIG = {
     TICKET_PREFIX: "BUKBER_MSU_",
     SCANNER_URL: "https://atiohaidar.github.io/Absen-QR-General/",
     
-    // Tampilan Caption QR Code (QuickChart)
-    QR_FONT_FAMILY: "Roboto",
-    QR_FONT_SIZE: 18,
-    QR_FONT_COLOR: "1e293b",
+    // Tampilan & Generator QR Code (wajihah-qr-generator API)
+    QR_CONFIG: {
+      BASE_URL: "https://wajihah-qr-generator.pages.dev/api/qr",
+      SIZE: 286,
+      LOGO: "dkmsu",
+      LOGO_PLACEMENT: "bottom",
+      CAPTION_LOGO_SIZE: 70,
+      EYE_RADIUS: 10,
+      TEXT_COLOR: "0f7c3f"
+    },
     
        EXTERNAL_SYNC: {
       ENABLED: true, // Ubah ke true untuk mengaktifkan sinkronisasi realtime
@@ -437,20 +443,81 @@ const CONFIG = {
   }
 
   /**
-   * Helper: Generate URL QR Code QuickChart dengan caption Nama Acara & font Roboto modern
+   * Helper: Generate URL QR Code via wajihah-qr-generator API
+   * Format: https://wajihah-qr-generator.pages.dev/api/qr?size=286&logo=dkmsu&logoPlacement=bottom&captionLogoSize=70&eyeRadius=10&bottomText=...&textColor=0f7c3f&data=...
+   * bottomText otomatis disesuaikan dengan CONFIG.EVENT_NAME
    */
   function buildQrCodeUrl(ticketId) {
-    const captionText = CONFIG.EVENT_NAME || ticketId;
-    const fontFamily = CONFIG.QR_FONT_FAMILY || "Roboto";
-    const fontSize = CONFIG.QR_FONT_SIZE || 18;
-    const fontColor = CONFIG.QR_FONT_COLOR || "1e293b";
+    const bottomText = CONFIG.EVENT_NAME || ticketId;
+    const qrCfg = CONFIG.QR_CONFIG || {};
 
-    return "https://quickchart.io/qr?text=" + encodeURIComponent(ticketId) +
-      "&size=450&margin=2" +
-      "&caption=" + encodeURIComponent(captionText) +
-      "&captionFontFamily=" + encodeURIComponent(fontFamily) +
-      "&captionFontSize=" + fontSize +
-      "&captionFontColor=" + fontColor;
+    const baseUrl = qrCfg.BASE_URL || "https://wajihah-qr-generator.pages.dev/api/qr";
+    const size = qrCfg.SIZE || 286;
+    const logo = qrCfg.LOGO || "dkmsu";
+    const logoPlacement = qrCfg.LOGO_PLACEMENT || "bottom";
+    const captionLogoSize = qrCfg.CAPTION_LOGO_SIZE || 70;
+    const eyeRadius = qrCfg.EYE_RADIUS || 10;
+    const textColor = qrCfg.TEXT_COLOR || "0f7c3f";
+
+    return baseUrl + "?size=" + size +
+      "&logo=" + encodeURIComponent(logo) +
+      "&logoPlacement=" + encodeURIComponent(logoPlacement) +
+      "&captionLogoSize=" + captionLogoSize +
+      "&eyeRadius=" + eyeRadius +
+      "&bottomText=" + encodeURIComponent(bottomText) +
+      "&textColor=" + encodeURIComponent(textColor) +
+      "&data=" + encodeURIComponent(ticketId);
+  }
+
+  /**
+   * Helper: Update media content file Google Drive secara in-place (Direct File Revision)
+   * ID file & Link Google Drive TIDAK BERUBAH sama sekali.
+   * Hak akses viewer tetap utuh dan TIDAK ADA notifikasi email ke user!
+   */
+  function updateDriveFileBlob(fileId, newBlob) {
+    if (!fileId || fileId === "-") throw new Error("Invalid file ID: " + fileId);
+
+    // 1. Coba via Advanced Drive Service v3 jika aktif
+    if (typeof Drive !== "undefined" && Drive.Files && typeof Drive.Files.update === "function") {
+      try {
+        Drive.Files.update({}, fileId, newBlob);
+        return true;
+      } catch (advErr) {
+        // Fallback ke direct REST API jika Advanced Service mengalami kendala
+      }
+    }
+
+    // 2. Direct REST API via Drive v3 PATCH (uploadType=media)
+    const token = ScriptApp.getOAuthToken();
+    try {
+      const v3Url = "https://www.googleapis.com/upload/drive/v3/files/" + fileId + "?uploadType=media";
+      const v3Res = UrlFetchApp.fetch(v3Url, {
+        method: "PATCH",
+        headers: { "Authorization": "Bearer " + token },
+        contentType: newBlob.getContentType() || "image/png",
+        payload: newBlob.getBytes(),
+        muteHttpExceptions: true
+      });
+      if (v3Res.getResponseCode() >= 200 && v3Res.getResponseCode() < 300) {
+        return true;
+      }
+    } catch (e) {}
+
+    // 3. Direct REST API via Drive v2 PUT (uploadType=media)
+    const v2Url = "https://www.googleapis.com/upload/drive/v2/files/" + fileId + "?uploadType=media";
+    const v2Res = UrlFetchApp.fetch(v2Url, {
+      method: "PUT",
+      headers: { "Authorization": "Bearer " + token },
+      contentType: newBlob.getContentType() || "image/png",
+      payload: newBlob.getBytes(),
+      muteHttpExceptions: true
+    });
+
+    if (v2Res.getResponseCode() >= 200 && v2Res.getResponseCode() < 300) {
+      return true;
+    }
+
+    throw new Error(`Drive in-place update failed (HTTP ${v2Res.getResponseCode()})`);
   }
 
   function formatDateOnly(d) {
@@ -2062,11 +2129,12 @@ const CONFIG = {
       .addItem('📊 5. Periksa Status Sistem', 'showSystemStatus')
       .addSeparator()
       .addItem('🔄 6. Cek & Kirim Ulang Akses Drive Peserta', 'checkAndRetryDriveSharing')
+      .addItem('🎨 7. Perbarui Desain QR Seluruh Peserta (In-Place Update)', 'updateAllExistingQRCodes')
       .addSeparator()
-      .addItem('🛠️ 7. Rapikan Baris Data yang Bergeser (Auto-Fix Columns)', 'fixShiftedParticipantRows')
-      .addItem('📜 8. Bersihkan Log Eksekusi Lama', 'clearExecutionLogs')
+      .addItem('🛠️ 8. Rapikan Baris Data yang Bergeser (Auto-Fix Columns)', 'fixShiftedParticipantRows')
+      .addItem('📜 9. Bersihkan Log Eksekusi Lama', 'clearExecutionLogs')
       .addSeparator()
-      .addItem('🌐 9. Hubungkan / Test Spreadsheet Eksternal', 'promptConfigureExternalSync')
+      .addItem('🌐 10. Hubungkan / Test Spreadsheet Eksternal', 'promptConfigureExternalSync')
       .addToUi();
   }
 
@@ -3017,6 +3085,193 @@ const CONFIG = {
     } catch (err) {
       logger.error("checkAndRetryDriveSharing exception: " + err.message);
       logger.setSummary("Batch Share Error: " + err.message);
+    } finally {
+      logger.flush();
+    }
+  }
+
+  /**
+   * Menu UI: Perbarui Desain Gambar QR Code Seluruh Peserta secara in-place (Direct Revision)
+   * - Mengambil gambar QR terbaru dari wajihah-qr-generator API dengan bottomText = CONFIG.EVENT_NAME
+   * - File ID & Link Google Drive TIDAK BERUBAH sama sekali (In-Place Update)
+   * - Tidak ada notifikasi email ke peserta (Silent Update)
+   */
+  function updateAllExistingQRCodes() {
+    const ui = SpreadsheetApp.getUi();
+    const ss = getSpreadsheet();
+    const sheetPeserta = ss.getSheetByName(CONFIG.SHEETS.DATA_PESERTA);
+
+    if (!sheetPeserta) {
+      ui.alert("Sheet Tidak Ditemukan", `Sheet '${CONFIG.SHEETS.DATA_PESERTA}' belum tersedia.`, ui.ButtonSet.OK);
+      return;
+    }
+
+    const lastRow = sheetPeserta.getLastRow();
+    const lastCol = sheetPeserta.getLastColumn();
+
+    if (lastRow < 2) {
+      ui.alert("Data Kosong", "Belum ada data peserta di sheet 'Data Peserta'.", ui.ButtonSet.OK);
+      return;
+    }
+
+    const totalParticipants = lastRow - 1;
+
+    // Prompt 1: Baris Mulai
+    const promptStart = ui.prompt(
+      "🎨 Perbarui Desain QR Code Peserta",
+      `Masukkan baris awal yang ingin diperbarui:\n(Tersedia baris 2 sampai ${lastRow}, total ${totalParticipants} peserta)\n\n` +
+      `Desain baru menggunakan:\n` +
+      `• Event Name: "${CONFIG.EVENT_NAME}"\n` +
+      `• Generator: wajihah-qr-generator\n` +
+      `• Link Drive: Tetap sama (In-Place Revision, tanpa notifikasi)`,
+      ui.ButtonSet.OK_CANCEL
+    );
+
+    if (promptStart.getSelectedButton() !== ui.Button.OK) return;
+    let startRow = parseInt(promptStart.getResponseText().trim(), 10);
+    if (isNaN(startRow) || startRow < 2 || startRow > lastRow) {
+      startRow = 2;
+    }
+
+    // Prompt 2: Jumlah Baris yang Diproses (Batch Size)
+    const remainingRows = lastRow - startRow + 1;
+    const defaultBatch = Math.min(remainingRows, 50);
+    const promptBatch = ui.prompt(
+      "Jumlah Baris yang Diproses",
+      `Berapa baris yang ingin diproses sekarang?\n(Sisa baris: ${remainingRows}. Rekomendasi: 30 - 50 per batch agar tidak terkena timeout)`,
+      ui.ButtonSet.OK_CANCEL
+    );
+
+    if (promptBatch.getSelectedButton() !== ui.Button.OK) return;
+    let batchCount = parseInt(promptBatch.getResponseText().trim(), 10);
+    if (isNaN(batchCount) || batchCount <= 0) {
+      batchCount = defaultBatch;
+    }
+
+    const endRow = Math.min(lastRow, startRow + batchCount - 1);
+    const numRows = endRow - startRow + 1;
+
+    let adminUser = "-";
+    try { adminUser = Session.getActiveUser().getEmail() || "Admin"; } catch (e) {}
+    const logger = new ExecutionLogger("updateAllExistingQRCodes", {
+      action: "batchUpdateQR",
+      user: adminUser
+    });
+
+    let updatedCount = 0;
+    let createdCount = 0;
+    let failedCount = 0;
+
+    try {
+      logger.info(`Starting batch QR update: rows ${startRow} to ${endRow} (${numRows} rows)`);
+
+      const headers = sheetPeserta.getRange(1, 1, 1, lastCol).getValues()[0];
+      let ticketCol = -1;
+      let nameCol = -1;
+      let emailCol = -1;
+      let fileIdCol = -1;
+      let fileUrlCol = -1;
+
+      headers.forEach((h, idx) => {
+        const s = String(h || "").toLowerCase();
+        if (s.includes("ticket") || s.includes("id tiket")) ticketCol = idx;
+        if (s.includes("nama")) nameCol = idx;
+        if (s.includes("email")) emailCol = idx;
+        if (s.includes("drive file id") || s === "file id") fileIdCol = idx;
+        if (s.includes("drive file url") || s === "file url" || s.includes("link qr")) fileUrlCol = idx;
+      });
+
+      if (ticketCol === -1) {
+        throw new Error("Kolom 'Ticket ID' tidak ditemukan di sheet 'Data Peserta'.");
+      }
+
+      const rows = sheetPeserta.getRange(startRow, 1, numRows, lastCol).getValues();
+      const targetFolder = getOrCreateQrFolder();
+
+      for (let i = 0; i < rows.length; i++) {
+        const currentRow = startRow + i;
+        const row = rows[i];
+        const ticketId = String(row[ticketCol] || "").trim();
+        const name = nameCol !== -1 ? String(row[nameCol] || "").trim() : "Peserta";
+        const email = emailCol !== -1 ? String(row[emailCol] || "").trim() : "";
+        let fileId = fileIdCol !== -1 ? String(row[fileIdCol] || "").trim() : "";
+
+        if (!ticketId) {
+          logger.info(`Row ${currentRow}: Ticket ID kosong, dilewati.`);
+          continue;
+        }
+
+        try {
+          const qrUrl = buildQrCodeUrl(ticketId);
+          const qrResponse = UrlFetchApp.fetch(qrUrl, { muteHttpExceptions: true });
+
+          if (qrResponse.getResponseCode() !== 200) {
+            logger.warn(`Row ${currentRow} (${ticketId}): Gagal fetch QR (HTTP ${qrResponse.getResponseCode()})`);
+            failedCount++;
+            continue;
+          }
+
+          const sanitizedName = name.replace(/[^a-zA-Z0-9_-]/g, "_");
+          const qrBlob = qrResponse.getBlob().setName("QR_" + sanitizedName + "_" + ticketId + ".png");
+
+          if (fileId && fileId !== "-") {
+            try {
+              updateDriveFileBlob(fileId, qrBlob);
+              updatedCount++;
+              logger.info(`Row ${currentRow} (${ticketId}): QR in-place updated (File ID: ${fileId})`);
+            } catch (updateErr) {
+              logger.warn(`Row ${currentRow} (${ticketId}): In-place update gagal (${updateErr.message}), membuat file baru...`);
+              const newFile = targetFolder.createFile(qrBlob);
+              fileId = newFile.getId();
+              const fileUrl = newFile.getUrl();
+              if (fileIdCol !== -1) sheetPeserta.getRange(currentRow, fileIdCol + 1).setValue(fileId);
+              if (fileUrlCol !== -1) sheetPeserta.getRange(currentRow, fileUrlCol + 1).setValue(fileUrl);
+              if (email) {
+                try { grantDriveViewerSilent(fileId, email); } catch (e) {}
+              }
+              createdCount++;
+            }
+          } else {
+            // Belum ada file ID sebelumnya, buat file baru di Google Drive
+            const newFile = targetFolder.createFile(qrBlob);
+            fileId = newFile.getId();
+            const fileUrl = newFile.getUrl();
+            if (fileIdCol !== -1) sheetPeserta.getRange(currentRow, fileIdCol + 1).setValue(fileId);
+            if (fileUrlCol !== -1) sheetPeserta.getRange(currentRow, fileUrlCol + 1).setValue(fileUrl);
+            if (email) {
+              try { grantDriveViewerSilent(fileId, email); } catch (e) {}
+            }
+            createdCount++;
+            logger.info(`Row ${currentRow} (${ticketId}): File QR baru dibuat (File ID: ${fileId})`);
+          }
+
+          Utilities.sleep(150); // Jeda kecil untuk menjaga quota Drive & Cloudflare
+        } catch (itemErr) {
+          logger.error(`Row ${currentRow} (${ticketId}) error: ${itemErr.message}`);
+          failedCount++;
+        }
+      }
+
+      logger.setSummary(`QR Update: Baris ${startRow}-${endRow} (${updatedCount} in-place updated, ${createdCount} baru, ${failedCount} gagal)`);
+
+      const summary = [
+        "🎨 HASIL PEMBARUAN QR CODE",
+        "------------------------------------------",
+        `• Rentang Baris: ${startRow} s/d ${endRow} (dari total ${lastRow})`,
+        `• Diperbarui In-Place (Link tetap sama): ${updatedCount} file`,
+        `• Dibuat File Baru: ${createdCount} file`,
+        `• Gagal / Dilewati: ${failedCount} peserta`,
+        "------------------------------------------",
+        (endRow < lastRow)
+          ? `💡 Masih ada sisa baris hingga baris ${lastRow}.\nSilakan jalankan kembali menu ini mulai dari baris ${endRow + 1}.`
+          : "✅ Seluruh baris peserta yang dipilih telah berhasil diperbarui ke desain terbaru!"
+      ].join("\n");
+
+      ui.alert("Laporan Pembaruan QR Code", summary, ui.ButtonSet.OK);
+    } catch (err) {
+      logger.error("updateAllExistingQRCodes exception: " + err.message);
+      logger.setSummary("QR Update Error: " + err.message);
+      ui.alert("Gagal Memperbarui QR Code", "Terjadi kesalahan: " + err.message, ui.ButtonSet.OK);
     } finally {
       logger.flush();
     }

@@ -337,6 +337,23 @@
       });
     }
 
+    // Info Popover Interval Waktu Kedatangan
+    const btnArrivalInfo = document.getElementById("btn-arrival-info");
+    const popoverArrivalInfo = document.getElementById("arrival-info-popover");
+    if (btnArrivalInfo && popoverArrivalInfo) {
+      btnArrivalInfo.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const isOpen = popoverArrivalInfo.classList.toggle("open");
+        btnArrivalInfo.classList.toggle("active", isOpen);
+      });
+      document.addEventListener("click", (e) => {
+        if (!popoverArrivalInfo.contains(e.target) && e.target !== btnArrivalInfo) {
+          popoverArrivalInfo.classList.remove("open");
+          btnArrivalInfo.classList.remove("active");
+        }
+      });
+    }
+
 
 
     // Search input (Realtime)
@@ -514,7 +531,7 @@
           if (syncDot) syncDot.style.backgroundColor = "var(--dash-green)";
           if (syncText) {
             const timeStr = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-            syncText.textContent = `Realtime (${timeStr})`;
+            syncText.textContent = `Update (${timeStr})`;
           }
         } catch (fetchErr) {
           console.warn("[Dashboard API warning] Backend offline/error:", fetchErr);
@@ -595,9 +612,9 @@
     if (!name) return false;
     const l = name.toLowerCase();
     return l.includes("email") || l.includes("wa") || l.includes("whatsapp") || l.includes("hp") ||
-           l.includes("telepon") || l.includes("phone") || l.includes("kontak") ||
-           l.includes("nim") || l.includes("nik") || l.includes("nrp") || l.includes("npm") ||
-           l.includes("nomor induk") || l.includes("no. induk");
+      l.includes("telepon") || l.includes("phone") || l.includes("kontak") ||
+      l.includes("nim") || l.includes("nik") || l.includes("nrp") || l.includes("npm") ||
+      l.includes("nomor induk") || l.includes("no. induk");
   }
 
   function populateSessionDropdown() {
@@ -1058,16 +1075,18 @@
     let maxAllSlot = "";
     let maxAllCount = 0;
     const categoryPeaks = {};
+    let stepMin = 15;
 
     if (checkIns.length > 0) {
       checkIns.sort((a, b) => a.min - b.min);
       const spanMin = checkIns[checkIns.length - 1].min - checkIns[0].min;
 
-      let stepMin = 15;
       if (spanMin <= 90) {
         stepMin = 5;
       } else if (spanMin > 600) {
         stepMin = 30;
+      } else {
+        stepMin = 15;
       }
 
       const minMin = Math.max(0, Math.floor(checkIns[0].min / stepMin) * stepMin - stepMin);
@@ -1204,7 +1223,7 @@
 
     // Fallback jika Chart.js belum terload atau offline
     if (typeof Chart === "undefined") {
-      renderPureHtmlArrivalBars(ctx, labels, allBuckets, categoryBuckets, activeCategories, maxAllCount, isCategoryMode);
+      renderPureHtmlArrivalBars(ctx, labels, allBuckets, categoryBuckets, activeCategories, maxAllCount, isCategoryMode, stepMin);
       return;
     }
 
@@ -1241,7 +1260,7 @@
           catGradients[cat] = g;
         }
       });
-    } catch (e) {}
+    } catch (e) { }
 
     // Bangun Datasets Chart.js
     let datasets = [];
@@ -1342,12 +1361,25 @@
             cornerRadius: 8,
             padding: 10,
             callbacks: {
-              title: (items) => `Waktu: ${items[0].label} WIB`,
+              title: (items) => {
+                const label = items[0]?.label || "";
+                const match = String(label).match(/^(\d{1,2}):(\d{2})$/);
+                if (match) {
+                  const h = parseInt(match[1], 10);
+                  const m = parseInt(match[2], 10);
+                  const startMin = h * 60 + m;
+                  const endMin = Math.min(1439, startMin + stepMin - 1);
+                  const endH = String(Math.floor(endMin / 60)).padStart(2, "0");
+                  const endM = String(endMin % 60).padStart(2, "0");
+                  return `Rentang: ${label} – ${endH}:${endM} WIB (${stepMin} menit)`;
+                }
+                return `Waktu: ${label} WIB`;
+              },
               label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y} orang`,
               footer: (items) => {
                 if (items.length > 1) {
                   const sum = items.reduce((acc, it) => acc + (it.parsed.y || 0), 0);
-                  return `Total pada jam ini: ${sum} orang`;
+                  return `Total rentang ini: ${sum} orang`;
                 }
                 return "";
               }
@@ -1382,7 +1414,7 @@
   /**
    * Fallback render grafik kedatangan menggunakan pure HTML/CSS jika library Chart.js tidak tersedia
    */
-  function renderPureHtmlArrivalBars(canvasEl, labels, allBuckets, categoryBuckets, activeCategories, maxCount, isCategoryMode) {
+  function renderPureHtmlArrivalBars(canvasEl, labels, allBuckets, categoryBuckets, activeCategories, maxCount, isCategoryMode, stepMin = 15) {
     const parent = canvasEl.parentElement;
     if (!parent) return;
 
@@ -1397,20 +1429,35 @@
 
     const safeMax = Math.max(1, maxCount);
 
+    function getRangeText(lbl) {
+      const match = String(lbl).match(/^(\d{1,2}):(\d{2})$/);
+      if (match) {
+        const h = parseInt(match[1], 10);
+        const m = parseInt(match[2], 10);
+        const startMin = h * 60 + m;
+        const endMin = Math.min(1439, startMin + stepMin - 1);
+        const endH = String(Math.floor(endMin / 60)).padStart(2, "0");
+        const endM = String(endMin % 60).padStart(2, "0");
+        return `${lbl} – ${endH}:${endM} WIB`;
+      }
+      return `${lbl} WIB`;
+    }
+
     fallbackDiv.innerHTML = labels.map(lbl => {
       const cAll = allBuckets[lbl] || 0;
       const pctAll = Math.round((cAll / safeMax) * 100);
+      const rangeStr = getRangeText(lbl);
 
       if (isCategoryMode && activeCategories.length > 0) {
         const miniBars = activeCategories.map((cat, idx) => {
           const val = (categoryBuckets[cat] && categoryBuckets[cat][lbl]) || 0;
           const pct = Math.round((val / safeMax) * 100);
           const color = idx === 0 ? "#2563eb" : (idx === 1 ? "#e11d48" : "#059669");
-          return `<div style="flex: 1; height: ${Math.max(4, pct)}%; background: ${color}; border-radius: 4px 4px 0 0;" title="${escapeHtml(cat)}: ${val}"></div>`;
+          return `<div style="flex: 1; height: ${Math.max(4, pct)}%; background: ${color}; border-radius: 4px 4px 0 0;" title="${escapeHtml(cat)}: ${val} org (${rangeStr})"></div>`;
         }).join("");
 
         return `
-          <div style="flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end;">
+          <div style="flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end;" title="Rentang ${rangeStr}">
             <div style="display: flex; gap: 2px; align-items: flex-end; height: 100%; width: 100%; max-width: 44px; justify-content: center;">
               ${miniBars}
             </div>
@@ -1420,7 +1467,7 @@
       }
 
       return `
-        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end;">
+        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end;" title="Rentang ${rangeStr}: ${cAll} orang">
           <span style="font-size: 0.72rem; font-weight: 700; color: var(--dash-green); margin-bottom: 4px;">${cAll > 0 ? cAll : ''}</span>
           <div style="width: 100%; max-width: 44px; height: ${Math.max(4, pctAll)}%; background: var(--dash-green); border-radius: 6px 6px 0 0; min-height: 4px;"></div>
           <span style="font-size: 0.72rem; color: var(--dash-text-dim); margin-top: 6px; white-space: nowrap;">${lbl}</span>

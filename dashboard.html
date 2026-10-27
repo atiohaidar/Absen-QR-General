@@ -24,7 +24,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
   <!-- Simple Clean Stylesheet -->
-  <link rel="stylesheet" href="css/dashboard.css?v=20261027_2">
+  <link rel="stylesheet" href="css/dashboard.css?v=20261027_5">
 </head>
 
 <body class="dashboard-body">
@@ -196,7 +196,57 @@
       <section class="dash-arrival-card">
         <div class="dash-arrival-header">
           <div>
-            <h2 class="dash-section-title">Waktu & Arus Kedatangan</h2>
+            <div class="dash-arrival-title-row">
+              <h2 class="dash-section-title">Waktu &amp; Arus Kedatangan</h2>
+              <!-- Info Popover Button -->
+              <div class="dash-popover-wrapper">
+                <button type="button" id="btn-arrival-info" class="dash-info-trigger-btn" aria-label="Penjelasan Perhitungan Interval Waktu" title="Klik untuk penjelasan interval waktu">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="16" x2="12" y2="12"></line>
+                    <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                  </svg>
+                  <span>Info 15 Menit</span>
+                </button>
+
+                <div class="dash-popover-box" id="arrival-info-popover" role="tooltip">
+                  <div class="dash-popover-head">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg>
+                    <span>Perhitungan Interval Waktu</span>
+                  </div>
+                  <div class="dash-popover-body">
+                    <p>Waktu check-in dikelompokkan dalam slot <strong>15 menit</strong> dengan pembulatan ke awal interval:</p>
+                    <div class="dash-popover-examples">
+                      <div class="dash-example-item">
+                        <span class="dash-example-time">17:02</span>
+                        <span class="dash-example-arrow">&rarr;</span>
+                        <span class="dash-example-slot">Slot 17:00</span>
+                        <span class="dash-example-range">(17:00 &ndash; 17:14)</span>
+                      </div>
+                      <div class="dash-example-item">
+                        <span class="dash-example-time">16:49</span>
+                        <span class="dash-example-arrow">&rarr;</span>
+                        <span class="dash-example-slot">Slot 16:45</span>
+                        <span class="dash-example-range">(16:45 &ndash; 16:59)</span>
+                      </div>
+                      <div class="dash-example-item">
+                        <span class="dash-example-time">17:15</span>
+                        <span class="dash-example-arrow">&rarr;</span>
+                        <span class="dash-example-slot">Slot 17:15</span>
+                        <span class="dash-example-range">(17:15 &ndash; 17:29)</span>
+                      </div>
+                    </div>
+                    <p class="dash-popover-note">
+                      💡 Tiap label waktu mewakili total peserta yang hadir selama 15 menit ke depan sejak jam tersebut.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <p id="arrival-chart-sub" class="dash-section-sub">Melihat tren jam berapa peserta paling banyak datang dan memindai tiket</p>
           </div>
 
           <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
@@ -220,6 +270,20 @@
         <div class="dash-chart-scroll-wrap">
           <div class="dash-chart-container" id="chart-arrival-container" style="height: 220px;">
             <canvas id="chart-arrival-hours"></canvas>
+          </div>
+        </div>
+
+        <!-- Bottom Explanatory Hint Banner -->
+        <div class="dash-arrival-hint-bar">
+          <div class="dash-arrival-hint-content">
+            <svg class="dash-hint-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="16" x2="12" y2="12"></line>
+              <line x1="12" y1="8" x2="12.01" y2="8"></line>
+            </svg>
+            <span class="dash-hint-text">
+              <strong>Info Perhitungan:</strong> Waktu dipecah per interval 15 menit (dibulatkan ke awal slot). Contoh: hadir pukul <strong>17:02</strong> masuk ke slot <strong>17:00</strong> (17:00&ndash;17:14), hadir pukul <strong>16:49</strong> masuk ke slot <strong>16:45</strong> (16:45&ndash;16:59).
+            </span>
           </div>
         </div>
       </section>
@@ -462,7 +526,7 @@
   </div>
 
   <!-- Dashboard Simplified Script with Version Cache Busting -->
-  <script src="js/dashboard.js?v=20261027_4"></script>
+  <script src="js/dashboard.js?v=20261027_5"></script>
 
 </body>
 
