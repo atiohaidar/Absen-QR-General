@@ -470,6 +470,46 @@ const CONFIG = {
   }
 
   /**
+   * Helper: Fetch QR Code Blob dengan Simple Retry & Jeda jika mendapati HTTP 503/429
+   * Menjaga script agar tahan terhadap transient CPU spike / cold start di Cloudflare.
+   */
+  function fetchQrBlobWithRetry(ticketId, maxRetries) {
+    const retries = (typeof maxRetries === "number") ? maxRetries : 2;
+    const qrUrl = buildQrCodeUrl(ticketId);
+    let attempt = 0;
+
+    while (attempt <= retries) {
+      try {
+        const response = UrlFetchApp.fetch(qrUrl, { muteHttpExceptions: true });
+        const statusCode = response.getResponseCode();
+
+        if (statusCode === 200) {
+          return response.getBlob();
+        }
+
+        // Jika kena 503 (Service Unavailable / CPU Limit), 429 (Rate Limit), atau 502/504
+        if (statusCode === 503 || statusCode === 429 || statusCode === 502 || statusCode === 504) {
+          attempt++;
+          if (attempt <= retries) {
+            Utilities.sleep(1000 * attempt); // Backoff 1s, 2s
+            continue;
+          }
+        }
+
+        return null;
+      } catch (err) {
+        attempt++;
+        if (attempt <= retries) {
+          Utilities.sleep(1000 * attempt);
+        } else {
+          return null;
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
    * Helper: Update media content file Google Drive secara in-place (Direct File Revision)
    * ID file & Link Google Drive TIDAK BERUBAH sama sekali.
    * Hak akses viewer tetap utuh dan TIDAK ADA notifikasi email ke user!
@@ -737,11 +777,10 @@ const CONFIG = {
       let fileUrl = "-";
 
       try {
-        const qrUrl = buildQrCodeUrl(ticketId);
-        const qrResponse = UrlFetchApp.fetch(qrUrl, { muteHttpExceptions: true });
-        if (qrResponse.getResponseCode() === 200) {
+        const rawBlob = fetchQrBlobWithRetry(ticketId, 2);
+        if (rawBlob) {
           const sanitizedName = name.replace(/[^a-zA-Z0-9_-]/g, "_");
-          const qrBlob = qrResponse.getBlob().setName("QR_" + sanitizedName + "_" + ticketId + ".png");
+          const qrBlob = rawBlob.setName("QR_" + sanitizedName + "_" + ticketId + ".png");
 
           // 4. Simpan ke Google Drive folder
           const targetFolder = getOrCreateQrFolder();
@@ -1945,11 +1984,10 @@ const CONFIG = {
           let fileId = "-";
           let fileUrl = "-";
           try {
-            const qrUrl = buildQrCodeUrl(ticketId);
-            const qrResponse = UrlFetchApp.fetch(qrUrl, { muteHttpExceptions: true });
-            if (qrResponse.getResponseCode() === 200) {
+            const rawBlob = fetchQrBlobWithRetry(ticketId, 2);
+            if (rawBlob) {
               const sanitizedName = name.replace(/[^a-zA-Z0-9_-]/g, "_");
-              const qrBlob = qrResponse.getBlob().setName("QR_OTS_" + sanitizedName + "_" + ticketId + ".png");
+              const qrBlob = rawBlob.setName("QR_OTS_" + sanitizedName + "_" + ticketId + ".png");
 
               const targetFolder = getOrCreateQrFolder();
               const driveFile = targetFolder.createFile(qrBlob);
@@ -2385,11 +2423,10 @@ const CONFIG = {
         let fileUrl = "-";
 
         try {
-          const qrUrl = buildQrCodeUrl(ticketId);
-          const qrResponse = UrlFetchApp.fetch(qrUrl, { muteHttpExceptions: true });
-          if (qrResponse.getResponseCode() === 200) {
+          const rawBlob = fetchQrBlobWithRetry(ticketId, 2);
+          if (rawBlob) {
             const sanitizedName = name.replace(/[^a-zA-Z0-9_-]/g, "_");
-            const qrBlob = qrResponse.getBlob().setName("QR_" + sanitizedName + "_" + ticketId + ".png");
+            const qrBlob = rawBlob.setName("QR_" + sanitizedName + "_" + ticketId + ".png");
             const driveFile = targetFolder.createFile(qrBlob);
             fileId = driveFile.getId();
             fileUrl = driveFile.getUrl();
@@ -2453,6 +2490,7 @@ const CONFIG = {
 
         existingEmails.add(email.toLowerCase());
         importedCount++;
+        Utilities.sleep(500); // Jeda aman antar fetch agar Cloudflare tidak overload
       }
 
       logger.setSummary(`Impor Form: ${importedCount} baru, ${skippedCount} dilewati`);
@@ -3202,17 +3240,16 @@ const CONFIG = {
         }
 
         try {
-          const qrUrl = buildQrCodeUrl(ticketId);
-          const qrResponse = UrlFetchApp.fetch(qrUrl, { muteHttpExceptions: true });
+          const rawBlob = fetchQrBlobWithRetry(ticketId, 2);
 
-          if (qrResponse.getResponseCode() !== 200) {
-            logger.warn(`Row ${currentRow} (${ticketId}): Gagal fetch QR (HTTP ${qrResponse.getResponseCode()})`);
+          if (!rawBlob) {
+            logger.warn(`Row ${currentRow} (${ticketId}): Gagal fetch QR setelah retry.`);
             failedCount++;
             continue;
           }
 
           const sanitizedName = name.replace(/[^a-zA-Z0-9_-]/g, "_");
-          const qrBlob = qrResponse.getBlob().setName("QR_" + sanitizedName + "_" + ticketId + ".png");
+          const qrBlob = rawBlob.setName("QR_" + sanitizedName + "_" + ticketId + ".png");
 
           if (fileId && fileId !== "-") {
             try {
@@ -3245,7 +3282,7 @@ const CONFIG = {
             logger.info(`Row ${currentRow} (${ticketId}): File QR baru dibuat (File ID: ${fileId})`);
           }
 
-          Utilities.sleep(150); // Jeda kecil untuk menjaga quota Drive & Cloudflare
+          Utilities.sleep(500); // Jeda aman 500ms agar Cloudflare tidak terkena CPU limit/503
         } catch (itemErr) {
           logger.error(`Row ${currentRow} (${ticketId}) error: ${itemErr.message}`);
           failedCount++;

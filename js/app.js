@@ -38,6 +38,11 @@ window.EventPass = window.EventPass || {};
         ns.Sync.init();
       }
 
+      // Inisialisasi Checklist Presensi Massal (Batch Attendance)
+      if (ns.Batch) {
+        ns.Batch.init();
+      }
+
       // Check if location is allowed, otherwise display full-screen blocking overlay
       this.checkLocationState();
 
@@ -162,6 +167,9 @@ window.EventPass = window.EventPass || {};
             if (ns.state.isScanning) ns.Scanner.stopScanning();
             if (targetTab === "history") ns.UI.renderHistory();
             if (targetTab === "ots") ns.UI.renderOtsCustomFields(ns.state.customFields);
+            if (targetTab === "manual" && ns.Batch && ns.Batch.isBatchMode) {
+              ns.Batch.renderBatchRoster();
+            }
           }
         });
       });

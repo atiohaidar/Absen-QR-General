@@ -235,13 +235,31 @@ window.EventPass = window.EventPass || {};
     previewDevice: document.getElementById("cfg-device-info-preview"),
     previewLocation: document.getElementById("cfg-location-info-preview"),
 
-    // Manual Tab
+    // Manual Tab & Subviews
     manualSectionTitle: document.getElementById("manual-section-title"),
+    subtabBtnSingle: document.getElementById("subtab-btn-single"),
+    subtabBtnBatch: document.getElementById("subtab-btn-batch"),
+    manualSingleContainer: document.getElementById("manual-single-container"),
+    manualBatchContainer: document.getElementById("manual-batch-container"),
     inputManualId: document.getElementById("manual-ticket-id"),
     btnManualCheckin: document.getElementById("btn-manual-checkin"),
     inputManualSearch: document.getElementById("manual-search-query"),
     btnSearchQuery: document.getElementById("btn-search-query"),
     searchResultsList: document.getElementById("search-results-list"),
+
+    // Batch Checklist Tab
+    batchSearchQuery: document.getElementById("batch-search-query"),
+    btnBatchClearSearch: document.getElementById("btn-batch-clear-search"),
+    batchStatusFilter: document.getElementById("batch-status-filter"),
+    btnBatchSelectAll: document.getElementById("btn-batch-select-all"),
+    btnBatchDeselectAll: document.getElementById("btn-batch-deselect-all"),
+    batchStatsSummary: document.getElementById("batch-stats-summary"),
+    batchSelectedBadge: document.getElementById("batch-selected-badge"),
+    batchRosterList: document.getElementById("batch-roster-list"),
+    batchActionBar: document.getElementById("batch-action-bar"),
+    batchBarCount: document.getElementById("batch-bar-count"),
+    btnSubmitBatchCheckin: document.getElementById("btn-submit-batch-checkin"),
+    batchSubmitBtnText: document.getElementById("batch-submit-btn-text"),
 
     // OTS Tab
     formOts: document.getElementById("form-ots"),

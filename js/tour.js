@@ -112,7 +112,7 @@ window.EventPass = window.EventPass || {};
           tab: 'manual',
           popover: {
             title: 'Tab Cari Manual',
-            description: 'Mode cadangan jika kamera ponsel peserta rusak, layar gelap, atau peserta tidak membawa HP. Tersedia dua metode pencarian di tab ini.',
+            description: 'Mode cadangan jika kamera ponsel peserta rusak, layar gelap, atau peserta tidak membawa HP. Tersedia mode Cari Satuan dan Checklist Massal untuk absensi kelas/kelompok sekaligus.',
             side: 'bottom',
             align: 'center'
           }

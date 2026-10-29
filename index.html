@@ -268,9 +268,31 @@
     <!-- TAB 2: MANUAL SEARCH & CHECK-IN -->
     <div id="tab-manual" class="tab-pane">
       <div class="manual-card">
-        <h2 class="section-title" id="manual-section-title">Manual Check-In</h2>
-        <p class="section-desc">Gunakan ini jika kamera kesulitan membaca QR atau ponsel peserta kehabisan daya baterai.
-        </p>
+        <div class="manual-card-header">
+          <h2 class="section-title" id="manual-section-title">Manual Check-In</h2>
+          <p class="section-desc">Gunakan ini jika kamera kesulitan membaca QR atau untuk checklist presensi kelas/kelompok.</p>
+        </div>
+
+        <!-- Segmented Mode Switch: Cari Satuan vs Checklist Massal -->
+        <div class="manual-subnav-pills" role="tablist" aria-label="Mode Presensi Manual">
+          <button type="button" id="subtab-btn-single" class="subnav-pill active" data-subtab="single" role="tab" aria-selected="true">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <span>Cari Satuan</span>
+          </button>
+          <button type="button" id="subtab-btn-batch" class="subnav-pill" data-subtab="batch" role="tab" aria-selected="false">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 11l3 3L22 4"></path>
+              <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+            </svg>
+            <span>Checklist Massal</span>
+          </button>
+        </div>
+
+        <!-- SUBVIEW 1: SINGLE SEARCH & DIRECT ID CHECK-IN -->
+        <div id="manual-single-container" class="manual-subview active">
 
         <!-- Direct ID Input -->
         <div class="form-group">
@@ -307,6 +329,68 @@
 
         <!-- Search Results List -->
         <div id="search-results-list" class="search-results-list"></div>
+        </div>
+
+        <!-- SUBVIEW 2: BATCH / ROLL-CALL CHECKLIST -->
+        <div id="manual-batch-container" class="manual-subview" style="display: none;">
+          <!-- Filter & Search Toolbar -->
+          <div class="batch-controls-wrap">
+            <div class="batch-search-box-row">
+              <div class="batch-search-inner">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="batch-search-icon">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input type="text" id="batch-search-query" class="input-box batch-search-input" placeholder="Saring nama, NIM, atau tiket..." autocomplete="off">
+                <button type="button" id="btn-batch-clear-search" class="batch-clear-search-btn" style="display: none;" title="Hapus pencarian">&times;</button>
+              </div>
+            </div>
+
+            <div class="batch-filter-row">
+              <div class="batch-select-wrap">
+                <select id="batch-status-filter" class="batch-filter-select" aria-label="Saring Status Presensi">
+                  <option value="all">Semua Peserta</option>
+                  <option value="unattended" selected>Hanya Belum Hadir</option>
+                  <option value="attended">Hanya Sudah Hadir</option>
+                </select>
+              </div>
+              <div class="batch-quick-btns">
+                <button type="button" id="btn-batch-select-all" class="batch-tool-btn" title="Pilih semua yang sedang tampil">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                  <span>Pilih Tampil</span>
+                </button>
+                <button type="button" id="btn-batch-deselect-all" class="batch-tool-btn" title="Batalkan pilihan saat ini">
+                  <span>Batal Pilih</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Summary Stats Bar -->
+            <div class="batch-summary-bar">
+              <div class="batch-summary-text" id="batch-stats-summary">Memuat peserta...</div>
+              <span class="batch-pill-badge" id="batch-selected-badge">0 Dipilih</span>
+            </div>
+          </div>
+
+          <!-- Roster Items Container -->
+          <div id="batch-roster-list" class="batch-roster-list" role="list"></div>
+
+          <!-- Sticky Submit Bar -->
+          <div id="batch-action-bar" class="batch-action-bar">
+            <div class="batch-bar-info">
+              <span class="batch-bar-subtext">Siap disimpan:</span>
+              <strong id="batch-bar-count">0 Peserta Terpilih</strong>
+            </div>
+            <button type="button" id="btn-submit-batch-checkin" class="btn-primary btn-success btn-batch-save" disabled>
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+              <span id="batch-submit-btn-text">Simpan Presensi</span>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -377,7 +461,7 @@
           </div>
 
           <div class="form-group">
-            <label class="form-label" for="ots-email">Email (Opsional)</label>
+            <label class="form-label" for="ots-email">Email</label>
             <input type="email" id="ots-email" class="input-box" placeholder="Contoh: peserta@email.com"
               autocomplete="off">
             <small class="form-help-text">
@@ -389,7 +473,7 @@
           <div id="ots-custom-fields-container"></div>
 
           <div class="form-group">
-            <label class="form-label" for="ots-notes">Catatan / Asal (Opsional)</label>
+            <label class="form-label" for="ots-notes">Catatan / Asal</label>
             <input type="text" id="ots-notes" class="input-box" placeholder="Misal: Warga sekitar, Tamu RT, Walk-In"
               autocomplete="off">
           </div>
@@ -874,6 +958,7 @@
   <script src="js/ui.js?v=20261027_2"></script>
   <script src="js/scanner.js?v=20261027_2"></script>
   <script src="js/tour.js?v=20261027_2"></script>
+  <script src="js/batch.js?v=20261027_2"></script>
   <script src="js/app.js?v=20261027_2"></script>
 </body>
 

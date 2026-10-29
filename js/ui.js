@@ -143,6 +143,7 @@ window.EventPass = window.EventPass || {};
             if (ns.Sync && ns.state.apiUrl) {
               ns.Sync.syncAttendees(false).finally(() => {
                 if (ns.DOM.globalLoadingBar) ns.DOM.globalLoadingBar.classList.remove("active");
+                if (ns.Batch && ns.Batch.isBatchMode) ns.Batch.renderBatchRoster();
               });
             } else {
               setTimeout(() => {
